@@ -20,7 +20,7 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-PARSE_PROMPT = """Analyze this songsheet image and extract structured data.
+PARSE_PROMPT = """Analyze this Brazilian songsheet image and extract structured data.
 
 Return a JSON object with:
 
@@ -31,17 +31,16 @@ Return a JSON object with:
   
   "chords": {
     "ChordName": {
-      "fingering": "string-by-string from low E to high e, x=muted, 0=open, fret number otherwise",
-      "fret": starting_fret_number
+      "fingering": "6 characters for 6 strings (low E to high e): x=muted, 0=open, or fret number",
+      "fret": starting_fret_position
     }
   },
   
   "bars": [
     {
-      "lyrics": "lyrics for this bar",
-      "chords": ["Chord1", null, "Chord2", null],  
-      "beats": 4,
-      "section": "verse/chorus/bridge (if marked)"
+      "lyrics": "lyrics for this bar only",
+      "chords": ["ChordName"],
+      "beats": 4
     }
   ],
   
@@ -49,12 +48,26 @@ Return a JSON object with:
   "_confidence": 0.0 to 1.0
 }
 
-IMPORTANT:
-- For fingerings: read the chord diagram dots carefully. Format is 6 characters for 6 strings.
-  Example: x32010 means E string muted, A=3rd fret, D=2nd, G=open, B=1st, e=open (this is C major)
-- If a chord diagram shows a barre or position marker, include the "fret" field.
-- In "bars.chords", use null for beats where no chord change occurs.
-- Add to _flags anything you're unsure about.
+CRITICAL INSTRUCTIONS:
+
+1. CHORD DIAGRAMS - Read carefully:
+   - Look for a fret position number (e.g., "3fr", "5") on the side — this is the starting fret
+   - Many chords are NOT in open position — they may be at 3rd, 5th, 7th fret etc.
+   - Count dots relative to the position marker
+   - Format: 6 characters, low E string first. Example: 5x665x means E=5th fret, A=muted, D=6th, G=6th, B=5th, e=muted
+   - Barre chords: if a barre spans strings, all those strings get the same fret number
+
+2. BAR STRUCTURE - This is essential:
+   - There is a thin horizontal line between the chord diagrams and the lyrics
+   - Small VERTICAL lines on that horizontal line mark BAR DIVISIONS
+   - Each segment between vertical lines is ONE BAR (one measure)
+   - Typically 4 bars per line, like: |——|——|——|——|
+   - Each bar usually has ONE chord and a few syllables of lyrics
+   - Do NOT treat each text line as one bar — look for the vertical bar lines!
+
+3. LYRICS:
+   - Split lyrics by bar — only include the syllables that fall within each bar
+   - Hyphens indicate syllable breaks within words
 
 Return ONLY the JSON, no markdown or explanation."""
 
