@@ -1,44 +1,53 @@
-# João Gilberto Harmonic Analysis
+# Songsheet Parser
 
-Mapping the harmonic language of João Gilberto — his voicings, chord progressions, and substitution patterns.
-
-## Goal
-
-Create a model/algorithm of how João Gilberto harmonized songs. His specific chord voicings define bossa nova, and this project aims to systematically document and analyze them.
+Convert scanned songbook pages (chord charts with diagrams) into structured, machine-readable formats.
 
 ## Pipeline
 
 ```
-PDF Songsheets → PNG Pages → Vision Parse → JSON → Review → ChordMark
+PDF Songbooks → PNG Pages → Vision Parse → JSON → Review → ChordMark
                     ↓                         ↓
               (not committed)            (committed)
 ```
 
-See [docs/pipeline.md](docs/pipeline.md) for details.
-
 ## Structure
 
 ```
-├── docs/           # Documentation
-├── schemas/        # JSON validation schemas
 ├── scripts/        # Processing pipeline
+├── schemas/        # JSON validation schemas  
+├── docs/           # Documentation
 ├── data/
-│   ├── json/       # Intermediate parsed data
-│   └── chordmark/  # Final output files
-└── analysis/       # Pattern analysis (future)
+│   └── {artist}/   # Per-artist organized
+│       ├── json/       # Intermediate parsed data
+│       └── chordmark/  # Final output files
+└── analysis/       # Artist-specific analysis (future)
+    └── {artist}/
 ```
 
-## Output Format
+## Supported Output
 
-Uses [ChordMark](https://chordmark.netlify.app/) for final representation — encodes rhythm, lyrics, and chord positions.
+- **JSON** — Intermediate format for review/correction
+- **[ChordMark](https://chordmark.netlify.app/)** — Encodes rhythm, lyrics, chord positions
 
-## Status
+## Usage
 
-- [x] Proof of concept (2 songs manually converted)
-- [ ] Pipeline scripts
-- [ ] Batch processing
-- [ ] Pattern analysis
+```bash
+# Extract pages from PDF
+python scripts/extract_pages.py songbook.pdf --output data/artist-name/png/
+
+# Parse with vision model
+python scripts/parse_songsheet.py data/artist-name/png/*.png --output data/artist-name/json/
+
+# Review JSONs, fix errors...
+
+# Convert to ChordMark
+python scripts/json_to_chordmark.py data/artist-name/json/*.json --output data/artist-name/chordmark/
+```
+
+## Artists
+
+- `joao-gilberto/` — João Gilberto songbook (in progress)
 
 ## License
 
-Analysis and derived data only. Original songsheets are copyrighted material and not included.
+Tool is open. Song data is for personal use only — original songsheets are copyrighted.
