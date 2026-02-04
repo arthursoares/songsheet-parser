@@ -1,0 +1,163 @@
+{
+  "title": "Eu vim da Bahia",
+  "chords": {
+    "A13": {
+      "fingering": "x02023",
+      "fret": 0
+    },
+    "A7": {
+      "fingering": "x02020",
+      "fret": 0
+    },
+    "G7": {
+      "fingering": "320001",
+      "fret": 0
+    },
+    "Gdim7": {
+      "fingering": "xx2323",
+      "fret": 0
+    },
+    "F#m7": {
+      "fingering": "222222",
+      "fret": 2
+    },
+    "F#dim7": {
+      "fingering": "xx1212",
+      "fret": 0
+    },
+    "Bm7/F#": {
+      "fingering": "224232",
+      "fret": 2
+    },
+    "E7": {
+      "fingering": "020100",
+      "fret": 0
+    },
+    "Am6": {
+      "fingering": "x02212",
+      "fret": 0
+    },
+    "Gm6": {
+      "fingering": "353335",
+      "fret": 3
+    },
+    "F#13": {
+      "fingering": "242324",
+      "fret": 2
+    },
+    "B7/F#": {
+      "fingering": "2x1202",
+      "fret": 0
+    },
+    "B7": {
+      "fingering": "x21202",
+      "fret": 0
+    },
+    "F#7+5": {
+      "fingering": "232332",
+      "fret": 2
+    },
+    "B7-9": {
+      "fingering": "x21212",
+      "fret": 0
+    },
+    "En79": {
+      "fingering": "020100",
+      "fret": 0
+    },
+    "Em7/G": {
+      "fingering": "320000",
+      "fret": 3
+    }
+  },
+  "bars": [
+    {
+      "lyrics": "da Na noi-te de lu-a, no can to do mar",
+      "chords": [
+        "A13",
+        "A7",
+        "G7",
+        "Gdim7",
+        "F#m7",
+        "F#dim7",
+        "Bm7/F#",
+        "E7"
+      ],
+      "beats": 8
+    },
+    {
+      "lyrics": "Eu vim da Ba-hi a, Mas eu volto pra la",
+      "chords": [
+        "A7",
+        "Am6",
+        "G7",
+        null,
+        "F#m7",
+        "F#dim7",
+        "Bm7/F#",
+        "E7"
+      ],
+      "beats": 8
+    },
+    {
+      "lyrics": "Eu vim da Ba-hi- a Mas um di a eu vol-to pra la",
+      "chords": [
+        "A7",
+        "Am6",
+        "G7",
+        null,
+        "F#m7",
+        "F#dim7",
+        "Bm7/F#",
+        "E7"
+      ],
+      "beats": 8
+    },
+    {
+      "lyrics": "Eu vim da Ba-hi- a Mas um di a eu vol-to pra la",
+      "chords": [
+        "A7",
+        "Am6",
+        "G7",
+        "Gm6",
+        "F#13",
+        "B7/F#",
+        "Bm7/F#",
+        "E7"
+      ],
+      "beats": 8
+    },
+    {
+      "lyrics": "Eu vim da Ba-hi a, Mas eu volto pra la",
+      "chords": [
+        "A7",
+        "An6",
+        "G7",
+        null,
+        "F#m7",
+        "B7",
+        "Bm7/F#",
+        "E7"
+      ],
+      "beats": 8
+    },
+    {
+      "lyrics": "Eu vim da Ba-hi- a Mas um di a eu vol-to pra la",
+      "chords": [
+        "A7",
+        "Am6",
+        "G7",
+        "F#7+5",
+        "F#13",
+        "B7-9",
+        "En79",
+        "Em7/G"
+      ],
+      "beats": 8
+    }
+  ],
+  "_confidence": 0.95,
+  "source": "sample-20.png",
+  "_parsed_at": "2026-02-04T09:03:22.861000+00:00",
+  "_model": "gemini/gemini-2.0-flash"
+}

@@ -1,0 +1,181 @@
+{
+  "title": "Segredo",
+  "composer": "Herivelto Martins e Marino Pinto",
+  "key": null,
+  "chords": {
+    "Emaj7": {
+      "fingering": "021100",
+      "fret": null
+    },
+    "A#m7": {
+      "fingering": "x13121",
+      "fret": null
+    },
+    "Am6": {
+      "fingering": "xx2212",
+      "fret": null
+    },
+    "G#m7": {
+      "fingering": "464444",
+      "fret": null
+    },
+    "G#m6": {
+      "fingering": "464446",
+      "fret": null
+    },
+    "F#m7": {
+      "fingering": "242222",
+      "fret": null
+    },
+    "Am7": {
+      "fingering": "x02010",
+      "fret": null
+    },
+    "G#dim7": {
+      "fingering": "353434",
+      "fret": null
+    },
+    "F#dim7": {
+      "fingering": "23212x",
+      "fret": null
+    },
+    "Bm7/F#": {
+      "fingering": "224232",
+      "fret": null
+    },
+    "Amaj7": {
+      "fingering": "x02120",
+      "fret": null
+    },
+    "E6/G#": {
+      "fingering": "4x212x",
+      "fret": null
+    },
+    "E13": {
+      "fingering": "020120",
+      "fret": null
+    },
+    "A6": {
+      "fingering": "x02222",
+      "fret": null
+    },
+    "A#m7-5": {
+      "fingering": "x1212x",
+      "fret": null
+    },
+    "A#dim7": {
+      "fingering": "x12020",
+      "fret": null
+    },
+    "C#75": {
+      "fingering": "x4545x",
+      "fret": null
+    }
+  },
+  "bars": [
+    {
+      "lyrics": "Teu mal comen-tar o pas-sa- do",
+      "chords": [
+        "Emaj7",
+        null,
+        "A#m7",
+        "Am6"
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "quem pre-cisa sa-ber O que houve entre nos dois",
+      "chords": [
+        "G#m7",
+        "G#m6",
+        "F#m7",
+        "F#m7"
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "xe e pro fun - do das re des Seg-re-do e pra qua-tro pa-he",
+      "chords": [
+        "Am7",
+        null,
+        "G#m7",
+        "G#dim7"
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "deixe que ma-les pe-queninos Ve - nham trans-formar os nossos des-ti",
+      "chords": [
+        "F#m7",
+        "F#dim7",
+        "Bm7/F#",
+        "G#dim7"
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "O peixe e pro fun - do das re des Seg-re-do e pra qua-tro pa-re",
+      "chords": [
+        "Amaj7",
+        "Am7",
+        "G#m7",
+        "G#dim7"
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "meiro e preci so jul-gar Pra de-pois conde-nar",
+      "chords": [
+        "F#m7",
+        "F#m6",
+        "F#dim7",
+        "Emaj7"
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "Quan do o infor-tu nio nos ba te a por ta",
+      "chords": [
+        "F#m7",
+        "F#m6",
+        "F#dim7",
+        "Emaj7"
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "mor nos fo ge pe la ja-ne",
+      "chords": [
+        "F#dim7",
+        "E13",
+        "Amaj7",
+        "A6"
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "A felici-da-de para nos es ta mor",
+      "chords": [
+        "A#m7-5",
+        "A#dim7",
+        "G#m7",
+        "G#m7"
+      ],
+      "beats": 4,
+      "section": null
+    }
+  ],
+  "_flags": [],
+  "_confidence": 0.95,
+  "source": "sample-26.png",
+  "_parsed_at": "2026-02-04T09:04:24.484491+00:00",
+  "_model": "gemini/gemini-2.0-flash"
+}

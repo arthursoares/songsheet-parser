@@ -1,0 +1,271 @@
+{
+  "title": "Desafinado",
+  "composer": null,
+  "key": null,
+  "chords": {
+    "Gmaj7": {
+      "fingering": "320002",
+      "fret": 3
+    },
+    "F#7": {
+      "fingering": "242322",
+      "fret": 2
+    },
+    "Bmaj7": {
+      "fingering": "x23324",
+      "fret": 2
+    },
+    "F#dim7": {
+      "fingering": "231212",
+      "fret": 2
+    },
+    "E79": {
+      "fingering": "020102",
+      "fret": 0
+    },
+    "D#maj7": {
+      "fingering": "x65333",
+      "fret": 6
+    },
+    "De6/G": {
+      "fingering": "320200",
+      "fret": 3
+    },
+    "Dmaj7/F#": {
+      "fingering": "200222",
+      "fret": 2
+    },
+    "E9": {
+      "fingering": "020102",
+      "fret": 0
+    },
+    "Em79": {
+      "fingering": "020100",
+      "fret": 0
+    },
+    "A7sus4": {
+      "fingering": "x02030",
+      "fret": 0
+    },
+    "A7": {
+      "fingering": "x02020",
+      "fret": 0
+    },
+    "F#m7-5": {
+      "fingering": "231212",
+      "fret": 2
+    },
+    "B7-9/F#": {
+      "fingering": "231212",
+      "fret": 2
+    },
+    "Em7": {
+      "fingering": "020100",
+      "fret": 0
+    },
+    "F#7+5": {
+      "fingering": "231212",
+      "fret": 2
+    },
+    "Bm7": {
+      "fingering": "x24232",
+      "fret": 2
+    },
+    "G#dim7": {
+      "fingering": "453434",
+      "fret": 4
+    },
+    "F#maj7": {
+      "fingering": "231211",
+      "fret": 2
+    },
+    "E13": {
+      "fingering": "020100",
+      "fret": 0
+    },
+    "Gdim7": {
+      "fingering": "342323",
+      "fret": 3
+    },
+    "G#m7": {
+      "fingering": "464444",
+      "fret": 4
+    },
+    "C#7-9-5": {
+      "fingering": "453434",
+      "fret": 4
+    },
+    "F#m7": {
+      "fingering": "242222",
+      "fret": 2
+    },
+    "Bm79/F#": {
+      "fingering": "231212",
+      "fret": 2
+    },
+    "E13/F": {
+      "fingering": "220100",
+      "fret": 2
+    },
+    "E13-9": {
+      "fingering": "020100",
+      "fret": 0
+    },
+    "Amaj7": {
+      "fingering": "x02120",
+      "fret": 0
+    },
+    "G7": {
+      "fingering": "320001",
+      "fret": 3
+    },
+    "Bm7/F#": {
+      "fingering": "224232",
+      "fret": 2
+    },
+    "E7+5": {
+      "fingering": "020100",
+      "fret": 0
+    },
+    "Cm6": {
+      "fingering": "x32210",
+      "fret": 3
+    },
+    "A7-9": {
+      "fingering": "545444",
+      "fret": 5
+    }
+  },
+  "bars": [
+    {
+      "lyrics": "privi-legi-a dos tem ou vi do i-gual ao seu",
+      "chords": [
+        "Gmaj7",
+        "F#7",
+        "Bmaj7",
+        "F#dim7"
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "Eu po ssuo a penas o que Deus me deu",
+      "chords": [
+        "E79",
+        "D#maj7",
+        "De6/G"
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "Se vo-",
+      "chords": [
+        "Dmaj7/F#",
+        "E9"
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "ce in sis te em clas si-fi car",
+      "chords": [
+        "Em79",
+        "A7sus4",
+        "A7",
+        "F#m7-5"
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "Meu com-porta men to de anti musi cal",
+      "chords": [
+        "B7-9/F#"
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "Eu, mesmo men tin-do devo ar-gu men-tar",
+      "chords": [
+        "Em7",
+        "F#7+5",
+        "Bm7",
+        "G#dim7"
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "Que isto e",
+      "chords": [
+        "F#maj7",
+        "F7+5",
+        "E13",
+        "A7"
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "bos sa no va, que i sto e muito na tu ral",
+      "chords": [
+        "0"
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "que vo ce nao sa be nem se quer pres sente",
+      "chords": [
+        "F#maj7",
+        "Gdim7",
+        "G#m7",
+        "C#7-9-5"
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "que os desafina dos tambem tem um cora cao",
+      "chords": [
+        "F#maj7",
+        "F#m7",
+        "Bm79/F#",
+        "E13/F",
+        "E13-9"
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "Fotogra-fei vo ce na minha Rollei-flex Reve-",
+      "chords": [
+        "Amaj7",
+        "G7",
+        "F#7",
+        "Bm7/F#",
+        "E7+5"
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "Tou-se a sua enor me in gra-ti dao So",
+      "chords": [
+        "Em7",
+        "Cm6",
+        "E79",
+        "A7-9"
+      ],
+      "beats": 4,
+      "section": null
+    }
+  ],
+  "_flags": [],
+  "_confidence": 0.95,
+  "source": "sample-16.png",
+  "_parsed_at": "2026-02-04T09:02:34.028382+00:00",
+  "_model": "gemini/gemini-2.0-flash"
+}

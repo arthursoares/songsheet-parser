@@ -1,0 +1,334 @@
+{
+  "title": "Desde Que o Samba e Samba",
+  "key": null,
+  "composer": null,
+  "chords": {
+    "C#m7": {
+      "fingering": "x46454",
+      "fret": 4
+    },
+    "E13-9": {
+      "fingering": "010200"
+    },
+    "A13-9": {
+      "fingering": "54545x"
+    },
+    "D6": {
+      "fingering": "xx0202"
+    },
+    "Dm6": {
+      "fingering": "xx0201"
+    },
+    "F#7": {
+      "fingering": "242322"
+    },
+    "Bm7/F#": {
+      "fingering": "224232"
+    },
+    "G#dim7": {
+      "fingering": "xx1212"
+    },
+    "F#m6": {
+      "fingering": "211211"
+    },
+    "Bm7/F": {
+      "fingering": "120202"
+    },
+    "E7": {
+      "fingering": "020100"
+    },
+    "Amaj7": {
+      "fingering": "x02120"
+    },
+    "A6": {
+      "fingering": "x02222"
+    },
+    "G#m7-5": {
+      "fingering": "45454x"
+    },
+    "G#7": {
+      "fingering": "464544"
+    },
+    "F#13": {
+      "fingering": "23233x"
+    },
+    "Bm79/F#": {
+      "fingering": "224232"
+    },
+    "E13/F": {
+      "fingering": "110200"
+    },
+    "Bm7-5": {
+      "fingering": "x2323x"
+    },
+    "C#9-5": {
+      "fingering": "x4545x"
+    },
+    "F#m79": {
+      "fingering": "242322"
+    },
+    "Gm6": {
+      "fingering": "353433"
+    },
+    "Gdim7": {
+      "fingering": "xx2323"
+    },
+    "B13,9/D#": {
+      "fingering": "x6566x"
+    },
+    "B9+5/D#": {
+      "fingering": "x6566x"
+    },
+    "B9/D#": {
+      "fingering": "x6566x"
+    },
+    "E13-9/D": {
+      "fingering": "xx0200"
+    },
+    "Em79": {
+      "fingering": "020100"
+    },
+    "A13": {
+      "fingering": "575655"
+    },
+    "Cm7": {
+      "fingering": "x35343"
+    },
+    "A7+5": {
+      "fingering": "x03221"
+    },
+    "Dmaj7": {
+      "fingering": "xx0222"
+    },
+    "C#7+5": {
+      "fingering": "x4345x"
+    }
+  },
+  "bars": [
+    {
+      "lyrics": "vo - ra",
+      "chords": [
+        "C#m7",
+        null,
+        "E13-9",
+        "A13-9"
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "Tudo demo-ran-do en ser tao a-",
+      "chords": [
+        "D6",
+        "Dm6",
+        null,
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "ruim",
+      "chords": [
+        "C#m7",
+        "F#7",
+        "Bm7/F#",
+        "G#dim7"
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "Mas al guma coi sa acontece, no quan- do a-",
+      "chords": [
+        null,
+        null,
+        null,
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "go ra em mim",
+      "chords": [
+        "F#m7",
+        "F#m6",
+        "Bm7/F#",
+        "Bm7/F"
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "Cantando eu man-do a tris-te za em -",
+      "chords": [
+        null,
+        null,
+        null,
+        "E7"
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "bo ra",
+      "chords": [
+        "Amaj7",
+        "A6",
+        "G#m7-5",
+        "G#dim7"
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "O samba ain-da vai nas cer, O samba ainda",
+      "chords": [
+        null,
+        null,
+        null,
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "nao che gou,",
+      "chords": [
+        "F#m7",
+        "G#7",
+        "C#m7",
+        "F#13"
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "O sam-ba nao vai mor rer, ve ja o",
+      "chords": [
+        null,
+        null,
+        null,
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "dia ainda nao rai ou",
+      "chords": [
+        "Bm79/F#",
+        "E13/F",
+        "Bm7-5",
+        "C#9-5"
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "O samba e pai do prazer, o sam-",
+      "chords": [
+        null,
+        null,
+        null,
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "ba e filho da dor,",
+      "chords": [
+        "F#m79",
+        "G#7",
+        "Gm6",
+        "Gdim7"
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "O gran de po-der trans for ma dor",
+      "chords": [
+        null,
+        null,
+        null,
+        "F#7"
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "",
+      "chords": [
+        "B13,9/D#",
+        "B9+5/D#",
+        "B9/D#",
+        "E13-9/D"
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "A tris te za e se-",
+      "chords": [
+        "Em79",
+        "A13",
+        "D6",
+        "Dm6"
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "nho ra,",
+      "chords": [
+        "Cm7",
+        "E13-9",
+        "A7+5",
+        "Dmaj7"
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "Desde que o samba e sam ba e as",
+      "chords": [
+        null,
+        null,
+        null,
+        "Dm6"
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "sim",
+      "chords": [
+        "C#7+5",
+        "F#7",
+        "Bm7/F#",
+        "G#dim7"
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "A la-grima clara so bre a pele es -",
+      "chords": [
+        null,
+        null,
+        null,
+        null
+      ],
+      "beats": 4,
+      "section": null
+    }
+  ],
+  "_flags": [],
+  "_confidence": 0.95,
+  "source": "sample-03.png",
+  "_parsed_at": "2026-02-04T08:59:50.208718+00:00",
+  "_model": "gemini/gemini-2.0-flash"
+}

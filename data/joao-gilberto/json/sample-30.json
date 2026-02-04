@@ -1,0 +1,360 @@
+{
+  "title": "Chega de Saudade",
+  "composer": null,
+  "key": null,
+  "chords": {
+    "Cmaj7": {
+      "fingering": "x32000",
+      "fret": 3
+    },
+    "A7+5": {
+      "fingering": "x02020",
+      "fret": 0
+    },
+    "Am6": {
+      "fingering": "x02212",
+      "fret": 0
+    },
+    "Dm79/A": {
+      "fingering": "x03210",
+      "fret": 0
+    },
+    "G13/G#": {
+      "fingering": "433453",
+      "fret": 0
+    },
+    "F#dim7": {
+      "fingering": "23232x",
+      "fret": 0
+    },
+    "D#dim7": {
+      "fingering": "67676x",
+      "fret": 0
+    },
+    "Dm7": {
+      "fingering": "xx0211",
+      "fret": 0
+    },
+    "Dm7-5": {
+      "fingering": "xx0101",
+      "fret": 0
+    },
+    "G#m6": {
+      "fingering": "466546",
+      "fret": 0
+    },
+    "Cmaj9": {
+      "fingering": "x32030",
+      "fret": 3
+    },
+    "Bm6": {
+      "fingering": "x24434",
+      "fret": 0
+    },
+    "E9": {
+      "fingering": "021202",
+      "fret": 0
+    },
+    "Am7": {
+      "fingering": "x02010",
+      "fret": 0
+    },
+    "G#m7": {
+      "fingering": "464444",
+      "fret": 0
+    },
+    "Gm7": {
+      "fingering": "353333",
+      "fret": 0
+    },
+    "Gdim7": {
+      "fingering": "231312",
+      "fret": 0
+    },
+    "Fmaj7": {
+      "fingering": "133211",
+      "fret": 0
+    },
+    "Fm7": {
+      "fingering": "131111",
+      "fret": 0
+    },
+    "En79": {
+      "fingering": "020100",
+      "fret": 0
+    },
+    "A13": {
+      "fingering": "x02020",
+      "fret": 0
+    },
+    "A7": {
+      "fingering": "x02020",
+      "fret": 0
+    },
+    "G479": {
+      "fingering": "320000",
+      "fret": 0
+    },
+    "Cmaj7/G": {
+      "fingering": "332000",
+      "fret": 3
+    },
+    "Cm7": {
+      "fingering": "x35343",
+      "fret": 0
+    },
+    "D7/A": {
+      "fingering": "x00212",
+      "fret": 0
+    }
+  },
+  "bars": [
+    {
+      "lyrics": "Mas se e la vol tar,",
+      "chords": [
+        "Cmaj7",
+        null,
+        "A7+5",
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "se e la vol-tar,",
+      "chords": [
+        "Am6",
+        null,
+        "Dm79/A",
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "que coi sa lin-",
+      "chords": [
+        "G13/G#",
+        null,
+        "F#dim7",
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "da, que coi sa lou -",
+      "chords": [
+        "Cmaj7",
+        null,
+        null,
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "ca Pois ha",
+      "chords": [
+        null,
+        null,
+        null,
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "me-nos peixi - nhos a na - dar",
+      "chords": [
+        "Cmaj7",
+        null,
+        "D#dim7",
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "no mar, Do que os bei-",
+      "chords": [
+        "Dm7",
+        null,
+        null,
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "ji - nhos que eu darei na sua bo",
+      "chords": [
+        "Am6",
+        null,
+        "Dm7-5",
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "ca",
+      "chords": [
+        null,
+        "G13/G#",
+        "G#m6",
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "Den tro dos meus bra co -",
+      "chords": [
+        "Cmaj7",
+        null,
+        "Cmaj9",
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "5 05 a-",
+      "chords": [
+        "Am6",
+        null,
+        null,
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "bra - cos hao de ser mi",
+      "chords": [
+        "Bm6",
+        null,
+        "E9",
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "Thoes de a-bra - cos Aper-",
+      "chords": [
+        "Am7",
+        null,
+        "G#m7",
+        "Gm7"
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "-",
+      "chords": [
+        "Gdim7",
+        null,
+        null,
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "ta - do as-sim, co - la do as-sim,",
+      "chords": [
+        "Fmaj7",
+        null,
+        "Fm7",
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "ca - la - do as-sim, A-bra - cos e bei-ji-",
+      "chords": [
+        "En79",
+        null,
+        "A13",
+        "A7+5"
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "nhos e ca-ri - nhos sem ter fim",
+      "chords": [
+        "Am6",
+        null,
+        "Dm79/A",
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "Que e pra acabar com esse ne-",
+      "chords": [
+        "Bm6",
+        null,
+        "A7",
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "go-cio de vi - ver lon-ge de mim",
+      "chords": [
+        "Am6",
+        null,
+        "G479",
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "-",
+      "chords": [
+        "Cmaj7/G",
+        null,
+        null,
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "Vai mi - nha tris - te za e",
+      "chords": [
+        "Cm7",
+        null,
+        null,
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "di za",
+      "chords": [
+        "D7/A",
+        null,
+        null,
+        null
+      ],
+      "beats": 4,
+      "section": null
+    }
+  ],
+  "_flags": [],
+  "_confidence": 0.9,
+  "source": "sample-30.png",
+  "_parsed_at": "2026-02-04T09:05:16.372701+00:00",
+  "_model": "gemini/gemini-2.0-flash"
+}

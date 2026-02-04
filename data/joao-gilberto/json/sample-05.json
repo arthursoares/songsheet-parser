@@ -1,0 +1,236 @@
+{
+  "title": "Você vai ver",
+  "composer": "Antonio Carlos Jobim",
+  "key": null,
+  "chords": {
+    "D6/F#": {
+      "fingering": "200232",
+      "fret": 2
+    },
+    "Gm7-5": {
+      "fingering": "343333"
+    },
+    "G#dim7": {
+      "fingering": "23232x"
+    },
+    "Cmaj7": {
+      "fingering": "x32000"
+    },
+    "Cmaj9": {
+      "fingering": "x32030"
+    },
+    "F#m7": {
+      "fingering": "242222"
+    },
+    "F#m6": {
+      "fingering": "241222"
+    },
+    "E9": {
+      "fingering": "022132"
+    },
+    "A13": {
+      "fingering": "x02020"
+    },
+    "C#m7/G#": {
+      "fingering": "442454"
+    },
+    "E13/F": {
+      "fingering": "120120"
+    },
+    "Bm79/F#": {
+      "fingering": "221222"
+    },
+    "G#m7-5": {
+      "fingering": "454444"
+    },
+    "A7": {
+      "fingering": "x02020"
+    },
+    "D6": {
+      "fingering": "xx0232"
+    },
+    "C#m7-5": {
+      "fingering": "454444"
+    },
+    "B7": {
+      "fingering": "x21202"
+    },
+    "Gm7": {
+      "fingering": "353333"
+    },
+    "Gm6": {
+      "fingering": "352333"
+    },
+    "B13": {
+      "fingering": "x21232"
+    },
+    "A479": {
+      "fingering": "5x5655"
+    },
+    "A7-9": {
+      "fingering": "5x565x"
+    },
+    "F#13": {
+      "fingering": "242322"
+    },
+    "F#7-5": {
+      "fingering": "23232x"
+    },
+    "F#dim7": {
+      "fingering": "231212"
+    },
+    "Gdim7": {
+      "fingering": "453434"
+    }
+  },
+  "bars": [
+    {
+      "lyrics": "voce vai ver",
+      "chords": [
+        "D6/F#",
+        null,
+        null,
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "voce vai ver",
+      "chords": [
+        "D6/F#",
+        null,
+        null,
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "voce vai implo-",
+      "chords": [
+        "Gm7-5",
+        "G#dim7",
+        "Cmaj7",
+        "Cmaj9"
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "rar me pe-dir pra vol-tar",
+      "chords": [
+        null,
+        null,
+        null,
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "e eu vou dizer des sa vez nao vai",
+      "chords": [
+        "F#m7",
+        "F#m6",
+        "E9",
+        "A13"
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "dar eu fui gos - tar de vo ce dei ca-rinho a-",
+      "chords": [
+        null,
+        null,
+        null,
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "mor pra va-ler dei tan to a-mor mas vo-ce queiria",
+      "chords": [
+        "C#m7/G#",
+        "E13/F",
+        "Bm79/F#",
+        "G#m7-5"
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "so pra zer Vo ce zam bou e brin cou com as",
+      "chords": [
+        "F#m7",
+        "F#m6",
+        "Em7",
+        "A7"
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "coisas mas seria que eu fiz quando eu ten tei com vo ce ser feliz",
+      "chords": [
+        "Gm7",
+        "C#m7-5",
+        "Cmaj7",
+        "Cmaj9"
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "e-ra tao for-te a ilu-sao que pren-dia o",
+      "chords": [
+        "F#m7",
+        "B7",
+        "E9",
+        "Gm6"
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "meu coracao vo ce matou a ilu - sao liber tou meu coracao",
+      "chords": [
+        "F#m7",
+        "B13",
+        "E9",
+        "A479"
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "hoje e voce que vai ter que chorar vo ce vai ver",
+      "chords": [
+        "F#13",
+        "F#7-5",
+        "F#m6",
+        "F#dim7"
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": null,
+      "chords": [
+        "E9",
+        "Gm6",
+        "Gdim7",
+        null
+      ],
+      "beats": 4,
+      "section": null
+    }
+  ],
+  "_flags": [],
+  "_confidence": 0.95,
+  "source": "sample-05.png",
+  "_parsed_at": "2026-02-04T09:00:12.391515+00:00",
+  "_model": "gemini/gemini-2.0-flash"
+}

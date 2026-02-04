@@ -1,0 +1,166 @@
+{
+  "title": "Desafinado",
+  "chords": {
+    "D6": {
+      "fingering": "xx0202",
+      "fret": 0
+    },
+    "Dmaj9": {
+      "fingering": "xx0220",
+      "fret": 0
+    },
+    "E9": {
+      "fingering": "022132",
+      "fret": 0
+    },
+    "Em79": {
+      "fingering": "022030",
+      "fret": 0
+    },
+    "A13": {
+      "fingering": "x02020",
+      "fret": 0
+    },
+    "F#m7-5": {
+      "fingering": "2x2212",
+      "fret": 2
+    },
+    "B7-9/F#": {
+      "fingering": "21212x",
+      "fret": 2
+    },
+    "Gmaj7": {
+      "fingering": "320002",
+      "fret": 3
+    },
+    "F#7+5": {
+      "fingering": "23232x",
+      "fret": 2
+    },
+    "F#m7": {
+      "fingering": "242222",
+      "fret": 2
+    },
+    "Fdim7": {
+      "fingering": "12121x",
+      "fret": 1
+    },
+    "D#maj7": {
+      "fingering": "x65333",
+      "fret": 3
+    },
+    "D#6/G": {
+      "fingering": "332343",
+      "fret": 3
+    },
+    "A7-9": {
+      "fingering": "x02000",
+      "fret": 0
+    },
+    "Am7": {
+      "fingering": "x02010",
+      "fret": 0
+    }
+  },
+  "bars": [
+    {
+      "lyrics": "nao  po-de - ra  fa  lar as  sim  do meu a - mor",
+      "chords": [
+        "D6",
+        "Dmaj9",
+        "E9"
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "Ella e o mai - or que voce po-de en-con trar",
+      "chords": [
+        "Em79",
+        "A13",
+        "F#m7-5",
+        "B7-9/F#"
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "Vo-",
+      "chords": [
+        null,
+        null,
+        null,
+        null
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "ce com a sua mu  sica es-que ceu o princi pal",
+      "chords": [
+        "Gmaj7",
+        "F#7+5",
+        "F#m7",
+        "Fdim7"
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "Que no",
+      "chords": [
+        null,
+        null,
+        null,
+        null
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "peito dos de-safina - dos No fundo do pei - to bate ca-la - do,",
+      "chords": [
+        "E9",
+        "D#maj7",
+        "D#6/G"
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "peito dos desa-fi - na - dos, Tam - ben ba - te um co-ra - cao",
+      "chords": [
+        "E9",
+        "A7-9",
+        "D6"
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": null,
+      "chords": [
+        "D6",
+        "Am7",
+        "D6",
+        "Am7",
+        "D6",
+        "Am7",
+        "D6",
+        "Am7"
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": null,
+      "chords": [
+        "D6",
+        "Am7",
+        "D6",
+        "Am7",
+        "D6",
+        "Am7",
+        "D6",
+        "Am7"
+      ],
+      "beats": 4
+    }
+  ],
+  "_confidence": 0.95,
+  "source": "sample-17.png",
+  "_parsed_at": "2026-02-04T09:02:42.470897+00:00",
+  "_model": "gemini/gemini-2.0-flash"
+}

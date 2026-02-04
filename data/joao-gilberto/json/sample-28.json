@@ -1,0 +1,225 @@
+{
+  "title": "Segredo",
+  "chords": {
+    "E13": {
+      "fingering": "020202",
+      "fret": 0
+    },
+    "E13-9": {
+      "fingering": "000000",
+      "fret": 0
+    },
+    "Amaj7": {
+      "fingering": "x02120",
+      "fret": 0
+    },
+    "A6": {
+      "fingering": "x02222",
+      "fret": 0
+    },
+    "A#m7-5": {
+      "fingering": "x12020",
+      "fret": 0
+    },
+    "A#dim7": {
+      "fingering": "675656",
+      "fret": 6
+    },
+    "G#m7": {
+      "fingering": "464444",
+      "fret": 4
+    },
+    "G#m6": {
+      "fingering": "463444",
+      "fret": 4
+    },
+    "G7+5": {
+      "fingering": "323233",
+      "fret": 0
+    },
+    "F#7": {
+      "fingering": "242322",
+      "fret": 2
+    },
+    "F#m7": {
+      "fingering": "242222",
+      "fret": 2
+    },
+    "Fdim7": {
+      "fingering": "121212",
+      "fret": 1
+    },
+    "G#dim7": {
+      "fingering": "454545",
+      "fret": 4
+    },
+    "Gm7": {
+      "fingering": "353333",
+      "fret": 3
+    },
+    "F#m6": {
+      "fingering": "242224",
+      "fret": 2
+    },
+    "Bm7/Fe": {
+      "fingering": "222222",
+      "fret": 2
+    },
+    "E7+5": {
+      "fingering": "000000",
+      "fret": 0
+    },
+    "Gdim7": {
+      "fingering": "343434",
+      "fret": 3
+    },
+    "F#dim7": {
+      "fingering": "232323",
+      "fret": 2
+    },
+    "Emaj7": {
+      "fingering": "000000",
+      "fret": 0
+    },
+    "Ema 19": {
+      "fingering": "777777",
+      "fret": 7
+    }
+  },
+  "bars": [
+    {
+      "lyrics": "pe- la ja-ne - la",
+      "chords": [
+        "E13",
+        null,
+        "E13-9",
+        "Amaj7"
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "A fe - li - ci - da-",
+      "chords": [
+        null,
+        "A6",
+        null,
+        "A#m7-5"
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "de pa-ra nos es - ta mor - ta",
+      "chords": [
+        "A#dim7",
+        "G#m7",
+        null,
+        "G#m6"
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "E ninguem pode vi-ver",
+      "chords": [
+        "G7+5",
+        null,
+        "F#7",
+        null
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "sem e - la",
+      "chords": [
+        "F#7",
+        null,
+        "F#m7",
+        null
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "Pa - ra o nos - so mal",
+      "chords": [
+        "Fdim7",
+        "G#dim7",
+        "Amaj7",
+        null
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "na-o ha re - medio, co - ra - cao",
+      "chords": [
+        "A#dim7",
+        null,
+        "Gm7",
+        null
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "Nin-guem tem cul-pa da nos-sa de -",
+      "chords": [
+        "G#m7",
+        null,
+        "G#m6",
+        "F#m7"
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "su - ni - ao",
+      "chords": [
+        "F#m6",
+        "Fdim7",
+        "Bm7/Fe",
+        null
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "Pa - ra o nos - so mal",
+      "chords": [
+        "E13",
+        "E7+5",
+        "Amaj7",
+        null
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "na-o ha re-me - dio, co - ra - cao",
+      "chords": [
+        "Gdim7",
+        null,
+        "G#m7",
+        null
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "Nin-guem tem cul-pa da nos-sa de -",
+      "chords": [
+        "G#m6",
+        null,
+        "F#m7",
+        null
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "su - ni - ao",
+      "chords": [
+        "F#dim7",
+        "Emaj7",
+        "Ema 19",
+        null
+      ],
+      "beats": 4
+    }
+  ],
+  "_confidence": 0.95,
+  "source": "sample-28.png",
+  "_parsed_at": "2026-02-04T09:04:49.640230+00:00",
+  "_model": "gemini/gemini-2.0-flash"
+}

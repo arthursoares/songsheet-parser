@@ -1,0 +1,333 @@
+{
+  "title": "Eu vim da Bahia",
+  "composer": "Gilberto Gil",
+  "chords": {
+    "Em79": {
+      "fingering": "020100"
+    },
+    "Gmaj7": {
+      "fingering": "320002"
+    },
+    "B7/F#": {
+      "fingering": "221202"
+    },
+    "Em7": {
+      "fingering": "020100"
+    },
+    "Am6": {
+      "fingering": "x02212"
+    },
+    "G7": {
+      "fingering": "320001"
+    },
+    "Gm6": {
+      "fingering": "3x2030"
+    },
+    "F#m7": {
+      "fingering": "2x2220"
+    },
+    "D6/F#": {
+      "fingering": "200202"
+    },
+    "Em7/G": {
+      "fingering": "320000"
+    },
+    "A13": {
+      "fingering": "5x5670",
+      "fret": 5
+    },
+    "A7+5": {
+      "fingering": "x02333"
+    },
+    "Am7": {
+      "fingering": "x02010"
+    },
+    "Dm7/A": {
+      "fingering": "5x0565",
+      "fret": 5
+    },
+    "G#dim7": {
+      "fingering": "x4242x"
+    },
+    "F#dim7+5": {
+      "fingering": "2x123x"
+    },
+    "Fdim7": {
+      "fingering": "1x010x"
+    },
+    "A#dim7": {
+      "fingering": "6x565x",
+      "fret": 6
+    },
+    "Adim7": {
+      "fingering": "5x454x",
+      "fret": 5
+    },
+    "G6": {
+      "fingering": "320030"
+    },
+    "B7": {
+      "fingering": "x21202"
+    },
+    "Bm7/F#": {
+      "fingering": "220202"
+    },
+    "Amaj7": {
+      "fingering": "x02120"
+    },
+    "E13": {
+      "fingering": "020220"
+    },
+    "A7": {
+      "fingering": "x02020"
+    },
+    "Cmaj7": {
+      "fingering": "x32000"
+    },
+    "E9": {
+      "fingering": "020102"
+    },
+    "Gdim7": {
+      "fingering": "3x232x"
+    },
+    "F#dim7": {
+      "fingering": "2x121x"
+    },
+    "E7": {
+      "fingering": "020100"
+    }
+  },
+  "bars": [
+    {
+      "lyrics": "Eu vim,",
+      "chords": [
+        "Em79",
+        null,
+        "Gmaj7",
+        null,
+        "B7/F#",
+        null
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "vim da Bahia can tar,",
+      "chords": [
+        "Em7",
+        null
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "Eu vim da Ba-!",
+      "chords": [
+        null
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "hi-a con - tar",
+      "chords": [
+        "Am6",
+        null,
+        "G7",
+        null,
+        "Gm6",
+        null
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "Tan-ta coi-sa bo - ni - ta que tem",
+      "chords": [
+        "F#m7",
+        null,
+        "D6/F#",
+        null,
+        "Em79",
+        null
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "tem meu ceu, tem meu mar A Ba-hi-a que",
+      "chords": [
+        "Em7/G",
+        null,
+        "A13",
+        null,
+        "A7+5",
+        null,
+        "Am7",
+        null,
+        "Am6",
+        null,
+        "Dm7/A",
+        null,
+        "G#dim7",
+        null
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "vi - ve pra di - zer, Como e que se faz pra vi-ver",
+      "chords": [
+        "Gm6",
+        null,
+        "F#dim7+5",
+        null,
+        "Fdim7",
+        null,
+        "A#dim7",
+        null,
+        "Gmaj7",
+        null,
+        "Adim7",
+        null,
+        "Gmaj7",
+        null,
+        "G6",
+        null
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "Onde a",
+      "chords": [
+        null
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "gen-te nao tem pra co-mer,",
+      "chords": [
+        "F#m7",
+        null,
+        "B7",
+        null,
+        "Em7",
+        null
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "de fo - me nao mor-re",
+      "chords": [
+        "Em79",
+        null,
+        "Am7",
+        null,
+        "Am6",
+        null,
+        "Gmaj7",
+        null
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "Por-que na Ba -",
+      "chords": [
+        "G6",
+        null
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "hi - a tem mae man ja, De outro lado o Se-nhor do Bon-fim",
+      "chords": [
+        "Bm7/Fe",
+        null,
+        "Fdim7",
+        null,
+        "Amaj7",
+        null,
+        "F#m7",
+        null,
+        "Bm7/Fe",
+        null,
+        "E13",
+        null,
+        "Em7",
+        null,
+        "A7",
+        null
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "Que a-ju-da o ba-ia-no a vi-ver,",
+      "chords": [
+        "Am7",
+        null,
+        "Am6",
+        null,
+        "Gmaj7",
+        null,
+        "G6",
+        null
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "Pra can - tar, pra sam-bar pra va-",
+      "chords": [
+        "F#m7",
+        null,
+        "B7",
+        null,
+        "Em7",
+        null,
+        "A7",
+        null
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "Ter Pra mor - rer de alegri - a, Na fes-ta de ru-a,",
+      "chords": [
+        "Am6",
+        null,
+        "G7",
+        null,
+        "Cmaj7",
+        null,
+        "B7/F#",
+        null
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "no samba de ro",
+      "chords": [
+        "E9",
+        null
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "da Na noi-te de lu-a, no can to do mar",
+      "chords": [
+        "A13",
+        null,
+        "G7",
+        null,
+        "Gdim?",
+        null,
+        "F#m7",
+        null,
+        "F#dim7",
+        null,
+        "Bm7/F",
+        null,
+        "E7",
+        null
+      ],
+      "beats": 4
+    }
+  ],
+  "_flags": [],
+  "_confidence": 0.95,
+  "source": "sample-18.png",
+  "_parsed_at": "2026-02-04T09:02:57.600758+00:00",
+  "_model": "gemini/gemini-2.0-flash"
+}

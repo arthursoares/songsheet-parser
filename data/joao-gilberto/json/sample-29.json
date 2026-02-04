@@ -1,0 +1,175 @@
+{
+  "title": "Chega de Saudade",
+  "composer": "Antonio Carlos Jobim",
+  "key": null,
+  "chords": {
+    "Cm7": {
+      "fingering": "x35343",
+      "fret": 3
+    },
+    "D79/A": {
+      "fingering": "x00213",
+      "fret": null
+    },
+    "G#m6": {
+      "fingering": "4x3444",
+      "fret": null
+    },
+    "F#dim7": {
+      "fingering": "231212",
+      "fret": null
+    },
+    "Gm79": {
+      "fingering": "353335",
+      "fret": null
+    },
+    "G#6": {
+      "fingering": "465666",
+      "fret": null
+    },
+    "G7+5": {
+      "fingering": "3x3443",
+      "fret": null
+    },
+    "Am6": {
+      "fingering": "575557",
+      "fret": null
+    },
+    "Adim7": {
+      "fingering": "564545",
+      "fret": null
+    },
+    "Gm6": {
+      "fingering": "353333",
+      "fret": null
+    },
+    "Gdim7": {
+      "fingering": "342323",
+      "fret": null
+    },
+    "Fm7": {
+      "fingering": "131113",
+      "fret": null
+    },
+    "Cm79": {
+      "fingering": "x33333",
+      "fret": 3
+    },
+    "Dm7": {
+      "fingering": "557565",
+      "fret": 5
+    },
+    "G13": {
+      "fingering": "353453",
+      "fret": 3
+    }
+  },
+  "bars": [
+    {
+      "lyrics": null,
+      "chords": [
+        "Cm7",
+        null,
+        null,
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "Vai mi nha tris te za e di za",
+      "chords": [
+        "Cm7",
+        null,
+        "D79/A",
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "e la que sen ela nao pode ser",
+      "chords": [
+        "G#m6",
+        null,
+        "Cm7",
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "Diz lhe nu ma pre ce que ela reg res-",
+      "chords": [
+        "F#dim7",
+        null,
+        "Gm79",
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "se, por que eu nao posso mais sofrer",
+      "chords": [
+        "G#6",
+        null,
+        "G7+5",
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "Che ga de sau da de,a rea li-",
+      "chords": [
+        "Cm7",
+        null,
+        "Am6",
+        "Adim7"
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "da de e que sen e la nao ha paz Nao ha be",
+      "chords": [
+        "G#m6",
+        null,
+        "Gm6",
+        "Gdim7"
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "le za, e so tris-te-za e a melancoli a que nao",
+      "chords": [
+        "Fm7",
+        null,
+        "G7+5",
+        "Cm7",
+        "Cm79"
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "sai de mim, Nao sai de mim, nao sai",
+      "chords": [
+        "Adim7",
+        "G#m6",
+        "Cm7",
+        "Dm7",
+        "G13"
+      ],
+      "beats": 4,
+      "section": null
+    }
+  ],
+  "_flags": [],
+  "_confidence": 0.9,
+  "source": "sample-29.png",
+  "_parsed_at": "2026-02-04T09:04:59.563182+00:00",
+  "_model": "gemini/gemini-2.0-flash"
+}

@@ -1,0 +1,162 @@
+{
+  "title": "Nao Vou pra Casa",
+  "composer": null,
+  "key": null,
+  "chords": {
+    "D#m7": {
+      "fingering": "xx1322",
+      "fret": 6
+    },
+    "G#7": {
+      "fingering": "464544"
+    },
+    "C#m7/G#": {
+      "fingering": "442424"
+    },
+    "F#7": {
+      "fingering": "242322"
+    },
+    "D#m7-5": {
+      "fingering": "xx1222",
+      "fret": 6
+    },
+    "Em6": {
+      "fingering": "022020"
+    },
+    "Bmaj7": {
+      "fingering": "x21332"
+    },
+    "Fdim7": {
+      "fingering": "121211"
+    },
+    "C#m7": {
+      "fingering": "x46454"
+    },
+    "F#7 5": {
+      "fingering": "x3232x"
+    },
+    "C69/G": {
+      "fingering": "353335"
+    },
+    "B69/F#": {
+      "fingering": "221222"
+    }
+  },
+  "bars": [
+    {
+      "lyrics": "rit - ma - do",
+      "chords": [
+        "D#m7",
+        null,
+        "G#7",
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "que dei - xa a geri - te can-sa - do",
+      "chords": [
+        "C#m7/G#",
+        null,
+        "F#7",
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "de ba tu car",
+      "chords": [
+        null,
+        null,
+        null,
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "mas se na ro da de sam",
+      "chords": [
+        "D#m7-5",
+        null,
+        "G#7",
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "ba eu en-con - trar",
+      "chords": [
+        "C#m7/G#",
+        null,
+        "Em6",
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "um a-mor a - ' en tao nao",
+      "chords": [
+        "Bmaj7",
+        null,
+        "Fdim7",
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "vou pra cса sa nao se - nhor nao vou",
+      "chords": [
+        "C#m7",
+        null,
+        "F#7",
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "nao vou",
+      "chords": [
+        "Bmaj7",
+        null,
+        "F#7 5",
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "",
+      "chords": [
+        "C69/G",
+        null,
+        "B69/F#",
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "",
+      "chords": [
+        null,
+        null,
+        null,
+        null
+      ],
+      "beats": 4,
+      "section": null
+    }
+  ],
+  "_flags": [],
+  "_confidence": 0.95,
+  "source": "sample-13.png",
+  "_parsed_at": "2026-02-04T09:01:53.473692+00:00",
+  "_model": "gemini/gemini-2.0-flash"
+}

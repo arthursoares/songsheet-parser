@@ -1,0 +1,227 @@
+{
+  "title": "Desde Que o Samba e Samba",
+  "chords": {
+    "F#m7": {
+      "fingering": "222222",
+      "fret": 2
+    },
+    "F#m6": {
+      "fingering": "242222",
+      "fret": 2
+    },
+    "Bm7/F#": {
+      "fingering": "224232",
+      "fret": 2
+    },
+    "E13-9": {
+      "fingering": "020102"
+    },
+    "A13": {
+      "fingering": "575655",
+      "fret": 5
+    },
+    "Dmaj9": {
+      "fingering": "554654",
+      "fret": 5
+    },
+    "D69": {
+      "fingering": "554555",
+      "fret": 5
+    },
+    "C#m7": {
+      "fingering": "444444",
+      "fret": 4
+    },
+    "A7+5": {
+      "fingering": "565655",
+      "fret": 5
+    },
+    "D6": {
+      "fingering": "554555",
+      "fret": 5
+    },
+    "Dm6": {
+      "fingering": "554555",
+      "fret": 5
+    },
+    "Cam7": {
+      "fingering": "333333",
+      "fret": 3
+    },
+    "F#7": {
+      "fingering": "242322",
+      "fret": 2
+    },
+    "G#dim7": {
+      "fingering": "342423",
+      "fret": 3
+    },
+    "E7-9": {
+      "fingering": "776767",
+      "fret": 7
+    },
+    "Amaj7": {
+      "fingering": "546454",
+      "fret": 5
+    },
+    "E7": {
+      "fingering": "x20100"
+    },
+    "G7-5": {
+      "fingering": "343433",
+      "fret": 3
+    },
+    "A6": {
+      "fingering": "544455",
+      "fret": 5
+    }
+  },
+  "bars": [
+    {
+      "lyrics": "CU - ra,",
+      "chords": [
+        "F#m7",
+        null
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "a noite e a chuva que",
+      "chords": [
+        null,
+        "F#m6"
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "cai la fo - ra",
+      "chords": [
+        null,
+        null
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "So - li - dao",
+      "chords": [
+        "Bm7/F#",
+        "E13-9",
+        "A13"
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "a - pa -",
+      "chords": [
+        null,
+        "Dmaj9",
+        "D69"
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "vo - ra",
+      "chords": [
+        "C#m7",
+        null
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "Tudo demo-rando en ser",
+      "chords": [
+        "E13-9",
+        "A7+5",
+        "D6"
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "tao a -",
+      "chords": [
+        null,
+        "Dm6"
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "ruim",
+      "chords": [
+        "Cam7",
+        null
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "Mas al - guma coi - sa acontece, no quan - do a-",
+      "chords": [
+        "F#7",
+        "Bm7/F#",
+        "G#dim7"
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "go - ra em mim",
+      "chords": [
+        "F#m7",
+        "F#m6"
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "Can - tando eu man-do a tris-te - za em -",
+      "chords": [
+        "Bm7/F#",
+        "E7-9"
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "bo - ra",
+      "chords": [
+        "Amaj7",
+        null
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "Can - tando eu man-do a tris-te - za em",
+      "chords": [
+        "F#7",
+        "Bm7/F#",
+        "E7"
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "bo - ra",
+      "chords": [
+        "G7-5",
+        null
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "Can - tando eu man-do a tris-te - za em",
+      "chords": [
+        "F#7",
+        "Bm7/F#",
+        "E13-9"
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "bo - ra",
+      "chords": [
+        "A6",
+        "Amaj7"
+      ],
+      "beats": 4
+    }
+  ],
+  "_confidence": 0.9,
+  "source": "sample-04.png",
+  "_parsed_at": "2026-02-04T09:00:01.438718+00:00",
+  "_model": "gemini/gemini-2.0-flash"
+}

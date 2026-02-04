@@ -1,0 +1,155 @@
+{
+  "title": "Coracao Vagabundo",
+  "chords": {
+    "Am7": {
+      "fingering": "x02010"
+    },
+    "A7-9": {
+      "fingering": "5x565x",
+      "fret": 5
+    },
+    "Dm79": {
+      "fingering": "5x353x",
+      "fret": 5
+    },
+    "B7/F#": {
+      "fingering": "212222"
+    },
+    "Fm6": {
+      "fingering": "100111"
+    },
+    "Fdim7": {
+      "fingering": "121212"
+    },
+    "F#dim7": {
+      "fingering": "232323"
+    },
+    "G#dim7": {
+      "fingering": "343434"
+    },
+    "Gdim7": {
+      "fingering": "x56464"
+    },
+    "F7": {
+      "fingering": "131211"
+    },
+    "E7": {
+      "fingering": "020100"
+    },
+    "Em7": {
+      "fingering": "022030"
+    },
+    "A7": {
+      "fingering": "x02020"
+    },
+    "Gm6": {
+      "fingering": "352333"
+    },
+    "An79": {
+      "fingering": "5x565x",
+      "fret": 5
+    }
+  },
+  "bars": [
+    {
+      "lyrics": "Meu co-ra-cao de cri an ca Nao e",
+      "chords": [
+        "Am7",
+        "A7-9",
+        "Dm79",
+        null
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "so a lem-bran ca De um vul to fe-liz de mulher",
+      "chords": [
+        null,
+        "B7/F#",
+        "Fm6",
+        "Fdim7"
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "Que passou por meus sonhos sem dizer adeus E fez dos olhos meus",
+      "chords": [
+        "Am7",
+        "F#dim7",
+        "Fm6",
+        null
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "un cho-rar mais sem",
+      "chords": [
+        null
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "fim co ra cao va ga bun do",
+      "chords": [
+        "A7-9",
+        "Dm79",
+        "G#dim7",
+        "Gdim7"
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "Quer guar-dar o mun do en mim",
+      "chords": [
+        "F#dim7",
+        "F7",
+        "E7",
+        "Em7"
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "co ra cao va ga bun do",
+      "chords": [
+        "A7",
+        "A7",
+        "Dm79",
+        "G#dim7"
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": null,
+      "chords": [
+        null,
+        null,
+        null,
+        "Gm6"
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "Quer guar-dar o mun do en mim",
+      "chords": [
+        "F#dim7",
+        "F7",
+        "E7",
+        "Am7"
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": null,
+      "chords": [
+        null,
+        null,
+        "An79"
+      ],
+      "beats": 4
+    }
+  ],
+  "_confidence": 0.85,
+  "source": "sample-22.png",
+  "_parsed_at": "2026-02-04T09:03:40.795384+00:00",
+  "_model": "gemini/gemini-2.0-flash"
+}

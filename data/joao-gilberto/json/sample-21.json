@@ -1,0 +1,223 @@
+{
+  "title": "Coracão vagabundo",
+  "composer": "Caetano Veloso",
+  "key": null,
+  "chords": {
+    "Am7": {
+      "fingering": "x02010",
+      "fret": 0
+    },
+    "F#dim7": {
+      "fingering": "xx2323",
+      "fret": 2
+    },
+    "Fdim7": {
+      "fingering": "xx1212",
+      "fret": 1
+    },
+    "A7-9": {
+      "fingering": "5x565x",
+      "fret": 5
+    },
+    "Dm79": {
+      "fingering": "5x556x",
+      "fret": 5
+    },
+    "B7/F#": {
+      "fingering": "2x120x",
+      "fret": 2
+    },
+    "Fm6": {
+      "fingering": "1x0111",
+      "fret": 1
+    },
+    "G#dim7": {
+      "fingering": "4x4545",
+      "fret": 4
+    },
+    "Gm6": {
+      "fingering": "3x2333",
+      "fret": 3
+    },
+    "F7": {
+      "fingering": "1x1211",
+      "fret": 1
+    },
+    "E7": {
+      "fingering": "020100",
+      "fret": 0
+    }
+  },
+  "bars": [
+    {
+      "lyrics": null,
+      "chords": [
+        "Am7",
+        null,
+        null,
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "Meu cora-cao nao se",
+      "chords": [
+        "F#dim7",
+        null,
+        "Fdim7",
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "can - sa de ter espe-ran - ca De um dia ser tu - do o que quer",
+      "chords": [
+        null,
+        null,
+        null,
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": null,
+      "chords": [
+        "Am7",
+        null,
+        "A7-9",
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "Meu cora-cao de cri-an",
+      "chords": [
+        null,
+        null,
+        null,
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "ca Nao e so a lem-bran - ca De um vul-to feliz de mulher",
+      "chords": [
+        "Dm79",
+        null,
+        "B7/F#",
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": null,
+      "chords": [
+        "Fm6",
+        "Fdim7",
+        "Am7",
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "Que passou por meus sonhos sem dizer adeus E fez dos olhos meus",
+      "chords": [
+        null,
+        null,
+        null,
+        "F#dim7"
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": null,
+      "chords": [
+        "Fm6",
+        "A7-9",
+        "Dm79",
+        "G#dim7"
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "um cho-rar mais sem fim co - ra - cao va - ga - bun",
+      "chords": [
+        null,
+        null,
+        null,
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": null,
+      "chords": [
+        "Gm6",
+        "F#dim7",
+        "F7",
+        "E7"
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "do Quer guar-dar o mun do em mim",
+      "chords": [
+        null,
+        null,
+        null,
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": null,
+      "chords": [
+        "Am7",
+        null,
+        "Am7",
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "Meu cora-cao nao se can-",
+      "chords": [
+        null,
+        null,
+        null,
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "sa de ter espe-ran - ca De um dia ser tudo o que quer",
+      "chords": [
+        "F#dim7",
+        null,
+        "Fdim7",
+        "Am7"
+      ],
+      "beats": 4,
+      "section": null
+    }
+  ],
+  "_flags": [],
+  "_confidence": 0.95,
+  "source": "sample-21.png",
+  "_parsed_at": "2026-02-04T09:03:32.984167+00:00",
+  "_model": "gemini/gemini-2.0-flash"
+}

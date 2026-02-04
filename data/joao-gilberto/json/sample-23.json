@@ -1,0 +1,251 @@
+{
+  "title": "Da Cor do Pecado",
+  "composer": "Bororo",
+  "chords": {
+    "Amaj7": {
+      "fingering": "x02120"
+    },
+    "F#7+5": {
+      "fingering": "2x333x"
+    },
+    "Bm7/Fe": {
+      "fingering": "224232"
+    },
+    "G#dim7": {
+      "fingering": "34232x"
+    },
+    "F#m7": {
+      "fingering": "242222"
+    },
+    "F#m6": {
+      "fingering": "2x1222"
+    },
+    "Bm7/Fa": {
+      "fingering": "120202"
+    },
+    "Fdim?": {
+      "fingering": "12010x"
+    },
+    "Edim7": {
+      "fingering": "03434x"
+    },
+    "E7": {
+      "fingering": "020100"
+    },
+    "F#7": {
+      "fingering": "242322"
+    },
+    "Em7": {
+      "fingering": "022030"
+    },
+    "A7": {
+      "fingering": "x02020"
+    },
+    "D6": {
+      "fingering": "xx0202"
+    },
+    "G#7": {
+      "fingering": "464544"
+    },
+    "C#m7": {
+      "fingering": "x46454",
+      "fret": 4
+    },
+    "Dm6": {
+      "fingering": "xx0201"
+    },
+    "C#m7+5": {
+      "fingering": "x4345x"
+    },
+    "A7+5": {
+      "fingering": "x03221"
+    },
+    "Dmaj7": {
+      "fingering": "xx0222"
+    },
+    "Gmaj7": {
+      "fingering": "3x443x"
+    },
+    "G6": {
+      "fingering": "320000"
+    },
+    "A6": {
+      "fingering": "x02222"
+    },
+    "Gm6": {
+      "fingering": "3x233x"
+    },
+    "B7": {
+      "fingering": "x21202"
+    },
+    "E9": {
+      "fingering": "020102"
+    },
+    "Bm79/F#": {
+      "fingering": "224222"
+    },
+    "Gdim7": {
+      "fingering": "x5646x"
+    },
+    "Am6": {
+      "fingering": "x02212"
+    },
+    "A#7": {
+      "fingering": "x1212x"
+    },
+    "Dimaj9": {
+      "fingering": "x5666x"
+    },
+    "Dmaj9": {
+      "fingering": "5x666x",
+      "fret": 5
+    },
+    "C#m6": {
+      "fingering": "x4344x"
+    },
+    "Bm7": {
+      "fingering": "x24232"
+    },
+    "Bdim7": {
+      "fingering": "x2313x"
+    },
+    "Cdim7": {
+      "fingering": "x3424x"
+    },
+    "E7-9": {
+      "fingering": "020102"
+    }
+  },
+  "bars": [
+    {
+      "lyrics": "Este cor-po more no chei-ro-so gos-to so que vo-ce tem",
+      "chords": [
+        "Amaj7",
+        "F#7+5",
+        "Bm7/Fe",
+        "G#dim7",
+        "F#m7",
+        "F#m6",
+        "Bm7/Fa",
+        "Fdim?"
+      ],
+      "beats": 8
+    },
+    {
+      "lyrics": "e un cor-po del-gado da cor do pe-ca do que faz tao bem",
+      "chords": [
+        "Amaj7",
+        "Edim7",
+        "E7",
+        "Fdim?",
+        "F#m7",
+        "F#m6",
+        "Bm7/Fe",
+        "E7"
+      ],
+      "beats": 8
+    },
+    {
+      "lyrics": "este bei-jo mo-Tha-do es-can-da-li-za do que vo-ce me deu",
+      "chords": [
+        "F#7",
+        "Bm7/Fe",
+        "G#dim7",
+        "F#m7",
+        "F#m6",
+        "Bm7/Fa",
+        "Fdim?"
+      ],
+      "beats": 7
+    },
+    {
+      "lyrics": "tem um sa-bor dife-ren-te que a bo-ca da gen te ja-mais es-que-ceu",
+      "chords": [
+        "Em7",
+        "A7",
+        "D6",
+        "G#7",
+        "C#m7",
+        "Dm6",
+        "C#m7+5",
+        "A7+5"
+      ],
+      "beats": 8
+    },
+    {
+      "lyrics": "Quando vo-ce me res-pon de umas coisas com gra-ca a vergonha se es-con de porque se",
+      "chords": [
+        "Dmaj7",
+        "F#7+5",
+        "Gmaj7",
+        "G6",
+        "G#dim7",
+        null,
+        "A6",
+        "Gm6"
+      ],
+      "beats": 8
+    },
+    {
+      "lyrics": "revela a mal-dade da ra ca este cheiro de ma to tem chei-ro de fa to sau-da de tris-",
+      "chords": [
+        "F#m7",
+        "B7",
+        "E9",
+        "Gm6",
+        "F#m7",
+        null,
+        "Bm79/F#",
+        null
+      ],
+      "beats": 8
+    },
+    {
+      "lyrics": "te-za esta simples bele za teu corpo more-no more-na enlou-que ce",
+      "chords": [
+        "Bm79/F#",
+        "Gdim7",
+        "Gmaj7",
+        "G6",
+        "C#m7",
+        "F#7",
+        "Bm7",
+        "Am6"
+      ],
+      "beats": 8
+    },
+    {
+      "lyrics": "eu nao sei bem por-que so sin to na vida e que vem de vo-ce ai..",
+      "chords": [
+        "Gmaj7",
+        "G#dim7",
+        "A6",
+        "A#7",
+        "Dimaj9",
+        "A7",
+        "Dmaj9",
+        "E9"
+      ],
+      "beats": 8
+    },
+    {
+      "lyrics": "Este cor-po more no chei-ro-so gos-to so que vo-ce tem",
+      "chords": [
+        "Amaj7",
+        "C#m6",
+        "Bm7",
+        "Bdim7",
+        "F#m7",
+        "Cdim7",
+        "Bm7",
+        "E7-9"
+      ],
+      "beats": 8
+    }
+  ],
+  "_flags": [],
+  "_confidence": 0.9,
+  "source": "sample-23.png",
+  "_parsed_at": "2026-02-04T09:03:54.669240+00:00",
+  "_model": "gemini/gemini-2.0-flash"
+}

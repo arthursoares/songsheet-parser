@@ -1,0 +1,286 @@
+{
+  "title": "Nao Vou pra Casa",
+  "chords": {
+    "Bmaj7": {
+      "fingering": "x21332",
+      "fret": 2
+    },
+    "G#7": {
+      "fingering": "464544",
+      "fret": 4
+    },
+    "C#m7/G#": {
+      "fingering": "442454",
+      "fret": 4
+    },
+    "F#7": {
+      "fingering": "242322",
+      "fret": 2
+    },
+    "D#m7-5": {
+      "fingering": "677766",
+      "fret": 6
+    },
+    "Em6": {
+      "fingering": "022020"
+    },
+    "Fdim7": {
+      "fingering": "121212",
+      "fret": 1
+    },
+    "C#m7": {
+      "fingering": "442454",
+      "fret": 4
+    },
+    "F#7+5": {
+      "fingering": "232332",
+      "fret": 2
+    },
+    "Bmaj9": {
+      "fingering": "x21322",
+      "fret": 2
+    },
+    "B13/F#": {
+      "fingering": "224244",
+      "fret": 4
+    },
+    "Bmaj7/F#": {
+      "fingering": "224322",
+      "fret": 4
+    },
+    "F#13": {
+      "fingering": "233343",
+      "fret": 2
+    },
+    "D#m7": {
+      "fingering": "677666",
+      "fret": 6
+    }
+  },
+  "bars": [
+    {
+      "lyrics": "rit ma do",
+      "chords": [
+        "Bmaj7",
+        null,
+        null,
+        null
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "que dei xa a gen te can-sa do",
+      "chords": [
+        "G#7",
+        null,
+        "C#m7/G#",
+        null
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "de ba tu- car",
+      "chords": [
+        "F#7",
+        null,
+        null,
+        null
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": null,
+      "chords": [
+        "D#m7-5",
+        null,
+        null,
+        null
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "mas se na ro da de sam",
+      "chords": [
+        "G#7",
+        null,
+        "C#m7/G#",
+        null
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "ba eu en-con trar",
+      "chords": [
+        "Em6",
+        null,
+        null,
+        null
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "um a-mor a- en tao nao vou pra ca",
+      "chords": [
+        "Bmaj7",
+        null,
+        "Fdim7",
+        null
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "sa nao se nhor nao vou",
+      "chords": [
+        "C#m7",
+        null,
+        "F#7+5",
+        null
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "nao vou So vou pra ca sa",
+      "chords": [
+        "Bmaj7",
+        null,
+        "F#7+5",
+        null
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "quan-do o dia a cla re ar",
+      "chords": [
+        "Bmaj9",
+        null,
+        "Fdim7",
+        null
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "eu sou do sam ba",
+      "chords": [
+        "Bmaj7",
+        null,
+        "B13/F#",
+        null
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "pois o sam ba me cri ou",
+      "chords": [
+        "Bmaj7/F#",
+        null,
+        "G#7",
+        null
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "se por a-ca so um gran de a-mor",
+      "chords": [
+        "C#m7/G#",
+        null,
+        "G#7",
+        null
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "eu ar-ran-jar",
+      "chords": [
+        "C#m7/G#",
+        null,
+        null,
+        null
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "nao vou pra ca sa nao vou",
+      "chords": [
+        "F#13",
+        null,
+        null,
+        null
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "nao vou",
+      "chords": [
+        "F#7+5",
+        null,
+        null,
+        null
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "So vou pra ca sa",
+      "chords": [
+        "Bmaj7",
+        null,
+        "F#7+5",
+        null
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "quan-do o dia a cla re ar",
+      "chords": [
+        "Bmaj7",
+        null,
+        "Fdim7",
+        null
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "eu sou do sam ba",
+      "chords": [
+        "B13/F#",
+        null,
+        "Bmaj7/F#",
+        null
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "pois o sam ba me cri ou",
+      "chords": [
+        "D#m7",
+        null,
+        "G#7",
+        null
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "se por a ca so um gran de a-mor",
+      "chords": [
+        "C#m7/G#",
+        null,
+        "G#7",
+        null
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "eu ar-ran-jar",
+      "chords": [
+        "C#m7/G#",
+        null,
+        null,
+        null
+      ],
+      "beats": 4
+    }
+  ],
+  "_confidence": 0.95,
+  "source": "sample-11.png",
+  "_parsed_at": "2026-02-04T09:01:32.948383+00:00",
+  "_model": "gemini/gemini-2.0-flash"
+}

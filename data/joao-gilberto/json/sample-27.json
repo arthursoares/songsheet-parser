@@ -1,0 +1,295 @@
+{
+  "title": "Segredo",
+  "chords": {
+    "F#13": {
+      "fingering": "243444",
+      "fret": 2
+    },
+    "F#7+5": {
+      "fingering": "232333",
+      "fret": 2
+    },
+    "F#7": {
+      "fingering": "242322",
+      "fret": 2
+    },
+    "F#m7": {
+      "fingering": "242222",
+      "fret": 2
+    },
+    "Fdim7": {
+      "fingering": "121212",
+      "fret": 1
+    },
+    "G#dim7": {
+      "fingering": "343434",
+      "fret": 3
+    },
+    "A6": {
+      "fingering": "x02222"
+    },
+    "A#dim7": {
+      "fingering": "x12020"
+    },
+    "G#m7": {
+      "fingering": "464444",
+      "fret": 4
+    },
+    "G#m6": {
+      "fingering": "464446",
+      "fret": 4
+    },
+    "F#dim7": {
+      "fingering": "232323",
+      "fret": 2
+    },
+    "Emaj7": {
+      "fingering": "021100"
+    },
+    "E13": {
+      "fingering": "020120"
+    },
+    "A#m7": {
+      "fingering": "x13121"
+    },
+    "Am7": {
+      "fingering": "5x5555",
+      "fret": 5
+    },
+    "G#m7-5": {
+      "fingering": "454444",
+      "fret": 4
+    },
+    "Amaj7": {
+      "fingering": "5x6655",
+      "fret": 5
+    },
+    "Am6": {
+      "fingering": "5x4555",
+      "fret": 5
+    },
+    "F#m6": {
+      "fingering": "242224",
+      "fret": 2
+    },
+    "Bm7/F#": {
+      "fingering": "224232",
+      "fret": 2
+    },
+    "E6/G#": {
+      "fingering": "422122",
+      "fret": 4
+    },
+    "F#m7-5": {
+      "fingering": "232222",
+      "fret": 2
+    }
+  },
+  "bars": [
+    {
+      "lyrics": "E ninguem pode vi-ver",
+      "chords": [
+        "F#13",
+        "F#7+5",
+        "F#7",
+        "F#m7"
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "sem e la",
+      "chords": [
+        "Fdim7",
+        null,
+        "G#dim7",
+        null
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "Pa ra o nos so mal nao ha re-me dio, co ra cao",
+      "chords": [
+        "A6",
+        "A#dim7",
+        "G#m7",
+        "G#m6"
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "Nin-guem tem",
+      "chords": [
+        null,
+        null,
+        null,
+        null
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "cul-pa da nos-sa de su ni ao",
+      "chords": [
+        "F#m7",
+        "F#dim7",
+        "Emaj7",
+        "E13"
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "Teu",
+      "chords": [
+        null,
+        null,
+        null,
+        null
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "mal comen-tar o pas-sa do",
+      "chords": [
+        "Emaj7",
+        "A#m7",
+        "Am6",
+        "G#m7-5"
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "Nin-guem",
+      "chords": [
+        null,
+        null,
+        null,
+        null
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "O que houve entre nos dois",
+      "chords": [
+        "G#dim7",
+        "F#m7",
+        "F#m7",
+        "Amaj7"
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "O pei-xe e pro fun - do das",
+      "chords": [
+        null,
+        null,
+        null,
+        null
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "re des Seg-re-do e pra qua-tro pa-re des",
+      "chords": [
+        "Am6",
+        "G#m7",
+        "G#dim7",
+        "F#m7"
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "Nao deixe que ma-les pe-",
+      "chords": [
+        null,
+        null,
+        null,
+        null
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "queninos Ve-nham trans-formar os nossos des-ti nos",
+      "chords": [
+        "F#m6",
+        "F#dim7",
+        "Bm7/F#",
+        "G#dim7"
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "O peixe e pro fun - do das re",
+      "chords": [
+        null,
+        null,
+        null,
+        "A6"
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "des Seg-re-do e pra qua-tro pa-re des",
+      "chords": [
+        "Am6",
+        "G#m7",
+        "G#dim7",
+        "F#m7"
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "Primeiro e preci so jul-",
+      "chords": [
+        null,
+        null,
+        null,
+        null
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "gar Pra de-pois conde-nar",
+      "chords": [
+        "F#m6",
+        "F#dim7",
+        "Emaj7",
+        "E6/G#"
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "Quan do o infor-tu",
+      "chords": [
+        null,
+        null,
+        "F#m7-5",
+        null
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "nio nos ba te a por ta",
+      "chords": [
+        "F#m6",
+        "F#dim7",
+        "Emaj7",
+        "Bm7/F#"
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "E o a-mor nos fo ge",
+      "chords": [
+        null,
+        null,
+        null,
+        null
+      ],
+      "beats": 4
+    }
+  ],
+  "_flags": [],
+  "_confidence": 0.9,
+  "source": "sample-27.png",
+  "_parsed_at": "2026-02-04T09:04:37.595326+00:00",
+  "_model": "gemini/gemini-2.0-flash"
+}

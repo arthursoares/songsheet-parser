@@ -1,0 +1,219 @@
+{
+  "title": "Chega de Saudade",
+  "chords": {
+    "G#m6": {
+      "fingering": "466444",
+      "fret": 4
+    },
+    "Cm7": {
+      "fingering": "x31321"
+    },
+    "F#dim7": {
+      "fingering": "23121x"
+    },
+    "Gm79": {
+      "fingering": "353333"
+    },
+    "G#6": {
+      "fingering": "466544"
+    },
+    "G7+5": {
+      "fingering": "32323x"
+    },
+    "A#m6": {
+      "fingering": "688666"
+    },
+    "Adim7": {
+      "fingering": "56565x"
+    },
+    "Gm6": {
+      "fingering": "353433"
+    },
+    "Gdim7": {
+      "fingering": "23232x"
+    },
+    "Fm7": {
+      "fingering": "131111"
+    },
+    "G7": {
+      "fingering": "320001"
+    },
+    "Cm79": {
+      "fingering": "35333x"
+    },
+    "G13/G#": {
+      "fingering": "4545xx"
+    },
+    "Cmaj7": {
+      "fingering": "x32000"
+    },
+    "A7+5": {
+      "fingering": "21203x"
+    },
+    "Am6": {
+      "fingering": "x02212"
+    },
+    "Dm79/A": {
+      "fingering": "55353x"
+    },
+    "Dm7/A": {
+      "fingering": "553565"
+    },
+    "G#dim7": {
+      "fingering": "45353x"
+    },
+    "D#dim7": {
+      "fingering": "67575x"
+    },
+    "Dm7": {
+      "fingering": "x57565"
+    }
+  },
+  "bars": [
+    {
+      "lyrics": "e - la que sem ela nao pode ser",
+      "chords": [
+        "G#m6",
+        null,
+        null,
+        "Cm7"
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "Diz - The nu - ma pre - ce que ela reg - res-",
+      "chords": [
+        "F#dim7",
+        null,
+        null,
+        "Gm79"
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "se, por que eu nao posso mais sof - rer",
+      "chords": [
+        "G#6",
+        null,
+        "G7+5",
+        "G7+5"
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "Che - ga de sau - da - de, a rea - li - da",
+      "chords": [
+        "Cm7",
+        null,
+        "A#m6",
+        "Adim7"
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "- de e que sem e - la nao ha paz Nao ha be",
+      "chords": [
+        "G#m6",
+        null,
+        "Gm6",
+        "Gdim7"
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "Te za, e so tris-te-za e a melanco - li - a que nao sai",
+      "chords": [
+        "Fm7",
+        null,
+        "G7",
+        "Cm7"
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "de min, Nao sai de min, nao sai",
+      "chords": [
+        "Adim7",
+        null,
+        "G#m6",
+        "Cm7"
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": null,
+      "chords": [
+        null,
+        null,
+        "G13/G#",
+        "G#m6"
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "Mas se e - la vol - tar, se e - la vol-tar,",
+      "chords": [
+        "Cmaj7",
+        "A7+5",
+        "Am6",
+        "Dm79/A"
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "que coi - sa lin-",
+      "chords": [
+        null,
+        null,
+        null,
+        null
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "da, que coi - sa lou",
+      "chords": [
+        "Dm7/A",
+        null,
+        "G#dim7",
+        "F#dim7"
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "- ca Pois ha",
+      "chords": [
+        null,
+        null,
+        null,
+        "Cmaj7"
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "me-nos peixi - nhos a na - dar no mar,",
+      "chords": [
+        "Cmaj7",
+        "D#dim7",
+        "Dm7",
+        null
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "Do que os bei-",
+      "chords": [
+        null,
+        null,
+        null,
+        null
+      ],
+      "beats": 4
+    }
+  ],
+  "_flags": [],
+  "_confidence": 0.9,
+  "source": "sample-31.png",
+  "_parsed_at": "2026-02-04T09:05:27.998609+00:00",
+  "_model": "gemini/gemini-2.0-flash"
+}

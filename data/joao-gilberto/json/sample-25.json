@@ -1,0 +1,59 @@
+{
+  "title": "Da Cor do Pecado",
+  "composer": null,
+  "key": null,
+  "chords": {
+    "Em7": {
+      "fingering": "020100"
+    },
+    "A7": {
+      "fingering": "x02020"
+    },
+    "D6": {
+      "fingering": "xx0202"
+    },
+    "G#7": {
+      "fingering": "464544",
+      "fret": 4
+    },
+    "C#m7": {
+      "fingering": "x42454"
+    },
+    "Dm6": {
+      "fingering": "xx0201"
+    },
+    "C#m7+5": {
+      "fingering": "x46454",
+      "fret": 4
+    }
+  },
+  "bars": [
+    {
+      "lyrics": "tem um sa-bor dife-ren-te que a bo-ca da",
+      "chords": [
+        "Em7",
+        "A7",
+        "D6",
+        "G#7"
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "gen te ja - mais es-que-ceu",
+      "chords": [
+        "C#m7",
+        "Dm6",
+        "C#m7+5",
+        null
+      ],
+      "beats": 4,
+      "section": null
+    }
+  ],
+  "_flags": [],
+  "_confidence": 0.95,
+  "source": "sample-25.png",
+  "_parsed_at": "2026-02-04T09:04:14.052783+00:00",
+  "_model": "gemini/gemini-2.0-flash"
+}

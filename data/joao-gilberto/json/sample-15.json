@@ -1,0 +1,279 @@
+{
+  "title": "Desafinado",
+  "chords": {
+    "F#maj7": {
+      "fingering": "243322",
+      "fret": 2
+    },
+    "F#m7": {
+      "fingering": "242222",
+      "fret": 2
+    },
+    "Bm79/F#": {
+      "fingering": "222222",
+      "fret": 2
+    },
+    "E13/F": {
+      "fingering": "x32333"
+    },
+    "E13-9": {
+      "fingering": "x21222"
+    },
+    "Amaj7": {
+      "fingering": "x02120"
+    },
+    "G7": {
+      "fingering": "320001"
+    },
+    "F#7": {
+      "fingering": "242322",
+      "fret": 2
+    },
+    "Bm7/F#": {
+      "fingering": "224232",
+      "fret": 2
+    },
+    "E7+5": {
+      "fingering": "020110"
+    },
+    "Em7": {
+      "fingering": "022030"
+    },
+    "F#dim7": {
+      "fingering": "231212",
+      "fret": 2
+    },
+    "A7-9": {
+      "fingering": "575655",
+      "fret": 5
+    },
+    "D6": {
+      "fingering": "xx0202"
+    },
+    "Dmaj9": {
+      "fingering": "554555",
+      "fret": 5
+    },
+    "E9": {
+      "fingering": "020102"
+    },
+    "Em79": {
+      "fingering": "777777",
+      "fret": 7
+    },
+    "A13": {
+      "fingering": "545455",
+      "fret": 5
+    },
+    "A7+5": {
+      "fingering": "565655",
+      "fret": 5
+    },
+    "F#m7-5": {
+      "fingering": "232212",
+      "fret": 2
+    },
+    "B7-9/F#": {
+      "fingering": "221212",
+      "fret": 2
+    },
+    "Gmaj7": {
+      "fingering": "320002"
+    },
+    "Gm6": {
+      "fingering": "320030"
+    },
+    "E79": {
+      "fingering": "x76777",
+      "fret": 7
+    },
+    "D#maj7": {
+      "fingering": "687766",
+      "fret": 6
+    },
+    "D#6/G": {
+      "fingering": "333333",
+      "fret": 3
+    },
+    "Dmaj7": {
+      "fingering": "554665",
+      "fret": 5
+    }
+  },
+  "bars": [
+    {
+      "lyrics": "E que os desafi-na - dos tambem tem um cora-cao",
+      "chords": [
+        "F#maj7",
+        "F#m7",
+        "Bm79/F#",
+        null
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "Fo-to",
+      "chords": [
+        "E13/F",
+        "E13-9",
+        null,
+        null
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "grafei vo - ce na minha Rollei - flex",
+      "chords": [
+        "Amaj7",
+        "G7",
+        "F#7",
+        "Bm7/F#"
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "Reve-",
+      "chords": [
+        "E7+5",
+        null,
+        null,
+        null
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "lou-se a sua enor - me in - gra-ti-dab",
+      "chords": [
+        "Em7",
+        "F#dim7",
+        "Em7",
+        null
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": null,
+      "chords": [
+        "A7-9",
+        null,
+        null,
+        null
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "So nao podera fa - lar as sim",
+      "chords": [
+        "D6",
+        "Dmaj9",
+        "E9",
+        null
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "do meu a-mor",
+      "chords": [
+        null,
+        null,
+        null,
+        null
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "Ella e o maior que voce po - de en -contrar",
+      "chords": [
+        "Em79",
+        "A13",
+        "A7+5",
+        "F#m7-5"
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "Vo-",
+      "chords": [
+        "B7-9/F#",
+        null,
+        null,
+        null
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "ce com a sua mu - sica es-que - ceu o princi pal",
+      "chords": [
+        "Gmaj7",
+        "Gm6",
+        "F#m7",
+        "Bm7/F#"
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "Que no",
+      "chords": [
+        null,
+        null,
+        null,
+        null
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "peito dos de-safina - dos No fundo do pei - to bate ca-la - do,",
+      "chords": [
+        "E79",
+        "D#maj7",
+        "D#6/G",
+        null
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "peito dos desa-fina - dos, Tam bem bate te um co-ra - cao",
+      "chords": [
+        "E9",
+        "A7-9",
+        "D6",
+        null
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "Se vo-ce dis ser que eu de-sa-fi no amor",
+      "chords": [
+        "Dmaj7",
+        null,
+        "E9",
+        null
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "Saiba que isso en min provoca i - men - sa dor",
+      "chords": [
+        "Em79",
+        "A7-9",
+        "F#m7-5",
+        "F#dim7"
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "So",
+      "chords": [
+        null,
+        null,
+        null,
+        null
+      ],
+      "beats": 4
+    }
+  ],
+  "_confidence": 0.95,
+  "source": "sample-15.png",
+  "_parsed_at": "2026-02-04T09:02:18.982400+00:00",
+  "_model": "gemini/gemini-2.0-flash"
+}

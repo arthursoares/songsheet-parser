@@ -1,0 +1,309 @@
+{
+  "title": "Desafinado",
+  "composer": "Antonio Carlos Jobin",
+  "key": null,
+  "chords": {
+    "D6/F#": {
+      "fingering": "200202"
+    },
+    "Dmaj7/F#": {
+      "fingering": "200222"
+    },
+    "E79": {
+      "fingering": "020102"
+    },
+    "Em79": {
+      "fingering": "020132"
+    },
+    "A9": {
+      "fingering": "x02100"
+    },
+    "A7-9": {
+      "fingering": "x02000"
+    },
+    "F#m7-5": {
+      "fingering": "2x2210"
+    },
+    "F#dim7": {
+      "fingering": "2x121x"
+    },
+    "Em7": {
+      "fingering": "020100"
+    },
+    "F#7": {
+      "fingering": "242322"
+    },
+    "Bmaj7": {
+      "fingering": "x21331"
+    },
+    "E9": {
+      "fingering": "020102"
+    },
+    "D#maj7": {
+      "fingering": "xx6566",
+      "fret": 6
+    },
+    "Dmaj9": {
+      "fingering": "554655",
+      "fret": 5
+    },
+    "A13": {
+      "fingering": "575675",
+      "fret": 5
+    },
+    "A7+5": {
+      "fingering": "565655",
+      "fret": 5
+    },
+    "F#7-5": {
+      "fingering": "23232x",
+      "fret": 2
+    },
+    "B7-9/F#": {
+      "fingering": "221232",
+      "fret": 2
+    },
+    "Gmaj7": {
+      "fingering": "320002"
+    },
+    "Bm9": {
+      "fingering": "x21222"
+    },
+    "G#dim7": {
+      "fingering": "4x343x"
+    },
+    "F#maj7": {
+      "fingering": "213321",
+      "fret": 2
+    },
+    "F7+5": {
+      "fingering": "xx3211"
+    },
+    "E13": {
+      "fingering": "020120"
+    },
+    "A7": {
+      "fingering": "x02020"
+    },
+    "Gdim7": {
+      "fingering": "xx5656"
+    },
+    "G#m7": {
+      "fingering": "464444",
+      "fret": 4
+    },
+    "C#79": {
+      "fingering": "x43444"
+    },
+    "C#7-9": {
+      "fingering": "x43424"
+    }
+  },
+  "bars": [
+    {
+      "lyrics": "Se voce",
+      "chords": [
+        "D6/F#",
+        null,
+        null,
+        null
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "dis-ser que eu desa fino",
+      "chords": [
+        "Dmaj7/F#",
+        null,
+        null,
+        null
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "amor",
+      "chords": [
+        "E79",
+        null,
+        null,
+        null
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "Saiba que isso em mim",
+      "chords": [
+        "Em79",
+        null,
+        null,
+        null
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "provo ca i men sa dor",
+      "chords": [
+        "A9",
+        null,
+        "A7-9",
+        "F#m7-5"
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "So",
+      "chords": [
+        "F#dim7",
+        null,
+        null,
+        null
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "privi  legi a dos tem ou",
+      "chords": [
+        "Em7",
+        null,
+        "F#7",
+        null
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "vido i gual",
+      "chords": [
+        "Bmaj7",
+        null,
+        null,
+        null
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "ao seu",
+      "chords": [
+        "F#dim7",
+        null,
+        null,
+        null
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "Eu po ssuo a penas o que Deus me deu",
+      "chords": [
+        "E9",
+        null,
+        null,
+        "D#maj7"
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "Se vo-",
+      "chords": [
+        "Dmaj9",
+        null,
+        null,
+        null
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "ce in sis te em clas-si-fi car",
+      "chords": [
+        "Dmaj9",
+        null,
+        "Dmaj7",
+        null
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "Meu comporta mento de anti musi cal",
+      "chords": [
+        "Em9",
+        null,
+        "A13",
+        "A7+5"
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": null,
+      "chords": [
+        "F#7-5",
+        null,
+        "B7-9/F#",
+        null
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "Eu, mesmo mentin do devo ar gu men-tar",
+      "chords": [
+        "Gmaj7",
+        null,
+        "F#7+5",
+        null
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "Que isto e",
+      "chords": [
+        "Bm9",
+        null,
+        "G#dim7",
+        null
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "bos sa no va, Que isto e muito na-tu-ral",
+      "chords": [
+        "F#maj7",
+        null,
+        "F7+5",
+        "E13"
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "0",
+      "chords": [
+        "A7",
+        null,
+        null,
+        null
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "que voce nao sa be nem se quer pres sente",
+      "chords": [
+        "F#maj7",
+        null,
+        "Gdim7",
+        null
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": null,
+      "chords": [
+        "G#m7",
+        null,
+        "C#79",
+        "C#7-9"
+      ],
+      "beats": 4
+    }
+  ],
+  "_flags": [],
+  "_confidence": 0.9,
+  "source": "sample-14.png",
+  "_parsed_at": "2026-02-04T09:02:05.040105+00:00",
+  "_model": "gemini/gemini-2.0-flash"
+}

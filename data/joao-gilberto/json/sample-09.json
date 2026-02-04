@@ -1,0 +1,275 @@
+{
+  "title": "Eclipse",
+  "chords": {
+    "Fdim7": {
+      "fingering": "xx1212"
+    },
+    "B6/F#": {
+      "fingering": "244444",
+      "fret": 2
+    },
+    "Bmaj7": {
+      "fingering": "x21113"
+    },
+    "G#13": {
+      "fingering": "466566",
+      "fret": 4
+    },
+    "G#7+5": {
+      "fingering": "454544",
+      "fret": 4
+    },
+    "C#m7/G#": {
+      "fingering": "442454",
+      "fret": 4
+    },
+    "G#7": {
+      "fingering": "464544",
+      "fret": 4
+    },
+    "C#m7": {
+      "fingering": "x46454"
+    },
+    "F#13/G": {
+      "fingering": "34343x",
+      "fret": 3
+    },
+    "D#m7": {
+      "fingering": "x68676"
+    },
+    "Bmaj9/F#": {
+      "fingering": "2x132x"
+    },
+    "F#m7": {
+      "fingering": "242222",
+      "fret": 2
+    },
+    "F#dim7": {
+      "fingering": "232322",
+      "fret": 2
+    },
+    "Emaj7": {
+      "fingering": "021100"
+    },
+    "Em6": {
+      "fingering": "022020"
+    },
+    "G#m6": {
+      "fingering": "464444",
+      "fret": 4
+    },
+    "C#m7-5": {
+      "fingering": "x45454"
+    },
+    "B69/F#": {
+      "fingering": "242424",
+      "fret": 2
+    }
+  },
+  "bars": [
+    {
+      "lyrics": "cielo,",
+      "chords": [
+        "Fdim7",
+        null,
+        "Fdim?",
+        null,
+        "B6/F#"
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "Ausencia de luz en el mar",
+      "chords": [
+        null,
+        null,
+        null,
+        "Muy solo com"
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "mi desconsuelo,Mi-rando la noche me puse a Tho-rar",
+      "chords": [
+        "Bmaj7",
+        null,
+        "G#13",
+        "G#7+5",
+        "C#m7/G#",
+        "G#7"
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "Pensa que ya no me a-",
+      "chords": [
+        null,
+        "C#m79/G#"
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "ma - bas, Con hon - da des es-pera-cion",
+      "chords": [
+        "C#m7/G#",
+        null,
+        "F#13/G",
+        "C#m7"
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "Y en algo que siempre eclip-",
+      "chords": [
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "sa-ba, La luz de tu a-mor",
+      "chords": [
+        "Fdim7",
+        null,
+        "D#m7",
+        null,
+        "G#7",
+        "C#m79/G#"
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "E-clip se de luna",
+      "chords": [
+        null,
+        "F#13/G",
+        null,
+        "Bmaj9/F#"
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "en el cielo,",
+      "chords": [
+        null,
+        "Fdim?"
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "Ausencia de luz en el mar",
+      "chords": [
+        null,
+        "Bmaj9/F#"
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "Muy solo com mi descon-",
+      "chords": [
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "suelo, Mi-rando la no che me puse a Tho-rar",
+      "chords": [
+        "Bmaj7",
+        null,
+        "F#m7",
+        "F#dim7",
+        "Emaj7"
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "E-clipse de a-mor en tus",
+      "chords": [
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "labios Que ya no me quieren be-sar",
+      "chords": [
+        "Em6",
+        null,
+        "D#m7",
+        null,
+        "G#13",
+        "G#7+5"
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "quisiera olvidar tus a-",
+      "chords": [
+        null,
+        "C#m79/G#",
+        null,
+        "G#m6"
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "gravios Y luego so- nar,",
+      "chords": [
+        "C#m7-5",
+        null,
+        "Bmaj7",
+        null,
+        "Fdim7"
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "hum hum hum Da ia le le",
+      "chords": [
+        null,
+        "C#m7/G#"
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "hum hum hum",
+      "chords": [
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "hum hum",
+      "chords": [
+        "F#13/G",
+        null,
+        "B69/F#",
+        null,
+        "Bmaj7"
+      ],
+      "beats": 4,
+      "section": null
+    }
+  ],
+  "_flags": [],
+  "_confidence": 0.85,
+  "source": "sample-09.png",
+  "_parsed_at": "2026-02-04T09:01:12.340165+00:00",
+  "_model": "gemini/gemini-2.0-flash"
+}

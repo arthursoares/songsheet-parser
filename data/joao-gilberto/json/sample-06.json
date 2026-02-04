@@ -1,0 +1,435 @@
+{
+  "title": "Voce Vai Ver",
+  "composer": null,
+  "key": null,
+  "chords": {
+    "D6/F#": {
+      "fingering": "200232",
+      "fret": 2
+    },
+    "G#m7": {
+      "fingering": "464444",
+      "fret": 4
+    },
+    "G#m6": {
+      "fingering": "464446",
+      "fret": 4
+    },
+    "Cmaj7": {
+      "fingering": "x32000"
+    },
+    "Cmaj9": {
+      "fingering": "x32030"
+    },
+    "F#m7": {
+      "fingering": "242222",
+      "fret": 2
+    },
+    "B7": {
+      "fingering": "x21202"
+    },
+    "Em7": {
+      "fingering": "022033"
+    },
+    "A13": {
+      "fingering": "575600",
+      "fret": 5
+    },
+    "C#m7/G#": {
+      "fingering": "442454",
+      "fret": 4
+    },
+    "E13/F": {
+      "fingering": "120222",
+      "fret": 1
+    },
+    "Bm79/F#": {
+      "fingering": "221222",
+      "fret": 2
+    },
+    "G#m7-5": {
+      "fingering": "454444",
+      "fret": 4
+    },
+    "G#dim7": {
+      "fingering": "x67575"
+    },
+    "A7": {
+      "fingering": "x02020"
+    },
+    "D6": {
+      "fingering": "xx0202"
+    },
+    "E9": {
+      "fingering": "021202"
+    },
+    "Gm6": {
+      "fingering": "353335",
+      "fret": 3
+    },
+    "B13": {
+      "fingering": "x21232"
+    },
+    "A479": {
+      "fingering": "575655",
+      "fret": 5
+    },
+    "A7-9": {
+      "fingering": "575675",
+      "fret": 5
+    },
+    "F#13": {
+      "fingering": "2x2334",
+      "fret": 2
+    },
+    "F#7+5": {
+      "fingering": "2x2333",
+      "fret": 2
+    },
+    "Fedim7": {
+      "fingering": "2x1212",
+      "fret": 2
+    },
+    "F#m6": {
+      "fingering": "242224",
+      "fret": 2
+    }
+  },
+  "bars": [
+    {
+      "lyrics": null,
+      "chords": [
+        "D6/F#",
+        null,
+        null,
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": null,
+      "chords": [
+        "D6/F#",
+        null,
+        null,
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "Voce vai ver",
+      "chords": [
+        null,
+        null,
+        null,
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "voce vai implo-",
+      "chords": [
+        null,
+        null,
+        null,
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "rar me pe-dir pra vol-tar",
+      "chords": [
+        "G#m7",
+        "G#m6",
+        "Cmaj7",
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "e eu vou dizer",
+      "chords": [
+        null,
+        "Cmaj9",
+        null,
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "des - sa vez nao vai",
+      "chords": [
+        null,
+        null,
+        null,
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "dar",
+      "chords": [
+        "F#m7",
+        "B7",
+        "Em7",
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "eu fui gos-tar de vo - ce",
+      "chords": [
+        null,
+        "A13",
+        null,
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "dei ca-rinho a-",
+      "chords": [
+        null,
+        null,
+        null,
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "mor pra va ler",
+      "chords": [
+        "C#m7/G#",
+        "E13/F",
+        "Bm79/F#",
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "dei tan to a-mor mas vo-ce queiria",
+      "chords": [
+        null,
+        "G#m7-5",
+        "G#dim7",
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "50 pra zer",
+      "chords": [
+        "F#m7",
+        "F#m6",
+        "Em7",
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "Vo ce zam - bou",
+      "chords": [
+        "A7",
+        "D6",
+        null,
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "e brin cou com as",
+      "chords": [
+        null,
+        null,
+        null,
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "coisas mas seria que eu fiz",
+      "chords": [
+        "G#m7",
+        "G#m6",
+        "Cmaj7",
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "quando eu ten - tei",
+      "chords": [
+        null,
+        "Cmaj9",
+        null,
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "com vo ce ser fe - liz",
+      "chords": [
+        null,
+        null,
+        null,
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": null,
+      "chords": [
+        "F#m7",
+        "F#m6",
+        "E9",
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "e-ra tao for-te a ilu-sao",
+      "chords": [
+        null,
+        "Gm6",
+        null,
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "que pren-dia o",
+      "chords": [
+        null,
+        null,
+        null,
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "meu coracao",
+      "chords": [
+        "F#m7",
+        "B13",
+        "E9",
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "voce ma tou a ilu sao liber",
+      "chords": [
+        null,
+        "A479",
+        "A7-9",
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "tou meu coracao",
+      "chords": [
+        null,
+        null,
+        null,
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "hoje e voce que vai ter que cho-rar",
+      "chords": [
+        "F#13",
+        "F#7+5",
+        "F#m6",
+        "Fedim7"
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "voce vai ver",
+      "chords": [
+        null,
+        "E9",
+        "Gm6",
+        "Gdim7"
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": null,
+      "chords": [
+        "D6/F#",
+        null,
+        null,
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": null,
+      "chords": [
+        "D6/F#",
+        null,
+        null,
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "Voce vai ver",
+      "chords": [
+        null,
+        null,
+        null,
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "voce vai implo-",
+      "chords": [
+        null,
+        null,
+        null,
+        null
+      ],
+      "beats": 4,
+      "section": null
+    }
+  ],
+  "_flags": [],
+  "_confidence": 0.9,
+  "source": "sample-06.png",
+  "_parsed_at": "2026-02-04T09:00:31.333340+00:00",
+  "_model": "gemini/gemini-2.0-flash"
+}

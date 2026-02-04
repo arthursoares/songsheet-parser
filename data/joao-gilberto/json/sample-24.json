@@ -1,0 +1,255 @@
+{
+  "title": "Da Cor do Pecado",
+  "chords": {
+    "Amaj7": {
+      "fingering": "x02120"
+    },
+    "Adim7": {
+      "fingering": "x01212"
+    },
+    "C#m7/G#": {
+      "fingering": "442454",
+      "fret": 4
+    },
+    "G#dim7": {
+      "fingering": "34232x",
+      "fret": 3
+    },
+    "F#m7": {
+      "fingering": "242222",
+      "fret": 2
+    },
+    "F#dim7": {
+      "fingering": "23121x",
+      "fret": 2
+    },
+    "Bm7/F#": {
+      "fingering": "224232",
+      "fret": 2
+    },
+    "Fdim7": {
+      "fingering": "12010x",
+      "fret": 1
+    },
+    "F#7": {
+      "fingering": "242322",
+      "fret": 2
+    },
+    "F#m6": {
+      "fingering": "242224",
+      "fret": 2
+    },
+    "Em7": {
+      "fingering": "020000"
+    },
+    "A7": {
+      "fingering": "575655",
+      "fret": 5
+    },
+    "D6": {
+      "fingering": "xx0202"
+    },
+    "G#7": {
+      "fingering": "464544",
+      "fret": 4
+    },
+    "C#m7": {
+      "fingering": "x46454"
+    },
+    "Dm6": {
+      "fingering": "xx0201"
+    },
+    "C#m7+5": {
+      "fingering": "x46554"
+    },
+    "F#7+5": {
+      "fingering": "2x2333",
+      "fret": 2
+    },
+    "Gmaj7": {
+      "fingering": "354433",
+      "fret": 3
+    },
+    "G6": {
+      "fingering": "320000"
+    },
+    "Gm6": {
+      "fingering": "353335",
+      "fret": 3
+    },
+    "B7": {
+      "fingering": "x21202"
+    },
+    "E9": {
+      "fingering": "020102"
+    },
+    "Am6": {
+      "fingering": "x02212"
+    },
+    "A6": {
+      "fingering": "x02222"
+    },
+    "A#7": {
+      "fingering": "686766",
+      "fret": 6
+    },
+    "D#maj9": {
+      "fingering": "687866",
+      "fret": 6
+    },
+    "Dmaj9": {
+      "fingering": "554555",
+      "fret": 5
+    },
+    "E13": {
+      "fingering": "020120"
+    },
+    "Edim7": {
+      "fingering": "01010x"
+    },
+    "E7": {
+      "fingering": "020100"
+    }
+  },
+  "bars": [
+    {
+      "lyrics": "e un cor-po del-ga do da cor do pe-ca do que faz\ntao bem",
+      "chords": [
+        "Amaj7",
+        "Adim7",
+        "C#m7/G#",
+        "G#dim7",
+        "F#m7",
+        "F#dim7",
+        "Bm7/F",
+        "Fdim7"
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "este bei-jo mo-lha-do es-can-da-li-za do que vo-ce me deu",
+      "chords": [
+        "F#7",
+        "Bm7/F",
+        "G#dim7",
+        "F#m7",
+        "F#m6",
+        "Bm7/Fe",
+        "Fdim7"
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "tem um sa-bor dife-ren-te que a bo-ca da gen te ja-mais es-que-ceu",
+      "chords": [
+        "Em7",
+        "A7",
+        "D6",
+        "G#7",
+        "C#m7",
+        "Dm6",
+        "C#m7+5",
+        "Amaj7"
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "Quando vo-ce me res-pon de umas coisas com gra-ca a vergonha se es-con de porque se",
+      "chords": [
+        "D6",
+        "F#7+5",
+        "Gmaj7",
+        "G6",
+        "G#dim7",
+        "A6",
+        "Gm6"
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "Frevela a mal-dade da ra ca este cheiro de ma to tem chei-ro de fa¹ to sau-da de tris-1",
+      "chords": [
+        "F#m7",
+        "B7",
+        "E9",
+        "Gm6",
+        "F#m7",
+        "Fdim?"
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "te-za esta simples bele za teu corpo more-no more-na enlou-que ce",
+      "chords": [
+        "Bm7/Fe",
+        "Gdim7",
+        "Gmaj7",
+        "G6",
+        "C#m7",
+        "F#7",
+        "Bm7",
+        "Am6"
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "eu nao sei bem por-que so sin-to na vi-da e que vem de vo-ce ai..",
+      "chords": [
+        "Gmaj7",
+        "G#dim7",
+        "A6",
+        "A#7",
+        "D#maj9",
+        "A7",
+        "Dmaj9",
+        "E13"
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "Este cor-po more no chei-ro-so gos-to so que vo-ce tem",
+      "chords": [
+        "Amaj7",
+        "F#7+5",
+        "Bm7/Fa",
+        "G#dim7",
+        "F#m7",
+        "F#m6",
+        "Bm7/F",
+        "Fdim7"
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "e un cor-po del-gado da cor do pe-ca do que faz tao bem",
+      "chords": [
+        "Amaj7",
+        "Edim7",
+        "E7",
+        "Fdim7",
+        "F#m7",
+        "F#m6",
+        "Bm7/F#",
+        "E7"
+      ],
+      "beats": 4
+    },
+    {
+      "lyrics": "este bei-jo mo-lha-do es-can-da-li-za do que vo-ce me deu",
+      "chords": [
+        "F#7",
+        "Bm7/F#",
+        "Gedim7",
+        "F#m7",
+        "F#m6",
+        "Bm7/F",
+        "Fdim7"
+      ],
+      "beats": 4
+    }
+  ],
+  "_confidence": 0.9,
+  "source": "sample-24.png",
+  "_parsed_at": "2026-02-04T09:04:10.357386+00:00",
+  "_model": "gemini/gemini-2.0-flash"
+}

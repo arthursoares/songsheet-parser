@@ -1,0 +1,333 @@
+{
+  "title": "Chega de Saudade",
+  "composer": null,
+  "key": null,
+  "chords": {
+    "Am6": {
+      "fingering": "x02212",
+      "fret": null
+    },
+    "Dm7-5": {
+      "fingering": "xx0101",
+      "fret": null
+    },
+    "G13/G#": {
+      "fingering": "4545xx",
+      "fret": null
+    },
+    "G#m6": {
+      "fingering": "4x3444",
+      "fret": null
+    },
+    "Cmaj7": {
+      "fingering": "x32000",
+      "fret": null
+    },
+    "Cmaj9": {
+      "fingering": "x32030",
+      "fret": null
+    },
+    "Bm6": {
+      "fingering": "x24342",
+      "fret": null
+    },
+    "E9": {
+      "fingering": "021202",
+      "fret": null
+    },
+    "Am7": {
+      "fingering": "x02010",
+      "fret": null
+    },
+    "G#m7": {
+      "fingering": "464444",
+      "fret": null
+    },
+    "Gm7": {
+      "fingering": "353333",
+      "fret": null
+    },
+    "Gdim7": {
+      "fingering": "34232x",
+      "fret": null
+    },
+    "Fmaj7": {
+      "fingering": "133210",
+      "fret": null
+    },
+    "Fm7": {
+      "fingering": "131111",
+      "fret": null
+    },
+    "Em79": {
+      "fingering": "020202",
+      "fret": null
+    },
+    "A13": {
+      "fingering": "x02020",
+      "fret": null
+    },
+    "A7+5": {
+      "fingering": "x02130",
+      "fret": null
+    },
+    "Dm79/A": {
+      "fingering": "553535",
+      "fret": null
+    },
+    "Bn6": {
+      "fingering": "797877",
+      "fret": null
+    },
+    "A7": {
+      "fingering": "x02020",
+      "fret": null
+    },
+    "Dm7/G": {
+      "fingering": "3x0211",
+      "fret": null
+    },
+    "Cmaj7/G": {
+      "fingering": "332000",
+      "fret": null
+    }
+  },
+  "bars": [
+    {
+      "lyrics": "ji- nhos que eu darei",
+      "chords": [
+        "Am6",
+        null,
+        null,
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "na su - a bo - ca",
+      "chords": [
+        "Dm7-5",
+        null,
+        null,
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": null,
+      "chords": [
+        "G13/G#",
+        null,
+        "G#m6",
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "Den - tro dos meus",
+      "chords": [
+        "Cmaj7",
+        null,
+        "Cmaj9",
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "bra - co sos a-",
+      "chords": [
+        "Am6",
+        null,
+        null,
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "bra - cos hao de ser mi",
+      "chords": [
+        "Bm6",
+        null,
+        "E9",
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "lhoes de a-bra - cos Aper-",
+      "chords": [
+        "Am7",
+        null,
+        "G#m7",
+        "Gm7"
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": null,
+      "chords": [
+        "Gdim7",
+        null,
+        null,
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "ta - do as-sim, co - la - do as-sim, ca - la - do as-sim,",
+      "chords": [
+        "Fmaj7",
+        null,
+        "Fm7",
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "A-bra - cos e bei-ji-",
+      "chords": [
+        "Em79",
+        null,
+        "A13",
+        "A7+5"
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "nhos e ca-ri-",
+      "chords": [
+        "Am6",
+        null,
+        null,
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "nhos sem ter fim",
+      "chords": [
+        "Dm79/A",
+        null,
+        "Bn6",
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "Que e pra acabar com esse ne-",
+      "chords": [
+        null,
+        null,
+        "A7",
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "go-cio de vi - ver",
+      "chords": [
+        "Am6",
+        null,
+        null,
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "Ton-ge de mim",
+      "chords": [
+        "Dm7/G",
+        null,
+        "Cmaj7/G",
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "Nao quero mais es se ne - go-",
+      "chords": [
+        null,
+        null,
+        "A7",
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "cio de vo - ce",
+      "chords": [
+        "Am6",
+        null,
+        null,
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "vi - ver as - sim",
+      "chords": [
+        "Dm79/A",
+        null,
+        "Cmaj7",
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "Vamos dei-xar des se ne - go-",
+      "chords": [
+        null,
+        null,
+        "A7",
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "cio de vo - ce",
+      "chords": [
+        "Am6",
+        null,
+        null,
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "vi - ver sem mim",
+      "chords": [
+        "Dm7/G",
+        null,
+        "Cmaj7/G",
+        null
+      ],
+      "beats": 4,
+      "section": null
+    }
+  ],
+  "_flags": [],
+  "_confidence": 0.9,
+  "source": "sample-32.png",
+  "_parsed_at": "2026-02-04T09:05:41.035893+00:00",
+  "_model": "gemini/gemini-2.0-flash"
+}

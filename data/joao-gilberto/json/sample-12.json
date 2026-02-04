@@ -1,0 +1,300 @@
+{
+  "title": "Nao Vou pra Casa",
+  "composer": null,
+  "key": null,
+  "chords": {
+    "F#13": {
+      "fingering": "212120",
+      "fret": 2
+    },
+    "F#7+5": {
+      "fingering": "232332",
+      "fret": 2
+    },
+    "A7-5": {
+      "fingering": "565655",
+      "fret": 5
+    },
+    "G#7": {
+      "fingering": "454544",
+      "fret": 4
+    },
+    "C#m7/G#": {
+      "fingering": "444444",
+      "fret": 4
+    },
+    "Em6": {
+      "fingering": "022020"
+    },
+    "Bmaj7": {
+      "fingering": "243322",
+      "fret": 2
+    },
+    "F#7": {
+      "fingering": "232322",
+      "fret": 2
+    },
+    "D#m7-5": {
+      "fingering": "676766",
+      "fret": 6
+    },
+    "D#m7": {
+      "fingering": "686766",
+      "fret": 6
+    },
+    "Fdim7": {
+      "fingering": "232323",
+      "fret": 2
+    },
+    "C#m7": {
+      "fingering": "464544",
+      "fret": 4
+    },
+    "B13/F#": {
+      "fingering": "444444",
+      "fret": 4
+    },
+    "Bmaj7/F#": {
+      "fingering": "222222",
+      "fret": 2
+    }
+  },
+  "bars": [
+    {
+      "lyrics": "nao vou pra ca sa nao vou",
+      "chords": [
+        null,
+        "F#13",
+        null,
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "nao vou",
+      "chords": [
+        "F#7+5",
+        null,
+        null,
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "Eu sou do sam ba ras-ga- do",
+      "chords": [
+        "A7-5",
+        "G#7",
+        "C#m7/G#",
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "do sam ba bem",
+      "chords": [
+        "Em6",
+        null,
+        null,
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "rit - ma - do que dei- xa a gen- te can-sa- do",
+      "chords": [
+        "Bmaj7",
+        "G#7",
+        "C#m7/G#",
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "de ba tu - car",
+      "chords": [
+        "F#7",
+        null,
+        null,
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "mas se na ro- da de sam ba",
+      "chords": [
+        "D#m7-5",
+        "G#7",
+        "C#m7/G#",
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "eu en-con - trar",
+      "chords": [
+        "Em6",
+        null,
+        null,
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "um a-mor a - en tao nao",
+      "chords": [
+        "D#m7",
+        "Fdim7",
+        "C#m7",
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "vou pra ca sa nao se - nhor nao vou",
+      "chords": [
+        "F#7",
+        null,
+        null,
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "nao vou",
+      "chords": [
+        "Bmaj7",
+        null,
+        null,
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "So vou pra ca sa",
+      "chords": [
+        "F#7+5",
+        "Bmaj7",
+        null,
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "quan-do o di a clare- al",
+      "chords": [
+        "Fdim7",
+        null,
+        null,
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "eu sou do sam ba",
+      "chords": [
+        "B13/F#",
+        "Bmaj7/F#",
+        "Bmaj7",
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "pois o sam ba me cri ou",
+      "chords": [
+        "G#7",
+        null,
+        null,
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "se por a ca so um gran- de a-mor",
+      "chords": [
+        "C#m7/G#",
+        "G#7",
+        "C#m7/G#",
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "eu ar-ran-jar",
+      "chords": [
+        null,
+        null,
+        null,
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "nao vou pra ca sa nao vou",
+      "chords": [
+        null,
+        "F#13",
+        null,
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "nao vou",
+      "chords": [
+        "F#7+5",
+        null,
+        null,
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "Eu sou do sam ba ras-ga- do",
+      "chords": [
+        "A7-5",
+        "G#7",
+        "C#m7/G#",
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "do sam ba bem",
+      "chords": [
+        "Em6",
+        null,
+        null,
+        null
+      ],
+      "beats": 4,
+      "section": null
+    }
+  ],
+  "_flags": [],
+  "_confidence": 0.9,
+  "source": "sample-12.png",
+  "_parsed_at": "2026-02-04T09:01:46.348950+00:00",
+  "_model": "gemini/gemini-2.0-flash"
+}

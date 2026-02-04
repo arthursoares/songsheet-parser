@@ -1,0 +1,211 @@
+{
+  "title": "Eclipse",
+  "composer": "Ernesto Lecuona",
+  "key": null,
+  "chords": {
+    "Bmaj9": {
+      "fingering": "x21121",
+      "fret": 0
+    },
+    "Bmaj7": {
+      "fingering": "x2112x",
+      "fret": 0
+    },
+    "Fdim7": {
+      "fingering": "12121x",
+      "fret": 0
+    },
+    "G#13": {
+      "fingering": "466566",
+      "fret": 0
+    },
+    "G#7+5": {
+      "fingering": "464554",
+      "fret": 0
+    },
+    "C#m7/G#": {
+      "fingering": "445454",
+      "fret": 0
+    },
+    "G#7": {
+      "fingering": "464544",
+      "fret": 0
+    },
+    "C#m79/G#": {
+      "fingering": "445444",
+      "fret": 0
+    },
+    "F#13/G": {
+      "fingering": "343433",
+      "fret": 0
+    },
+    "C#m7": {
+      "fingering": "x46454",
+      "fret": 0
+    },
+    "E13/F": {
+      "fingering": "121211",
+      "fret": 0
+    },
+    "D#m7": {
+      "fingering": "686766",
+      "fret": 0
+    },
+    "F46": {
+      "fingering": "133211",
+      "fret": 0
+    },
+    "Bmaj9/F#": {
+      "fingering": "211121",
+      "fret": 2
+    },
+    "F#m7": {
+      "fingering": "242222",
+      "fret": 0
+    },
+    "F#m6": {
+      "fingering": "242224",
+      "fret": 0
+    },
+    "Emaj7": {
+      "fingering": "021100",
+      "fret": 0
+    },
+    "Em6": {
+      "fingering": "022020",
+      "fret": 0
+    },
+    "C#m7-5": {
+      "fingering": "45454x",
+      "fret": 0
+    }
+  },
+  "bars": [
+    {
+      "lyrics": "Eclipse de luna en el",
+      "chords": [
+        "Bmaj9",
+        "Bmaj7",
+        null,
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "cielo,\t\tAusencia de",
+      "chords": [
+        null,
+        "Bmaj7",
+        "G#13",
+        "G#7+5"
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "luz en el mar\t\tMuy solo com mi descon-suelo, Ni-rando la no- che me puse a Tho-",
+      "chords": [
+        "Fdim7",
+        null,
+        null,
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "rar\t\tPen-saba que ya no me a-ma\tbas,\t\tCom hon da\tde-ses-pera-",
+      "chords": [
+        "C#m7/G#",
+        "G#7",
+        "C#m79/G#",
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "cion\t\tY en algo que siem-pre eclip-saba, La luz de tu a-mor",
+      "chords": [
+        "F#13/G",
+        "C#m7",
+        "E13/F",
+        "D#m7"
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "Ec\t-lipse de lu\t-\tna en el cielo, Au\t-\tsen-cia de luz\ten el",
+      "chords": [
+        "C#m79/G#",
+        "F#13/G",
+        "Bmaj9/F#",
+        "F46"
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "mar\t\tMuy solo com mi descon-suelo, Mi-ran-\tdo la no\t-che me puse a Tho-",
+      "chords": [
+        "Bmaj9",
+        "Bmaj7",
+        null,
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "rar\t\tEclipse de a-mor en tus la\tbios\t\tQue ya\tno me quieren be-",
+      "chords": [
+        "Emaj7",
+        "Em6",
+        "Bmaj7",
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "sar\t\tquisiera olvidar tus a-gravios\t\tY\tlue-go so-nar",
+      "chords": [
+        "G#13",
+        "G#7+5",
+        "C#m7/G#",
+        "G#7"
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "Aa\tLa ia li ia\t\t\tE-\t\tclipse de luna en el",
+      "chords": [
+        "C#m7-5",
+        "Em6",
+        "Bmaj7",
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": null,
+      "chords": [
+        "Fdim7",
+        "C#m79/G#",
+        "F#13/G",
+        "Bmaj9/F#"
+      ],
+      "beats": 4,
+      "section": null
+    }
+  ],
+  "_flags": [],
+  "_confidence": 0.9,
+  "source": "sample-08.png",
+  "_parsed_at": "2026-02-04T09:00:57.603503+00:00",
+  "_model": "gemini/gemini-2.0-flash"
+}

@@ -4,125 +4,105 @@
   "key": null,
   "chords": {
     "Amaj7": {
-      "fingering": "x02120",
-      "fret": null
+      "fingering": "x02120"
     },
     "Adim7": {
-      "fingering": "56565x",
-      "fret": null
+      "fingering": "56565x"
     },
     "Bm7/Fe": {
-      "fingering": "224232",
-      "fret": null
+      "fingering": "2x2232",
+      "fret": 2
     },
     "E13-9/D": {
-      "fingering": "xx0132",
-      "fret": null
+      "fingering": "56577x"
     },
     "Gm6": {
-      "fingering": "355333",
-      "fret": null
+      "fingering": "355333"
     },
     "E7-9": {
-      "fingering": "067670",
-      "fret": null
+      "fingering": "06767x",
+      "fret": 7
     },
     "A6": {
-      "fingering": "x02222",
-      "fret": null
+      "fingering": "x02222"
     },
     "Cdim7": {
-      "fingering": "x3424x",
-      "fret": null
+      "fingering": "89898x"
     },
     "Bdim7": {
-      "fingering": "x2313x",
-      "fret": null
+      "fingering": "78787x"
     },
     "A7": {
-      "fingering": "x02020",
-      "fret": null
+      "fingering": "x02020"
     },
     "D6": {
-      "fingering": "xx0202",
-      "fret": null
+      "fingering": "xx0202"
     },
     "Dm6": {
-      "fingering": "xx0201",
-      "fret": null
+      "fingering": "xx0201"
     },
     "Cm7": {
-      "fingering": "x35343",
-      "fret": null
+      "fingering": "x35343"
     },
     "Gdim7": {
-      "fingering": "34242x",
-      "fret": null
+      "fingering": "45454x"
     },
     "Fdim7": {
-      "fingering": "12121x",
-      "fret": null
+      "fingering": "23232x"
     },
     "E7": {
-      "fingering": "020100",
-      "fret": null
+      "fingering": "020100"
     },
     "F#m7/E": {
-      "fingering": "022220",
-      "fret": null
+      "fingering": "022222",
+      "fret": 2
     },
     "B13": {
       "fingering": "x21232",
-      "fret": null
+      "fret": 2
     },
     "B7+5": {
-      "fingering": "x21233",
-      "fret": null
+      "fingering": "x21231",
+      "fret": 2
     },
     "B9/D#": {
-      "fingering": "x6767x",
-      "fret": null
+      "fingering": "x21222",
+      "fret": 2
     },
     "Bm7": {
-      "fingering": "x24232",
-      "fret": null
+      "fingering": "x21202",
+      "fret": 2
     },
     "A13": {
-      "fingering": "5x567x",
-      "fret": null
+      "fingering": "575655"
     },
     "Am6": {
-      "fingering": "5x4555",
-      "fret": null
+      "fingering": "5x4555"
     },
     "Dmaj7": {
-      "fingering": "xx0222",
-      "fret": null
+      "fingering": "xx0222"
     },
     "C#7+5": {
-      "fingering": "x4345x",
-      "fret": null
+      "fingering": "x4345x"
     },
     "F#7": {
       "fingering": "242322",
-      "fret": null
+      "fret": 2
     },
     "G#m7-5": {
-      "fingering": "45454x",
-      "fret": null
+      "fingering": "454444",
+      "fret": 4
     },
     "G7": {
-      "fingering": "320001",
-      "fret": null
+      "fingering": "320001"
     },
     "C#9-5": {
-      "fingering": "x4344x",
-      "fret": null
+      "fingering": "x4344x"
     }
   },
   "bars": [
     {
-      "lyrics": "Hum-mum mum a - le hum Hum -mum -mum num",
+      "lyrics": "Hum-mum mum  a - le hum Hum-mum-mum num",
       "chords": [
         "Amaj7",
         "Adim7",
@@ -155,7 +135,7 @@
       "section": null
     },
     {
-      "lyrics": "A tris te za e se-",
+      "lyrics": "A tris te za e se",
       "chords": [
         "Amaj7",
         "A6",
@@ -166,7 +146,7 @@
       "section": null
     },
     {
-      "lyrics": "nho ra, Desde que o sam ba e sam ba e as-",
+      "lyrics": "nho ra, Desde que o sam ba e sam ba e as",
       "chords": [
         "Amaj7",
         "A7",
@@ -177,7 +157,7 @@
       "section": null
     },
     {
-      "lyrics": "sim A la-grima clara SO bre a pele es-cu-",
+      "lyrics": "sim A la-grima clara sobre a pele es-cu-",
       "chords": [
         "Cam7",
         "Gdim7",
@@ -191,9 +171,9 @@
       "lyrics": "ra, a noite e a chuva que cai la fo -",
       "chords": [
         "F#m7/E",
-        null,
         "B13",
-        "B7+5"
+        "B7+5",
+        "E7"
       ],
       "beats": 4,
       "section": null
@@ -210,7 +190,7 @@
       "section": null
     },
     {
-      "lyrics": "ra Tudo demo-rando en ser tao aru",
+      "lyrics": "ra Tudo demo-rando en ser tao a-ru",
       "chords": [
         "Amaj7",
         "A7",
@@ -221,7 +201,7 @@
       "section": null
     },
     {
-      "lyrics": "im Mas alguma coi sa acontece, no quando a-",
+      "lyrics": "im Mas alguma coisa acontece,no quando a-",
       "chords": [
         "C#7+5",
         "F#7",
@@ -235,6 +215,6 @@
   "_flags": [],
   "_confidence": 0.95,
   "source": "sample-01.png",
-  "_parsed_at": "2026-02-04T08:51:26.512313+00:00",
+  "_parsed_at": "2026-02-04T08:59:14.944356+00:00",
   "_model": "gemini/gemini-2.0-flash"
 }
