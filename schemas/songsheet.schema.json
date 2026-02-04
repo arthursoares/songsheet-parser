@@ -1,0 +1,105 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Songsheet",
+  "description": "Parsed songsheet in intermediate JSON format",
+  "type": "object",
+  "required": ["source", "title", "chords", "bars"],
+  "properties": {
+    "source": {
+      "type": "string",
+      "description": "Source filename (e.g., sample-03.png)"
+    },
+    "title": {
+      "type": "string",
+      "description": "Song title"
+    },
+    "composer": {
+      "type": "string",
+      "description": "Composer/artist name"
+    },
+    "key": {
+      "type": "string",
+      "description": "Key signature (e.g., F, Am, Bb)"
+    },
+    "tempo": {
+      "type": "string",
+      "description": "Tempo indication if present"
+    },
+    "chords": {
+      "type": "object",
+      "description": "Chord definitions, keyed by chord name",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["fingering"],
+        "properties": {
+          "fingering": {
+            "type": "string",
+            "description": "String-by-string fingering (e.g., x32010 for C)",
+            "pattern": "^[0-9x]{6}$"
+          },
+          "fret": {
+            "type": "integer",
+            "description": "Starting fret position (1 if open position)",
+            "minimum": 1
+          },
+          "notes": {
+            "type": "string",
+            "description": "Optional: actual notes in the voicing"
+          }
+        }
+      }
+    },
+    "bars": {
+      "type": "array",
+      "description": "Sequential bars of the song",
+      "items": {
+        "type": "object",
+        "required": ["chords"],
+        "properties": {
+          "lyrics": {
+            "type": "string",
+            "description": "Lyrics for this bar"
+          },
+          "chords": {
+            "type": "array",
+            "description": "Chords in this bar (null for beats without chord change)",
+            "items": {
+              "type": ["string", "null"]
+            }
+          },
+          "beats": {
+            "type": "integer",
+            "description": "Number of beats in this bar",
+            "default": 4
+          },
+          "section": {
+            "type": "string",
+            "description": "Section marker (e.g., verse, chorus, bridge)"
+          }
+        }
+      }
+    },
+    "_flags": {
+      "type": "array",
+      "description": "Flags for human review",
+      "items": {
+        "type": "string"
+      }
+    },
+    "_confidence": {
+      "type": "number",
+      "description": "Overall parse confidence (0-1)",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "_parsed_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Timestamp of parsing"
+    },
+    "_model": {
+      "type": "string",
+      "description": "Vision model used for parsing"
+    }
+  }
+}

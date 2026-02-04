@@ -1,0 +1,178 @@
+Desde que o samba é samba
+Caetano Veloso
+
+# Chord fingerings (guitar: EADGBE from low to high, x=mute, 0=open)
+{chord: Amaj7 guitar x02124}
+{chord: Adim7 guitar x01212}
+{chord: Bm7/F# guitar 2x2222}
+{chord: E13-9/D guitar x54554}
+{chord: Gm6 guitar 3x0333}
+{chord: E7-9 guitar 020102}
+{chord: A6 guitar x02222}
+{chord: Cdim7 guitar x3424x}
+{chord: Bdim7 guitar x2313x}
+{chord: A7 guitar x02223}
+{chord: D6 guitar x54555}
+{chord: Dm6 guitar x53555}
+{chord: C#m7 guitar x46454}
+{chord: Gdim7 guitar 3x232x}
+{chord: Fdim7 guitar 1x010x}
+{chord: E7 guitar 020100}
+{chord: F#m7/E guitar 0x2222}
+{chord: B13 guitar x21222}
+{chord: B7-5 guitar x21202}
+{chord: B9/D# guitar x6x677}
+{chord: Bm7 guitar x24232}
+{chord: A13 guitar x05455}
+{chord: Am6 guitar x02212}
+{chord: Dmaj7 guitar x54555}
+{chord: C#7-5 guitar x4545x}
+{chord: F#7 guitar 242322}
+{chord: G#m7-5 guitar 4x445x}
+{chord: G7 guitar 353433}
+{chord: C#9-5 guitar x43444}
+{chord: F#mmaj7 guitar 2x2221}
+{chord: F#m7 guitar 2x2222}
+{chord: F#m6 guitar 2x2222}
+{chord: E13-9 guitar 020102}
+{chord: G#dim7 guitar 4x343x}
+{chord: F#m79 guitar 2x212x}
+{chord: G#7 guitar 464544}
+{chord: F#13 guitar 2x232x}
+{chord: Bm79/F# guitar 2x220x}
+{chord: E13 guitar 020122}
+{chord: Bm7-5 guitar x2323x}
+{chord: F#m11 guitar 2x220x}
+{chord: B7/F# guitar 2x1202}
+{chord: E13/F guitar 1x1122}
+{chord: Em7 guitar 022030}
+{chord: D#9-5 guitar x6565x}
+{chord: E7-9 guitar 020102}
+{chord: Cmaj7 guitar x32000}
+{chord: Cmaj9 guitar x32330}
+{chord: E9 guitar 020102}
+{chord: C#m7/G# guitar 4x4454}
+{chord: A479 guitar x05455}
+{chord: A7-9 guitar x05453}
+{chord: F#13 guitar 2x232x}
+{chord: F#7o5 guitar 2x232x}
+{chord: F#dim7 guitar 2x121x}
+{chord: D69 guitar x54555}
+
+#intro
+Amaj7.... Adim7.... Bm7/F#.... E13-9/D....
+_Hum-mum mum _a - le _hum Hum-mum-mum mum _Hum-mum
+%
+Amaj7.... Gm6.... Bm7/F#.... E7-9....
+_mum _ah _ _
+
+#v1
+Amaj7.... A6.... Cdim7.... Bdim7....
+_ _ _A tris - te - _za e se -
+%
+Amaj7.... A7.... D6.... Dm6....
+_nho - ra, _ _Desde que o sam - ba e _sam - ba e as -
+%
+C#m7.... Gdim7.... Bm7/F#.. Fdim7.. E7.. E13-9/D..
+_sim _ _A la-grima cla - ra _so - bre a pe - le es-cu-
+%
+F#m7/E.... .... B13.. B7-5.. B9/D#....
+_- ra, _ _a noite e a chuva que cai _la fo -
+%
+Bm7.... E7-9.... A13.... Am6....
+_ra _ _Soli - dao _a - pa - vo-
+%
+Amaj7.... A7.... Dmaj7.... Dm6....
+_- ra _Tudo _demo-ran - do en ser _tao a - ru
+%
+C#7-5.... F#7.... Bm7/F#.. G#m7-5.. G7.. C#9-5..
+_in _ _Mas al - guma coi - sa acon - _tece, no quan - do a-
+
+#v2
+F#mmaj7.... F#m7.. F#m6.. B9/D#.... Bm7/F#.... E13-9....
+_go _- ra em mim _Can - tando eu man-do a tris-te _- za em -
+%
+Amaj7.... A6.... G#m7-5.... G#dim7....
+_bo - ra _ _O sam-ba ain-da vai nas - cer, _o samba ainda
+%
+F#m79.... G#7.... C#m7.... F#13....
+_nao _che - gou, _O sam-ba nao vai mor - rer, _ve - ja o
+%
+Bm79/F#.... E13.... Bm7-5.... C#9-5....
+_dia ainda nao rai _- ou _O samba e pai do prazer, _o sam-
+%
+F#m79.... G#7.... Gm6.... Gdim7.. F#7..
+_ba e fi - lho _da dor, _O gran - de po-der trans - for _- ma - dor
+
+#bridge
+F#m11.... B7/F#.... Bm79/F#.. E13/F.. Em7.. A7.. D6.... Dm6....
+_ _ _A tris - te _- za e se -
+%
+C#m7.... D#9-5.... Dmaj7.... Dm6....
+_nho - ra, _ _Desde que o samba e _sam - ba e as -
+%
+C#m7.... F#7.... Bm7/F#.... G#dim7....
+_sim _ _A la-grima cla - ra _so - bre a pe - le es -
+%
+F#m7.... F#m7.... F#m6.... B79-5....
+_cu - ra, _ _a noite e a chuva que _cai la fo - ra
+%
+Bm7.... E13-9.... A13.... A7+5.... Dmaj9....
+_ _So - li - dao _a _- pa -
+
+#v3
+C#m7.... E13-9.... A7+5.... D6.... Dm6....
+_vo - ra _ _Tudo demo-ran - do en ser _tao a -
+%
+C#m7.... F#7.... Bm7/F#.... G#dim7....
+_ruim _ _Mas al - guma coi - sa acon - _tece, no quan - do a-
+%
+F#m7.... F#m6.... Bm7/F#.... E7-9....
+_go _- ra em mim _Can - tando eu man-do a tris-te _- za em -
+%
+Amaj7.... A6.... G#m7-5.... G#dim7....
+_bo - ra _ _O sam-ba ain-da vai nas - cer, _o samba ainda
+%
+F#m7.... G#7.... C#m7.... F#13....
+_nao _che - gou, _O sam-ba nao vai mor - rer, _ve - ja o
+%
+Bm79/F#.... E13/F.... Bm7-5.... C#9-5....
+_dia ainda nao rai _- ou _O samba e pai do prazer, _o sam-
+%
+F#m79.... G#7.... Gm6.... Gdim7.. F#7..
+_ba e fi - lho _da dor, _O gran - de po-der trans - for _- ma - dor
+
+#bridge2
+B13.9/D#.. B9+5/D#.. B9/D#.. E13-9/D.... Em79.... A13.... D6.... Dm6....
+_ _ _A tris - te _- za e se -
+%
+C#m7.... E13-9.. A7+5.. Dmaj7.... Dm6....
+_nho - ra, _ _Desde que o samba e _sam - ba e as -
+%
+C#7+5.... F#7.... Bm7/F#.... G#dim7....
+_sim _ _A la-grima cla - ra _so - bre a pe - le es -
+
+#outro
+F#m7.... F#m7.... F#m6.... B79-5....
+_cu - ra, _ _a noite e a chuva que _cai la fo - ra
+%
+Bm7/F#.... E13-9.... A13.... Dmaj9.. D69..
+_ _So - li - dao _a _- pa -
+%
+C#m7.... E13-9.... A7+5.... D6.... Dm6....
+_vo - ra _ _Tudo demo-ran - do en ser _tao a -
+%
+C#m7.... F#7.... Bm7/F#.... G#dim7....
+_ruim _ _Mas al - guma coi - sa acon - _tece, no quan - do a-
+%
+F#m7.... F#m6.... Bm7/F#.... E7-9....
+_go _- ra em mim _Can - tando eu man-do a tris-te _- za em -
+%
+Amaj7.... F#7.... Bm7/F#.... E7....
+_bo - ra _ _Can - tando eu man-do a tris-te _- za em -
+%
+G7-5.... F#7.... Bm7/F#.... E13-9....
+_bo - ra _ _Can - tando eu man-do a tris-te _- za em -
+%
+A6.... Amaj7....
+_bo - ra _

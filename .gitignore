@@ -1,0 +1,19 @@
+# Source material (copyrighted, not committed)
+source/
+*.pdf
+/data/png/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+*.swp
+.vscode/
+.idea/
