@@ -1,0 +1,240 @@
+{
+  "title": "Desde que o samba é samba",
+  "composer": "Caetano Veloso",
+  "key": null,
+  "chords": {
+    "Amaj7": {
+      "fingering": "x02120",
+      "fret": null
+    },
+    "Adim7": {
+      "fingering": "56565x",
+      "fret": null
+    },
+    "Bm7/Fe": {
+      "fingering": "224232",
+      "fret": null
+    },
+    "E13-9/D": {
+      "fingering": "xx0132",
+      "fret": null
+    },
+    "Gm6": {
+      "fingering": "355333",
+      "fret": null
+    },
+    "E7-9": {
+      "fingering": "067670",
+      "fret": null
+    },
+    "A6": {
+      "fingering": "x02222",
+      "fret": null
+    },
+    "Cdim7": {
+      "fingering": "x3424x",
+      "fret": null
+    },
+    "Bdim7": {
+      "fingering": "x2313x",
+      "fret": null
+    },
+    "A7": {
+      "fingering": "x02020",
+      "fret": null
+    },
+    "D6": {
+      "fingering": "xx0202",
+      "fret": null
+    },
+    "Dm6": {
+      "fingering": "xx0201",
+      "fret": null
+    },
+    "Cm7": {
+      "fingering": "x35343",
+      "fret": null
+    },
+    "Gdim7": {
+      "fingering": "34242x",
+      "fret": null
+    },
+    "Fdim7": {
+      "fingering": "12121x",
+      "fret": null
+    },
+    "E7": {
+      "fingering": "020100",
+      "fret": null
+    },
+    "F#m7/E": {
+      "fingering": "022220",
+      "fret": null
+    },
+    "B13": {
+      "fingering": "x21232",
+      "fret": null
+    },
+    "B7+5": {
+      "fingering": "x21233",
+      "fret": null
+    },
+    "B9/D#": {
+      "fingering": "x6767x",
+      "fret": null
+    },
+    "Bm7": {
+      "fingering": "x24232",
+      "fret": null
+    },
+    "A13": {
+      "fingering": "5x567x",
+      "fret": null
+    },
+    "Am6": {
+      "fingering": "5x4555",
+      "fret": null
+    },
+    "Dmaj7": {
+      "fingering": "xx0222",
+      "fret": null
+    },
+    "C#7+5": {
+      "fingering": "x4345x",
+      "fret": null
+    },
+    "F#7": {
+      "fingering": "242322",
+      "fret": null
+    },
+    "G#m7-5": {
+      "fingering": "45454x",
+      "fret": null
+    },
+    "G7": {
+      "fingering": "320001",
+      "fret": null
+    },
+    "C#9-5": {
+      "fingering": "x4344x",
+      "fret": null
+    }
+  },
+  "bars": [
+    {
+      "lyrics": "Hum-mum mum a - le hum Hum -mum -mum num",
+      "chords": [
+        "Amaj7",
+        "Adim7",
+        "Bm7/Fe",
+        "E13-9/D"
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "Hum-mum",
+      "chords": [
+        null,
+        null,
+        null,
+        null
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "mum ah",
+      "chords": [
+        "Amaj7",
+        "Gm6",
+        "Bm7/Fe",
+        "E7-9"
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "A tris te za e se-",
+      "chords": [
+        "Amaj7",
+        "A6",
+        "Cdim7",
+        "Bdim7"
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "nho ra, Desde que o sam ba e sam ba e as-",
+      "chords": [
+        "Amaj7",
+        "A7",
+        "D6",
+        "Dm6"
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "sim A la-grima clara SO bre a pele es-cu-",
+      "chords": [
+        "Cam7",
+        "Gdim7",
+        "Bm7/Fe",
+        "Fdim7"
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "ra, a noite e a chuva que cai la fo -",
+      "chords": [
+        "F#m7/E",
+        null,
+        "B13",
+        "B7+5"
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "ra Soli-dao a pa vo-",
+      "chords": [
+        "Bm7",
+        "E7-9",
+        "A13",
+        "Am6"
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "ra Tudo demo-rando en ser tao aru",
+      "chords": [
+        "Amaj7",
+        "A7",
+        "Dmaj7",
+        "Dm6"
+      ],
+      "beats": 4,
+      "section": null
+    },
+    {
+      "lyrics": "im Mas alguma coi sa acontece, no quando a-",
+      "chords": [
+        "C#7+5",
+        "F#7",
+        "Bm7/Fe",
+        "G#m7-5"
+      ],
+      "beats": 4,
+      "section": null
+    }
+  ],
+  "_flags": [],
+  "_confidence": 0.95,
+  "source": "sample-01.png",
+  "_parsed_at": "2026-02-04T08:51:26.512313+00:00",
+  "_model": "gemini/gemini-2.0-flash"
+}
