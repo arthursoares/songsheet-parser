@@ -90,7 +90,7 @@ def song_to_chordmark(song: dict) -> str:
     for name, info in song.get("chords", {}).items():
         fingering = info.get("fingering", "")
         if fingering:
-            lines.append(f"#chord {name} {fingering}")
+            lines.append(f"chord {name} {fingering}")
     
     if song.get("chords"):
         lines.append("")
@@ -110,23 +110,112 @@ def song_to_chordmark(song: dict) -> str:
         chords = bar.get("chords", [])
         beats = bar.get("beats", 4)
         
-        # Build ChordMark chord line: "Cmaj7.. Am7.."
-        # Each chord followed by dots for duration
-        if len(chords) == 1:
-            # Single chord for whole bar
-            chord_line = chords[0] + "." * (beats - 1) if chords[0] else "." * beats
-        elif chords:
-            # Multiple chords - distribute beats
-            beats_per_chord = max(1, beats // len(chords))
-            parts = []
-            for c in chords:
-                if c:
-                    parts.append(c + "." * (beats_per_chord - 1))
-                else:
-                    parts.append("." * beats_per_chord)
-            chord_line = " ".join(parts)
-        else:
+        # Build ChordMark chord line
+        # ChordMark beat rules (in N/M time):
+        #   - Chord with 0 dots = full bar — ONLY for single-chord bars
+        #   - Chord with N dots = N beats
+        #   - Total beats per bar must equal time signature (default 4)
+        # JSON: ["Bmaj7", null, null, null] = Bmaj7 for 4 beats
+        #   null = continuation of previous chord
+        # Vision model produces variable-length arrays, so we distribute
+        # beats proportionally based on each chord's weight (entry count).
+        
+        if not chords:
             chord_line = "." * beats
+        else:
+            # Step 1: Group entries into (chord_name, weight) pairs
+            # Weight = 1 (the chord itself) + count of following nulls
+            chord_weights = []  # list of [name, weight]
+            
+            for c in chords:
+                if c is not None:
+                    chord_weights.append([c, 1])
+                else:
+                    if chord_weights:
+                        chord_weights[-1][1] += 1
+                    # else: leading null — skip
+            
+            # Step 1b: Merge consecutive identical chords
+            # (ChordMark doesn't allow same chord repeated in same bar)
+            merged = []
+            for name, weight in chord_weights:
+                if merged and merged[-1][0] == name:
+                    merged[-1][1] += weight
+                else:
+                    merged.append([name, weight])
+            chord_weights = merged
+            
+            # Step 2: Distribute beats proportionally
+            if len(chord_weights) == 1:
+                # Single chord — no dots needed (gets full bar automatically)
+                chord_line = chord_weights[0][0]
+            else:
+                # Proportional distribution with largest-remainder rounding
+                total_weight = sum(w for _, w in chord_weights)
+                raw_beats = [(name, w / total_weight * beats) for name, w in chord_weights]
+                
+                # Floor all, then distribute remainders to get exact total
+                floored = [(name, max(1, int(b))) for name, b in raw_beats]
+                remainders = [(i, b - int(b)) for i, (name, b) in enumerate(raw_beats)]
+                
+                current_total = sum(b for _, b in floored)
+                deficit = beats - current_total
+                
+                # Give extra beats to chords with largest fractional remainders
+                remainders.sort(key=lambda x: -x[1])
+                for i, _ in remainders:
+                    if deficit <= 0:
+                        break
+                    floored[i] = (floored[i][0], floored[i][1] + 1)
+                    deficit -= 1
+                
+                # Handle surplus: more chords than beats
+                # Use ChordMark sub-beat syntax [A B] for chords sharing a beat
+                final_total = sum(b for _, b in floored)
+                surplus = final_total - beats
+                
+                if surplus > 0:
+                    # First try trimming chords that have >1 beat
+                    for i in sorted(range(len(floored)), key=lambda i: -floored[i][1]):
+                        if surplus <= 0:
+                            break
+                        if floored[i][1] > 1:
+                            floored[i] = (floored[i][0], floored[i][1] - 1)
+                            surplus -= 1
+                
+                if surplus > 0:
+                    # Overflow — group adjacent 1-beat chords into sub-beats [A B]
+                    # Each sub-beat group shares 1 beat, reducing total by (group_size - 1)
+                    # Strategy: scan from end, greedily pair/triple adjacent 1-beat chords
+                    grouped = []  # list of (names_list, dur)
+                    i = len(floored) - 1
+                    while i >= 0:
+                        if surplus > 0 and floored[i][1] == 1:
+                            # Collect consecutive 1-beat chords for sub-beat group
+                            group = [floored[i][0]]
+                            i -= 1
+                            # Add up to 3 more (max 4 per sub-beat group in ChordMark)
+                            while i >= 0 and surplus > 0 and floored[i][1] == 1 and len(group) < 4:
+                                group.insert(0, floored[i][0])
+                                surplus -= 1
+                                i -= 1
+                            grouped.insert(0, (group, 1))
+                        else:
+                            grouped.insert(0, ([floored[i][0]], floored[i][1]))
+                            i -= 1
+                    
+                    tokens = []
+                    for names, dur in grouped:
+                        if len(names) > 1:
+                            tokens.append("[" + " ".join(names) + "]")
+                        else:
+                            tokens.append(names[0] + "." * dur)
+                    chord_line = " ".join(tokens)
+                else:
+                    tokens = []
+                    for name, dur in floored:
+                        tokens.append(name + "." * dur)
+                    chord_line = " ".join(tokens)
         
         # Lyrics line
         lyrics = (bar.get("lyrics") or "").strip()
