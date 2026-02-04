@@ -1,145 +1,199 @@
 #!/usr/bin/env python3
 """
 Convert parsed JSON songsheets to ChordMark format.
+Handles multi-page songs by merging pages with matching titles.
 
 Usage:
+    python json_to_chordmark.py data/artist/json/ --output data/artist/chordmark/
     python json_to_chordmark.py data/artist/json/*.json --output data/artist/chordmark/
-    
-ChordMark format reference: https://chordmark.netlify.app/
 """
 
 import argparse
 import json
+import re
+import unicodedata
+from collections import OrderedDict
 from pathlib import Path
+
+
+def normalize_title(title: str) -> str:
+    """Normalize title for grouping (strip accents, lowercase)."""
+    nfkd = unicodedata.normalize('NFKD', title)
+    ascii_str = nfkd.encode('ASCII', 'ignore').decode('ASCII')
+    return ascii_str.lower().strip()
 
 
 def slugify(text: str) -> str:
     """Convert title to filename-safe slug."""
-    import re
     text = text.lower()
     text = re.sub(r"[^\w\s-]", "", text)
     text = re.sub(r"[-\s]+", "-", text).strip("-")
     return text
 
 
-def json_to_chordmark(data: dict) -> str:
-    """Convert parsed JSON to ChordMark format."""
+def group_pages(json_files: list[Path]) -> dict:
+    """Group JSON files by song title, preserving page order."""
+    groups = OrderedDict()
+    
+    for path in sorted(json_files):
+        with open(path) as f:
+            data = json.load(f)
+        
+        title = data.get("title", path.stem)
+        key = normalize_title(title)
+        
+        if key not in groups:
+            groups[key] = {
+                "title": title,
+                "pages": [],
+            }
+        
+        groups[key]["pages"].append(data)
+    
+    return groups
+
+
+def merge_song(pages: list[dict]) -> dict:
+    """Merge multiple pages of the same song into one."""
+    merged_chords = OrderedDict()
+    merged_bars = []
+    
+    # Use first page for metadata
+    title = pages[0].get("title", "Unknown")
+    composer = pages[0].get("composer")
+    key = pages[0].get("key")
+    
+    for page in pages:
+        # Merge chord definitions (later pages may have same/different voicings)
+        for name, info in page.get("chords", {}).items():
+            if name not in merged_chords:
+                merged_chords[name] = info
+        
+        # Append bars sequentially
+        merged_bars.extend(page.get("bars", []))
+    
+    return {
+        "title": title,
+        "composer": composer,
+        "key": key,
+        "chords": merged_chords,
+        "bars": merged_bars,
+        "page_count": len(pages),
+    }
+
+
+def song_to_chordmark(song: dict) -> str:
+    """Convert merged song dict to ChordMark format with #chord directives."""
     lines = []
     
-    # Header
-    title = data.get("title", "Unknown")
-    lines.append(f"# {title}")
+    # Chord definitions using #chord directive
+    for name, info in song.get("chords", {}).items():
+        fingering = info.get("fingering", "")
+        if fingering:
+            lines.append(f"#chord {name} {fingering}")
     
-    if composer := data.get("composer"):
-        lines.append(f"## {composer}")
-    
-    lines.append("")
-    
-    # Chord definitions (as comments for reference)
-    if chords := data.get("chords"):
-        lines.append("# Chord voicings:")
-        for name, info in chords.items():
-            fingering = info.get("fingering", "?")
-            fret = info.get("fret", 1)
-            fret_note = f" (fret {fret})" if fret > 1 else ""
-            lines.append(f"# {name}: {fingering}{fret_note}")
+    if song.get("chords"):
         lines.append("")
     
     # Bars
     current_section = None
     
-    for bar in data.get("bars", []):
+    for bar in song.get("bars", []):
         # Section marker
-        if section := bar.get("section"):
-            if section != current_section:
-                lines.append("")
-                lines.append(f"## {section.title()}")
-                current_section = section
+        section = bar.get("section")
+        if section and section != current_section:
+            lines.append("")
+            lines.append(section.title())
+            current_section = section
         
-        # Build chord line
+        # Chord line
         chords = bar.get("chords", [])
         beats = bar.get("beats", 4)
         
-        # ChordMark uses dots for beats: "C . . ." = C held for 4 beats
-        chord_parts = []
-        for i, chord in enumerate(chords):
-            if chord:
-                chord_parts.append(chord)
-            elif i == 0:
-                # First beat with no chord - use previous or skip
-                chord_parts.append(".")
-            else:
-                chord_parts.append(".")
-        
-        # Pad to beat count
-        while len(chord_parts) < beats:
-            chord_parts.append(".")
-        
-        chord_line = " ".join(chord_parts)
-        lyrics = bar.get("lyrics", "")
-        
-        # Format: chord line, then lyrics (or combined if short)
-        if lyrics:
-            lines.append(f"{chord_line}")
-            lines.append(f"{lyrics}")
+        # Build ChordMark chord line: "Cmaj7.. Am7.."
+        # Each chord followed by dots for duration
+        if len(chords) == 1:
+            # Single chord for whole bar
+            chord_line = chords[0] + "." * (beats - 1) if chords[0] else "." * beats
+        elif chords:
+            # Multiple chords - distribute beats
+            beats_per_chord = max(1, beats // len(chords))
+            parts = []
+            for c in chords:
+                if c:
+                    parts.append(c + "." * (beats_per_chord - 1))
+                else:
+                    parts.append("." * beats_per_chord)
+            chord_line = " ".join(parts)
         else:
-            lines.append(f"{chord_line}")
+            chord_line = "." * beats
+        
+        # Lyrics line
+        lyrics = (bar.get("lyrics") or "").strip()
+        
+        lines.append(chord_line)
+        if lyrics:
+            lines.append(lyrics)
     
-    return "\n".join(lines)
-
-
-def convert_file(json_path: Path, output_dir: Path) -> Path:
-    """Convert a single JSON file to ChordMark."""
-    with open(json_path) as f:
-        data = json.load(f)
-    
-    # Check for unresolved flags
-    flags = data.get("_flags", [])
-    if flags:
-        print(f"  ⚠️  Has {len(flags)} flags: {flags[:2]}...")
-    
-    chordmark = json_to_chordmark(data)
-    
-    title = data.get("title", json_path.stem)
-    output_path = output_dir / f"{slugify(title)}.chordmark"
-    
-    with open(output_path, "w") as f:
-        f.write(chordmark)
-    
-    return output_path
+    return "\n".join(lines) + "\n"
 
 
 def main():
     parser = argparse.ArgumentParser(description="Convert JSON songsheets to ChordMark")
-    parser.add_argument("files", nargs="+", type=Path, help="JSON files to convert")
+    parser.add_argument("input", nargs="+", type=Path, help="JSON files or directory")
     parser.add_argument("-o", "--output", type=Path, required=True, help="Output directory")
-    parser.add_argument("--skip-flagged", action="store_true", help="Skip files with unresolved flags")
+    parser.add_argument("--no-merge", action="store_true", help="Don't merge multi-page songs")
     
     args = parser.parse_args()
-    
     args.output.mkdir(parents=True, exist_ok=True)
     
-    for json_path in args.files:
-        if not json_path.exists():
-            print(f"⚠️  Skipping {json_path}: not found")
-            continue
-        
-        print(f"Converting: {json_path.name}...", end=" ")
-        
-        try:
-            # Check for flags if skip-flagged
-            if args.skip_flagged:
-                with open(json_path) as f:
-                    data = json.load(f)
-                if data.get("_flags"):
-                    print("⏭️  Skipped (has flags)")
-                    continue
+    # Collect JSON files
+    json_files = []
+    for p in args.input:
+        if p.is_dir():
+            json_files.extend(sorted(p.glob("*.json")))
+        elif p.suffix == ".json":
+            json_files.append(p)
+    
+    if not json_files:
+        print("No JSON files found.")
+        return
+    
+    if args.no_merge:
+        # Convert each file individually
+        for path in json_files:
+            with open(path) as f:
+                data = json.load(f)
             
-            output_path = convert_file(json_path, args.output)
-            print(f"✓ → {output_path.name}")
+            chordmark = song_to_chordmark(data)
+            title = data.get("title", path.stem)
+            output_path = args.output / f"{slugify(title)}-{path.stem}.chordmark"
             
-        except Exception as e:
-            print(f"✗ Error: {e}")
+            with open(output_path, "w") as f:
+                f.write(chordmark)
+            
+            print(f"  {path.name} → {output_path.name}")
+    else:
+        # Group and merge by title
+        groups = group_pages(json_files)
+        
+        print(f"Found {len(json_files)} pages → {len(groups)} songs\n")
+        
+        for key, group in groups.items():
+            song = merge_song(group["pages"])
+            chordmark = song_to_chordmark(song)
+            
+            title = song["title"]
+            output_path = args.output / f"{slugify(title)}.chordmark"
+            
+            with open(output_path, "w") as f:
+                f.write(chordmark)
+            
+            chords = len(song.get("chords", {}))
+            bars = len(song.get("bars", []))
+            pages = song["page_count"]
+            
+            print(f"  ✓ {title} ({pages}p → {chords} chords, {bars} bars) → {output_path.name}")
 
 
 if __name__ == "__main__":

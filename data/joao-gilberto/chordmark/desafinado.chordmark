@@ -1,36 +1,52 @@
-# Desafinado
-## Antonio Carlos Jobin
-
-# Chord voicings:
-# D6/F#: 200202
-# Dmaj7/F#: 200222
-# E79: 020102
-# Em79: 020132
-# A9: x02100
-# A7-9: x02000
-# F#m7-5: 2x2210
-# F#dim7: 2x121x
-# Em7: 020100
-# F#7: 242322
-# Bmaj7: x21331
-# E9: 020102
-# D#maj7: xx6566 (fret 6)
-# Dmaj9: 554655 (fret 5)
-# A13: 575675 (fret 5)
-# A7+5: 565655 (fret 5)
-# F#7-5: 23232x (fret 2)
-# B7-9/F#: 221232 (fret 2)
-# Gmaj7: 320002
-# Bm9: x21222
-# G#dim7: 4x343x
-# F#maj7: 213321 (fret 2)
-# F7+5: xx3211
-# E13: 020120
-# A7: x02020
-# Gdim7: xx5656
-# G#m7: 464444 (fret 4)
-# C#79: x43444
-# C#7-9: x43424
+#chord D6/F# 200202
+#chord Dmaj7/F# 200222
+#chord E79 020102
+#chord Em79 020132
+#chord A9 x02100
+#chord A7-9 x02000
+#chord F#m7-5 2x2210
+#chord F#dim7 2x121x
+#chord Em7 020100
+#chord F#7 242322
+#chord Bmaj7 x21331
+#chord E9 020102
+#chord D#maj7 xx6566
+#chord Dmaj9 554655
+#chord A13 575675
+#chord A7+5 565655
+#chord F#7-5 23232x
+#chord B7-9/F# 221232
+#chord Gmaj7 320002
+#chord Bm9 x21222
+#chord G#dim7 4x343x
+#chord F#maj7 213321
+#chord F7+5 xx3211
+#chord E13 020120
+#chord A7 x02020
+#chord Gdim7 xx5656
+#chord G#m7 464444
+#chord C#79 x43444
+#chord C#7-9 x43424
+#chord F#m7 242222
+#chord Bm79/F# 222222
+#chord E13/F x32333
+#chord E13-9 x21222
+#chord Amaj7 x02120
+#chord G7 320001
+#chord Bm7/F# 224232
+#chord E7+5 020110
+#chord D6 xx0202
+#chord Gm6 320030
+#chord D#6/G 333333
+#chord Dmaj7 554665
+#chord De6/G 320200
+#chord A7sus4 x02030
+#chord F#7+5 231212
+#chord Bm7 x24232
+#chord C#7-9-5 453434
+#chord Cm6 x32210
+#chord Fdim7 12121x
+#chord Am7 x02010
 
 D6/F# . . .
 Se voce
@@ -70,3 +86,76 @@ A7 . . .
 F#maj7 . Gdim7 .
 que voce nao sa be nem se quer pres sente
 G#m7 . C#79 C#7-9
+F#maj7 F#m7 Bm79/F# .
+E que os desafi-na - dos tambem tem um cora-cao
+E13/F E13-9 . .
+Fo-to
+Amaj7 G7 F#7 Bm7/F#
+grafei vo - ce na minha Rollei - flex
+E7+5 . . .
+Reve-
+Em7 F#dim7 Em7 .
+lou-se a sua enor - me in - gra-ti-dab
+A7-9 . . .
+D6 Dmaj9 E9 .
+So nao podera fa - lar as sim
+. . . .
+do meu a-mor
+Em79 A13 A7+5 F#m7-5
+Ella e o maior que voce po - de en -contrar
+B7-9/F# . . .
+Vo-
+Gmaj7 Gm6 F#m7 Bm7/F#
+ce com a sua mu - sica es-que - ceu o princi pal
+. . . .
+Que no
+E79 D#maj7 D#6/G .
+peito dos de-safina - dos No fundo do pei - to bate ca-la - do,
+E9 A7-9 D6 .
+peito dos desa-fina - dos, Tam bem bate te um co-ra - cao
+Dmaj7 . E9 .
+Se vo-ce dis ser que eu de-sa-fi no amor
+Em79 A7-9 F#m7-5 F#dim7
+Saiba que isso en min provoca i - men - sa dor
+. . . .
+So
+Gmaj7 F#7 Bmaj7 F#dim7
+privi-legi-a dos tem ou vi do i-gual ao seu
+E79 D#maj7 De6/G
+Eu po ssuo a penas o que Deus me deu
+Dmaj7/F#. E9.
+Se vo-
+Em79 A7sus4 A7 F#m7-5
+ce in sis te em clas si-fi car
+B7-9/F#...
+Meu com-porta men to de anti musi cal
+Em7 F#7+5 Bm7 G#dim7
+Eu, mesmo men tin-do devo ar-gu men-tar
+F#maj7 F7+5 E13 A7
+Que isto e
+0...
+bos sa no va, que i sto e muito na tu ral
+F#maj7 Gdim7 G#m7 C#7-9-5
+que vo ce nao sa be nem se quer pres sente
+F#maj7 F#m7 Bm79/F# E13/F E13-9
+que os desafina dos tambem tem um cora cao
+Amaj7 G7 F#7 Bm7/F# E7+5
+Fotogra-fei vo ce na minha Rollei-flex Reve-
+Em7 Cm6 E79 A7-9
+Tou-se a sua enor me in gra-ti dao So
+D6 Dmaj9 E9
+nao  po-de - ra  fa  lar as  sim  do meu a - mor
+Em79 A13 F#m7-5 B7-9/F#
+Ella e o mai - or que voce po-de en-con trar
+. . . .
+Vo-
+Gmaj7 F#7+5 F#m7 Fdim7
+ce com a sua mu  sica es-que ceu o princi pal
+. . . .
+Que no
+E9 D#maj7 D#6/G
+peito dos de-safina - dos No fundo do pei - to bate ca-la - do,
+E9 A7-9 D6
+peito dos desa-fi - na - dos, Tam - ben ba - te um co-ra - cao
+D6 Am7 D6 Am7 D6 Am7 D6 Am7
+D6 Am7 D6 Am7 D6 Am7 D6 Am7
