@@ -82,6 +82,61 @@ def merge_song(pages: list[dict]) -> dict:
     }
 
 
+def insert_position_markers(lyrics: str, chord_positions: list[dict]) -> str:
+    """
+    Insert ChordMark position markers (_) into lyrics based on chord_positions.
+    
+    ChordMark format: _ before the syllable where a chord change happens
+    Example: "Bmaj7.. Fdim7.." / "_um a-mor a- _en tao nao vou pra ca"
+    
+    Args:
+        lyrics: Original lyrics string
+        chord_positions: List of {"chord": "X", "at_syllable": "Y"}
+    
+    Returns:
+        Lyrics with _ markers inserted
+    """
+    if not chord_positions:
+        return lyrics
+    
+    # Build list of (position_in_string, syllable) sorted by position
+    insertions = []
+    
+    for pos in chord_positions:
+        syllable = pos.get("at_syllable", "").strip()
+        if not syllable:
+            continue
+        
+        # Find syllable in lyrics (case-insensitive)
+        # Handle multiple occurrences: use the earliest one not yet marked
+        lyrics_lower = lyrics.lower()
+        syllable_lower = syllable.lower()
+        
+        # Find all occurrences
+        idx = 0
+        while True:
+            idx = lyrics_lower.find(syllable_lower, idx)
+            if idx == -1:
+                break
+            
+            # Check if this position is already used
+            if not any(ins[0] == idx for ins in insertions):
+                insertions.append((idx, syllable))
+                break
+            
+            idx += 1
+    
+    # Sort by position (descending) so we can insert from end without shifting indices
+    insertions.sort(key=lambda x: -x[0])
+    
+    # Insert markers
+    result = lyrics
+    for pos, syllable in insertions:
+        result = result[:pos] + "_" + result[pos:]
+    
+    return result
+
+
 def song_to_chordmark(song: dict) -> str:
     """Convert merged song dict to ChordMark format with #chord directives."""
     lines = []
@@ -217,11 +272,15 @@ def song_to_chordmark(song: dict) -> str:
                         tokens.append(name + "." * dur)
                     chord_line = " ".join(tokens)
         
-        # Lyrics line
+        # Lyrics line with position markers
         lyrics = (bar.get("lyrics") or "").strip()
         
         lines.append(chord_line)
         if lyrics:
+            # Add position markers if available
+            chord_positions = bar.get("chord_positions")
+            if chord_positions:
+                lyrics = insert_position_markers(lyrics, chord_positions)
             lines.append(lyrics)
     
     return "\n".join(lines) + "\n"

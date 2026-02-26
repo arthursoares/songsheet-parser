@@ -76,7 +76,17 @@
         "C#m7/G#",
         null
       ],
-      "beats": 4
+      "beats": 4,
+      "chord_positions": [
+        {
+          "chord": "G#7",
+          "at_syllable": "que"
+        },
+        {
+          "chord": "C#m7/GP",
+          "at_syllable": "gen"
+        }
+      ]
     },
     {
       "lyrics": "de ba tu- car",
@@ -106,7 +116,17 @@
         "C#m7/G#",
         null
       ],
-      "beats": 4
+      "beats": 4,
+      "chord_positions": [
+        {
+          "chord": "G#7",
+          "at_syllable": "na"
+        },
+        {
+          "chord": "C#m7/G#",
+          "at_syllable": "da"
+        }
+      ]
     },
     {
       "lyrics": "ba eu en-con trar",
@@ -126,7 +146,17 @@
         "Fdim7",
         null
       ],
-      "beats": 4
+      "beats": 4,
+      "chord_positions": [
+        {
+          "chord": "Bmaj7",
+          "at_syllable": "um"
+        },
+        {
+          "chord": "Fdim7",
+          "at_syllable": "en"
+        }
+      ]
     },
     {
       "lyrics": "sa nao se nhor nao vou",
@@ -136,7 +166,17 @@
         "F#7+5",
         null
       ],
-      "beats": 4
+      "beats": 4,
+      "chord_positions": [
+        {
+          "chord": "C#m7",
+          "at_syllable": "ca"
+        },
+        {
+          "chord": "F#7+5",
+          "at_syllable": "se"
+        }
+      ]
     },
     {
       "lyrics": "nao vou So vou pra ca sa",
@@ -146,7 +186,21 @@
         "F#7+5",
         null
       ],
-      "beats": 4
+      "beats": 4,
+      "chord_positions": [
+        {
+          "chord": "Bmaj7",
+          "at_syllable": "nao"
+        },
+        {
+          "chord": "F#7+5",
+          "at_syllable": "So"
+        },
+        {
+          "chord": "Bmaj9",
+          "at_syllable": "ca"
+        }
+      ]
     },
     {
       "lyrics": "quan-do o dia a cla re ar",
@@ -156,7 +210,17 @@
         "Fdim7",
         null
       ],
-      "beats": 4
+      "beats": 4,
+      "chord_positions": [
+        {
+          "chord": "Bmaj9",
+          "at_syllable": "quan"
+        },
+        {
+          "chord": "Fdim7",
+          "at_syllable": "di"
+        }
+      ]
     },
     {
       "lyrics": "eu sou do sam ba",
@@ -166,7 +230,17 @@
         "B13/F#",
         null
       ],
-      "beats": 4
+      "beats": 4,
+      "chord_positions": [
+        {
+          "chord": "Bmaj7",
+          "at_syllable": "eu"
+        },
+        {
+          "chord": "B13/F#",
+          "at_syllable": "sam"
+        }
+      ]
     },
     {
       "lyrics": "pois o sam ba me cri ou",
@@ -176,7 +250,17 @@
         "G#7",
         null
       ],
-      "beats": 4
+      "beats": 4,
+      "chord_positions": [
+        {
+          "chord": "Bmaj7/F#",
+          "at_syllable": "ba"
+        },
+        {
+          "chord": "G#7",
+          "at_syllable": "me"
+        }
+      ]
     },
     {
       "lyrics": "se por a-ca so um gran de a-mor",
@@ -186,7 +270,17 @@
         "G#7",
         null
       ],
-      "beats": 4
+      "beats": 4,
+      "chord_positions": [
+        {
+          "chord": "C#m7/G#",
+          "at_syllable": "se"
+        },
+        {
+          "chord": "G#7",
+          "at_syllable": "ca"
+        }
+      ]
     },
     {
       "lyrics": "eu ar-ran-jar",
@@ -226,7 +320,17 @@
         "F#7+5",
         null
       ],
-      "beats": 4
+      "beats": 4,
+      "chord_positions": [
+        {
+          "chord": "Bmaj7",
+          "at_syllable": "So"
+        },
+        {
+          "chord": "F#7+5",
+          "at_syllable": "ca"
+        }
+      ]
     },
     {
       "lyrics": "quan-do o dia a cla re ar",
@@ -236,7 +340,17 @@
         "Fdim7",
         null
       ],
-      "beats": 4
+      "beats": 4,
+      "chord_positions": [
+        {
+          "chord": "Bmaj7",
+          "at_syllable": "di"
+        },
+        {
+          "chord": "Fdim7",
+          "at_syllable": "cla"
+        }
+      ]
     },
     {
       "lyrics": "eu sou do sam ba",
@@ -246,7 +360,17 @@
         "Bmaj7/F#",
         null
       ],
-      "beats": 4
+      "beats": 4,
+      "chord_positions": [
+        {
+          "chord": "B13/F#",
+          "at_syllable": "eu"
+        },
+        {
+          "chord": "Bmaj7/F#",
+          "at_syllable": "do"
+        }
+      ]
     },
     {
       "lyrics": "pois o sam ba me cri ou",
@@ -256,7 +380,17 @@
         "G#7",
         null
       ],
-      "beats": 4
+      "beats": 4,
+      "chord_positions": [
+        {
+          "chord": "D#m7",
+          "at_syllable": "ba"
+        },
+        {
+          "chord": "G#7",
+          "at_syllable": "cri"
+        }
+      ]
     },
     {
       "lyrics": "se por a ca so um gran de a-mor",
@@ -266,7 +400,21 @@
         "G#7",
         null
       ],
-      "beats": 4
+      "beats": 4,
+      "chord_positions": [
+        {
+          "chord": "C#m7/G#",
+          "at_syllable": "se"
+        },
+        {
+          "chord": "G#7",
+          "at_syllable": "ca"
+        },
+        {
+          "chord": "C#m7/G#",
+          "at_syllable": "de"
+        }
+      ]
     },
     {
       "lyrics": "eu ar-ran-jar",

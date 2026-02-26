@@ -52,7 +52,25 @@
         null
       ],
       "beats": 4,
-      "section": null
+      "section": null,
+      "chord_positions": [
+        {
+          "chord": "D#m7",
+          "at_syllable": "rit"
+        },
+        {
+          "chord": "G#7",
+          "at_syllable": "que"
+        },
+        {
+          "chord": "C#m7/G#",
+          "at_syllable": "te"
+        },
+        {
+          "chord": "F#7",
+          "at_syllable": "de"
+        }
+      ]
     },
     {
       "lyrics": "que dei - xa a geri - te can-sa - do",
@@ -63,7 +81,17 @@
         null
       ],
       "beats": 4,
-      "section": null
+      "section": null,
+      "chord_positions": [
+        {
+          "chord": "C#m7/G#",
+          "at_syllable": "te"
+        },
+        {
+          "chord": "F#7",
+          "at_syllable": "de"
+        }
+      ]
     },
     {
       "lyrics": "de ba tu car",
@@ -85,7 +113,17 @@
         null
       ],
       "beats": 4,
-      "section": null
+      "section": null,
+      "chord_positions": [
+        {
+          "chord": "D#m7-5",
+          "at_syllable": "mas"
+        },
+        {
+          "chord": "G#7",
+          "at_syllable": "na"
+        }
+      ]
     },
     {
       "lyrics": "ba eu en-con - trar",
@@ -96,7 +134,17 @@
         null
       ],
       "beats": 4,
-      "section": null
+      "section": null,
+      "chord_positions": [
+        {
+          "chord": "C#m7/G#",
+          "at_syllable": "ba"
+        },
+        {
+          "chord": "Em6",
+          "at_syllable": "con"
+        }
+      ]
     },
     {
       "lyrics": "um a-mor a - ' en tao nao",
@@ -107,7 +155,17 @@
         null
       ],
       "beats": 4,
-      "section": null
+      "section": null,
+      "chord_positions": [
+        {
+          "chord": "Bmaj7",
+          "at_syllable": "um"
+        },
+        {
+          "chord": "Fdim7",
+          "at_syllable": "en"
+        }
+      ]
     },
     {
       "lyrics": "vou pra cса sa nao se - nhor nao vou",
@@ -118,7 +176,17 @@
         null
       ],
       "beats": 4,
-      "section": null
+      "section": null,
+      "chord_positions": [
+        {
+          "chord": "C#m7",
+          "at_syllable": "vou"
+        },
+        {
+          "chord": "F#7",
+          "at_syllable": "se"
+        }
+      ]
     },
     {
       "lyrics": "nao vou",
@@ -129,7 +197,17 @@
         null
       ],
       "beats": 4,
-      "section": null
+      "section": null,
+      "chord_positions": [
+        {
+          "chord": "Bmaj7",
+          "at_syllable": "nao"
+        },
+        {
+          "chord": "F#7 5",
+          "at_syllable": "vou"
+        }
+      ]
     },
     {
       "lyrics": "",

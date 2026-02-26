@@ -1,0 +1,67 @@
+Analyze this Brazilian songsheet image and extract structured data WITH CHORD-SYLLABLE ALIGNMENT.
+
+Return a JSON object with:
+
+{
+  "title": "Song title",
+  "composer": "Composer name (if visible)",
+  "key": "Key signature (if indicated)",
+  
+  "chords": {
+    "ChordName": {
+      "fingering": "6 characters for 6 strings (low E to high e): x=muted, 0=open, or fret number",
+      "fret": starting_fret_position
+    }
+  },
+  
+  "bars": [
+    {
+      "lyrics": "lyrics for this bar only",
+      "chords": ["ChordName"],
+      "beats": 4,
+      "chord_positions": [
+        {"chord": "ChordName", "syllable": "exact syllable where chord hits", "beat": 1}
+      ]
+    }
+  ],
+  
+  "_flags": ["any uncertainties or unclear elements"],
+  "_confidence": 0.0 to 1.0
+}
+
+CRITICAL INSTRUCTIONS:
+
+1. CHORD DIAGRAMS - Read carefully:
+   - Look for a fret position number (e.g., "3fr", "5") on the side — this is the starting fret
+   - Many chords are NOT in open position — they may be at 3rd, 5th, 7th fret etc.
+   - Count dots relative to the position marker
+   - Format: 6 characters, low E string first. Example: 5x665x means E=5th fret, A=muted, D=6th, G=6th, B=5th, e=muted
+   - Barre chords: if a barre spans strings, all those strings get the same fret number
+
+2. BAR STRUCTURE - This is essential:
+   - There is a thin horizontal line between the chord diagrams and the lyrics
+   - Small VERTICAL lines on that horizontal line mark BAR DIVISIONS
+   - Each segment between vertical lines is ONE BAR (one measure)
+   - Typically 4 bars per line, like: |——|——|——|——|
+   - Each bar usually has ONE chord and a few syllables of lyrics
+   - Do NOT treat each text line as one bar — look for the vertical bar lines!
+
+3. LYRICS:
+   - Split lyrics by bar — only include the syllables that fall within each bar
+   - Hyphens indicate syllable breaks within words
+
+4. **CHORD-SYLLABLE ALIGNMENT - NEW REQUIREMENT:**
+   - For each bar, identify EXACTLY which syllable each chord change occurs on
+   - Look at the spatial positioning: chord diagrams are positioned ABOVE the syllable where they strike
+   - In the "chord_positions" array, specify:
+     * "chord": the chord name
+     * "syllable": the EXACT syllable text where this chord hits (e.g., "um", "en", "nao")
+     * "beat": the beat position (1, 2, 3, or 4)
+   - Example: if "Bmaj7" is positioned above "um" in the bar "um a-mor a-", the entry is:
+     {"chord": "Bmaj7", "syllable": "um", "beat": 1}
+   - If "Fdim7" is positioned above "en" later in the bar, the entry is:
+     {"chord": "Fdim7", "syllable": "en", "beat": 3}
+   - Be PRECISE about which syllable — look at horizontal alignment in the image
+   - If a syllable contains a hyphen (e.g., "a-mor"), include the hyphen in the syllable text
+
+Return ONLY the JSON, no markdown or explanation.
