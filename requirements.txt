@@ -1,0 +1,10 @@
+# Core
+openai>=2.0          # vision via Codex/ChatGPT subscription (default provider) and --provider openai
+pdf2image            # extract_pages.py — also needs system poppler (brew install poppler)
+pillow               # image handling
+jsonschema>=4.0        # validate songsheet JSON against schema
+pytest>=8.0            # test runner
+
+# Optional providers (install if you use them)
+# anthropic          # --provider claude   (parse_songsheet.py)
+# google-generativeai  # --provider gemini (parse_songsheet.py / add_positions.py)
