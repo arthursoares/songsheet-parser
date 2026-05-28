@@ -40,3 +40,11 @@ def test_percent_continuation_is_valid_chord():
     doc = json.loads(FIXTURE.read_text())
     doc["songs"][0]["sections"][0]["bars"][0] = [{"chord": "%"}]
     jsonschema.validate(doc, schema)  # must not raise
+
+
+def test_stray_key_on_song_is_rejected():
+    schema = load_schema()
+    doc = json.loads(FIXTURE.read_text())
+    doc["songs"][0]["unexpected_field"] = "nope"
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(doc, schema)

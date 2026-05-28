@@ -46,6 +46,7 @@
     "document": {
       "type": "object",
       "required": ["title"],
+      "additionalProperties": false,
       "properties": {
         "title": { "type": "string" },
         "source_pdf": { "type": "string" },
@@ -57,6 +58,7 @@
       "items": {
         "type": "object",
         "required": ["title", "sections"],
+        "additionalProperties": false,
         "properties": {
           "title": { "type": "string" },
           "composers": { "type": "array", "items": { "type": "string" } },
@@ -75,6 +77,7 @@
             "items": {
               "type": "object",
               "required": ["bars"],
+              "additionalProperties": false,
               "properties": {
                 "label": { "type": ["string", "null"] },
                 "bars": {
