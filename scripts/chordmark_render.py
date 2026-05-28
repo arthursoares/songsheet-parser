@@ -42,3 +42,15 @@ def render_chord_line(bar, beats=DEFAULT_BEATS):
     for entry, dur in zip(bar, durations):
         tokens.append(_chord_token(entry) + "." * dur)
     return " ".join(tokens)
+
+
+def render_lyric_line(bar):
+    """Render the `_`-anchored lyric line for a bar, or None if no entry has text."""
+    parts = []
+    for entry in bar:
+        text = entry.get("text")
+        if text:
+            parts.append("_" + text.strip())
+    if not parts:
+        return None
+    return " ".join(parts)

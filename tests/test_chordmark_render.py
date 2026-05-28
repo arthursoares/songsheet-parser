@@ -29,3 +29,26 @@ def test_three_chords_largest_remainder_sums_to_four():
 def test_four_chords_one_beat_each():
     bar = [{"chord": "A"}, {"chord": "B"}, {"chord": "C"}, {"chord": "D"}]
     assert cm.render_chord_line(bar) == "A. B. C. D."
+
+
+def test_lyric_line_anchors_each_chord_text():
+    bar = [
+        {"chord": "Dm7", "text": "Vai mi nha"},
+        {"chord": "Bdim7", "text": "tris"},
+    ]
+    assert cm.render_lyric_line(bar) == "_Vai mi nha _tris"
+
+
+def test_lyric_line_none_when_no_text():
+    bar = [{"chord": "Gm7/9"}, {"chord": "%"}]
+    assert cm.render_lyric_line(bar) is None
+
+
+def test_lyric_line_percent_entry_with_text():
+    bar = [{"chord": "%", "text": "tris"}]
+    assert cm.render_lyric_line(bar) == "_tris"
+
+
+def test_lyric_line_skips_missing_text_entries():
+    bar = [{"chord": "Dm7", "text": "Vai"}, {"chord": "A7"}]
+    assert cm.render_lyric_line(bar) == "_Vai"
