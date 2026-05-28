@@ -26,8 +26,12 @@ PDF Songbooks → PNG Pages → Vision Parse → JSON → Review → ChordMark
 
 ## Supported Output
 
-- **JSON** — Intermediate format for review/correction
-- **[ChordMark](https://chordmark.netlify.app/)** — Encodes rhythm, lyrics, chord positions
+- **JSON** — Intermediate, chord-anchored format for review/correction. A document holds
+  songs → sections → bars, where a bar is an ordered array of `{chord, voicing?, text?}`
+  entries (entry order anchors each chord to its lyrics; `%` = chord continues; voicing is
+  per-occurrence). See `docs/superpowers/specs/2026-05-28-songsheet-data-model-design.md`.
+- **[ChordMark](https://chordmark.netlify.app/)** — Encodes rhythm, lyrics, chord positions.
+  One `.chordmark` file is written per song.
 
 ## Usage
 
