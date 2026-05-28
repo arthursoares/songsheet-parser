@@ -74,6 +74,8 @@ def assemble_document(pdf_path: Path, page_results: list[dict]) -> dict:
     for page_idx, result in enumerate(page_results, start=1):
         for s_idx, song in enumerate(result.get("songs", [])):
             song = json.loads(json.dumps(song))  # deep copy
+            # The model's own "pages" value is an unreliable guess (it may print
+            # a song/section number). The real page index is authoritative.
             cont = (
                 s_idx == 0
                 and songs
@@ -82,13 +84,10 @@ def assemble_document(pdf_path: Path, page_results: list[dict]) -> dict:
             if cont:
                 prev = songs[-1]
                 prev.setdefault("sections", []).extend(song.get("sections", []))
-                prev.setdefault("pages", [])
                 if page_idx not in prev["pages"]:
                     prev["pages"].append(page_idx)
             else:
-                song.setdefault("pages", [])
-                if page_idx not in song["pages"]:
-                    song["pages"].append(page_idx)
+                song["pages"] = [page_idx]
                 songs.append(song)
 
     return {
