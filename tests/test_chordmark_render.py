@@ -52,3 +52,40 @@ def test_lyric_line_percent_entry_with_text():
 def test_lyric_line_skips_missing_text_entries():
     bar = [{"chord": "Dm7", "text": "Vai"}, {"chord": "A7"}]
     assert cm.render_lyric_line(bar) == "_Vai"
+
+
+def test_render_song_full():
+    song = {
+        "title": "T",
+        "chords": {"Dm7": [{"voicing": "x5756x"}]},
+        "sections": [
+            {
+                "label": None,
+                "bars": [
+                    [{"chord": "Dm7", "voicing": "x5756x", "text": "Vai mi nha"}],
+                    [{"chord": "%", "text": "tris"}],
+                ],
+            }
+        ],
+    }
+    out = cm.render_song(song)
+    assert out == (
+        "chord Dm7 x5756x\n"
+        "\n"
+        "Dm7[x5756x]\n"
+        "_Vai mi nha\n"
+        "%\n"
+        "_tris\n"
+    )
+
+
+def test_render_song_emits_section_label():
+    song = {
+        "title": "T",
+        "chords": {},
+        "sections": [
+            {"label": "Intro", "bars": [[{"chord": "Gm7/9"}]]},
+        ],
+    }
+    out = cm.render_song(song)
+    assert out == "#Intro\nGm7/9\n"

@@ -54,3 +54,36 @@ def render_lyric_line(bar):
     if not parts:
         return None
     return " ".join(parts)
+
+
+def _render_chord_definitions(chords_index):
+    """Emit `chord <name> <voicing>` lines for each distinct voicing in the index."""
+    lines = []
+    for name, voicings in (chords_index or {}).items():
+        for v in voicings:
+            voicing = v.get("voicing")
+            if voicing:
+                lines.append(f"chord {name} {voicing}")
+    return lines
+
+
+def render_song(song):
+    """Render one song dict to a ChordMark string."""
+    lines = []
+
+    definitions = _render_chord_definitions(song.get("chords"))
+    if definitions:
+        lines.extend(definitions)
+        lines.append("")
+
+    for section in song.get("sections", []):
+        label = section.get("label")
+        if label:
+            lines.append("#" + label)
+        for bar in section.get("bars", []):
+            lines.append(render_chord_line(bar))
+            lyric = render_lyric_line(bar)
+            if lyric is not None:
+                lines.append(lyric)
+
+    return "\n".join(lines) + "\n"
