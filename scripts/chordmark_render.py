@@ -9,29 +9,29 @@ PERCENT = "%"
 
 
 def voicing_to_inline(voicing):
-    """Convert a comma fret-number voicing to ChordMark's 6-char inline form.
+    """Validate a comma fret-number voicing and return it normalized for `Name[...]`.
 
     Input: 6 comma-separated tokens, low-E to high-e, each "x" (muted) or a
     fret number 0-24. Example: "x,5,7,5,6,x".
-    Output: the fork's compact form for `Name[...]`, where 0-9 stay as digits
-    and frets 10-24 map to letters a-o (10->a ... 24->o). Example: "x5756x".
+    Output: the same comma form (validated/normalized), which Arthur's ChordMark
+    fork accepts natively as an inline voicing — e.g. "x,5,7,5,6,x".
     Raises ValueError on malformed input (wrong count, non-numeric, out of range).
     """
     tokens = [t.strip() for t in voicing.split(",")]
     if len(tokens) != 6:
         raise ValueError(f"voicing must have 6 strings, got {len(tokens)}: {voicing!r}")
-    chars = []
+    out = []
     for t in tokens:
         if t.lower() == "x":
-            chars.append("x")
+            out.append("x")
             continue
         if not t.isdigit():
             raise ValueError(f"bad fret token {t!r} in voicing {voicing!r}")
         fret = int(t)
         if fret < 0 or fret > 24:
             raise ValueError(f"fret {fret} out of range 0-24 in voicing {voicing!r}")
-        chars.append(str(fret) if fret <= 9 else chr(ord("a") + fret - 10))
-    return "".join(chars)
+        out.append(str(fret))
+    return ",".join(out)
 
 
 def _chord_token(entry):

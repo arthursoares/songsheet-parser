@@ -8,18 +8,19 @@ def test_single_chord_fills_bar_no_dots():
 
 def test_single_chord_with_voicing_is_inline():
     bar = [{"chord": "Dm7", "voicing": "x,5,7,5,6,x"}]
-    assert cm.render_chord_line(bar) == "Dm7[x5756x]"
+    assert cm.render_chord_line(bar) == "Dm7[x,5,7,5,6,x]"
 
 
-def test_voicing_to_inline_low_frets():
-    assert cm.voicing_to_inline("x,5,7,5,6,x") == "x5756x"
-    assert cm.voicing_to_inline("0,2,2,1,0,0") == "022100"
+def test_voicing_to_inline_normalizes_comma_form():
+    assert cm.voicing_to_inline("x, 5,7, 5,6,x") == "x,5,7,5,6,x"  # whitespace trimmed
+    assert cm.voicing_to_inline("0,2,2,1,0,0") == "0,2,2,1,0,0"
 
 
-def test_voicing_to_inline_high_frets_use_letters():
-    # the fret>=10 case that the old 6-char format could not represent
-    assert cm.voicing_to_inline("x,9,11,10,11,9") == "x9bab9"
-    assert cm.voicing_to_inline("12,12,14,14,14,12") == "cceeec"  # 12->c, 14->e
+def test_voicing_to_inline_keeps_two_digit_frets():
+    # the fret>=10 case that the old 6-char format could not represent; fork
+    # now accepts the comma form natively, so it passes straight through.
+    assert cm.voicing_to_inline("x,9,11,10,11,9") == "x,9,11,10,11,9"
+    assert cm.voicing_to_inline("12,12,14,14,14,12") == "12,12,14,14,14,12"
 
 
 def test_voicing_to_inline_rejects_bad_input():
@@ -92,9 +93,9 @@ def test_render_song_full():
     }
     out = cm.render_song(song)
     assert out == (
-        "chord Dm7 x5756x\n"
+        "chord Dm7 x,5,7,5,6,x\n"
         "\n"
-        "Dm7[x5756x]\n"
+        "Dm7[x,5,7,5,6,x]\n"
         "_Vai mi nha\n"
         "%\n"
         "_tris\n"
