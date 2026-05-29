@@ -29,3 +29,28 @@ def test_split_songs_returns_one_doc_per_song():
     assert len(docs[0]["doc"]["songs"]) == 1
     assert docs[1]["doc"]["songs"][0]["title"] == "Song Two"
     assert docs[1]["pages"] == [2, 3]
+
+
+def test_materialize_one_writes_json_and_copies_pages(tmp_path):
+    stem = "1 - Album"
+    work = tmp_path / "ssv" / stem
+    work.mkdir(parents=True)
+    assembled = {
+        "document": {"title": "Album", "source_pdf": "Album.pdf"},
+        "songs": [{"title": "Song Two", "pages": [2, 3],
+                   "sections": [{"label": None, "bars": []}]}],
+    }
+    (work / "_assembled.json").write_text(json.dumps(assembled))
+    for n in (1, 2, 3):
+        (work / f"page-{n:03d}.png").write_bytes(b"PNG" + bytes([n]))
+
+    out = tmp_path / "songs"
+    written = M.materialize_one(work / "_assembled.json", out)
+
+    song_json = out / "1-album" / "01-song-two.json"
+    assert song_json.exists()
+    assert song_json in written
+    pages_dir = out / "1-album" / "pages"
+    assert (pages_dir / "01-song-two-p2.png").exists()
+    assert (pages_dir / "01-song-two-p3.png").exists()
+    assert not (pages_dir / "01-song-two-p1.png").exists()
