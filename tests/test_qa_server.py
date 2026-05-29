@@ -63,6 +63,18 @@ def test_save_invalid_song_rejected(tmp_path):
     assert on_disk["songs"][0]["sections"][0]["bars"][0][0]["chord"] == "Dm7"
 
 
+def test_save_rejects_path_traversal(tmp_path):
+    root = _corpus(tmp_path)
+    import json as _j
+    body = _j.dumps({"document": {"title": "x"}, "songs": []}).encode()
+    status, _, _ = S.handle("POST", "/api/song/../evil.json", body, root)
+    assert status == 400
+    assert not (tmp_path / "evil.json").exists()
+    # also the page route
+    status2, _, _ = S.handle("GET", "/api/page/../x/1", b"", root)
+    assert status2 == 400
+
+
 def test_serves_index_html(tmp_path, monkeypatch):
     root = _corpus(tmp_path)
     static = tmp_path / "static"

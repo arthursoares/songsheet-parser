@@ -22,6 +22,18 @@ STATIC_DIR = SCRIPTS / "qa_static"
 SAFE = re.compile(r"^[A-Za-z0-9._-]+$")  # path-segment guard (no traversal)
 
 
+def _safe_under(root: Path, *segments) -> Path | None:
+    """Resolve root/segments and return it only if it stays inside root; else None."""
+    for seg in segments:
+        if seg in ("", ".", "..") or not SAFE.match(seg):
+            return None
+    candidate = (root / Path(*segments)).resolve()
+    root_resolved = root.resolve()
+    if candidate == root_resolved or root_resolved in candidate.parents:
+        return candidate
+    return None
+
+
 def _json(status, obj):
     return status, "application/json", json.dumps(obj, ensure_ascii=False).encode()
 
@@ -44,9 +56,9 @@ def handle(method: str, path: str, body: bytes, root: Path):
     # /api/song/{album}/{file}
     if parts[:2] == ["api", "song"] and len(parts) == 4:
         album, fname = parts[2], parts[3]
-        if not (SAFE.match(album) and SAFE.match(fname)):
+        target = _safe_under(root, album, fname)
+        if target is None:
             return _json(400, {"error": "bad path"})
-        target = root / album / fname
         if method == "GET":
             if not target.exists():
                 return _json(404, {"error": "not found"})
@@ -57,10 +69,12 @@ def handle(method: str, path: str, body: bytes, root: Path):
     # /api/page/{album}/{file}/{n}  -> pages/<file-stem>-p<n>.png
     if parts[:2] == ["api", "page"] and len(parts) == 5 and method == "GET":
         album, fname, n = parts[2], parts[3], parts[4]
-        if not (SAFE.match(album) and SAFE.match(fname) and n.isdigit()):
+        if not n.isdigit():
             return _json(400, {"error": "bad path"})
         slug = fname[:-5] if fname.endswith(".json") else fname
-        png = root / album / "pages" / f"{slug}-p{n}.png"
+        png = _safe_under(root, album, "pages", f"{slug}-p{n}.png")
+        if png is None:
+            return _json(400, {"error": "bad path"})
         if not png.exists():
             return _json(404, {"error": "no page"})
         return 200, "image/png", png.read_bytes()
