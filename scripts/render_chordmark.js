@@ -67,14 +67,26 @@ const inner = cm.renderSong(parsed, {
   diagramSize: "medium",
 });
 
+// Compile the fork's own theme SCSS so the preview uses the REAL ChordMark styles
+// (the renderer emits cmTheme-scoped classes; without the theme CSS it looks broken).
+// Theme is namespaced under .cmTheme-<name>, so the song must be wrapped in it.
+const THEME = "print";
+let themeCss = "";
+const sass = path.join(fork, "node_modules", ".bin", "sass");
+const themeScss = path.join(fork, "packages", "chord-mark-themes", "scss", "themes", `${THEME}.scss`);
+if (fs.existsSync(sass) && fs.existsSync(themeScss)) {
+  try {
+    themeCss = execFileSync(sass, ["--no-source-map", "--quiet", themeScss], { encoding: "utf8" });
+  } catch (e) {
+    themeCss = "";
+  }
+}
+
 const html = `<!doctype html><html><head><meta charset="utf-8">
 <style>
-  body{background:#fff;color:#111;font:15px/1.7 -apple-system,Segoe UI,Roboto,sans-serif;padding:32px;max-width:900px;margin:auto}
-  .cmChordLine,.cmChordSymbol{font-weight:700}
-  .cmLyricLine{margin-bottom:.5em;white-space:pre-wrap}
-  .cmSong{font-variant-ligatures:none}
-  svg{vertical-align:middle}
-</style></head><body><div class="cmSong">${inner}</div></body></html>`;
+  body{background:#fff;margin:0;padding:24px}
+  ${themeCss}
+</style></head><body><div class="cmTheme-${THEME}">${inner}</div></body></html>`;
 fs.writeFileSync(outPath, html);
 fs.rmSync(bundle, { force: true });
 
