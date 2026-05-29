@@ -28,6 +28,10 @@
   .dhead .dci{font:11px ui-monospace,monospace;color:#9d8df1}
   .dhead .div{font:11px ui-monospace,monospace;color:#c8a26b}
   .chip .tx{font-size:12px;opacity:.85}
+  .chip .mv{display:flex;gap:4px;margin-top:5px}
+  .chip .mv button{flex:1;background:#11141b;border:1px solid #2a2f3a;color:#9aa3b2;border-radius:4px;cursor:pointer;font-size:12px;line-height:1.4}
+  .chip .mv button:hover:not(:disabled){border-color:#6ea8fe;color:#e6e8ee}
+  .chip .mv button:disabled{opacity:.3;cursor:default}
   .chip .warn{display:inline-block;width:8px;height:8px;border-radius:50%;background:#f85149;margin-left:5px}
   .editor{position:fixed;right:0;top:49px;bottom:0;width:360px;background:#1e222b;border-left:1px solid #2a2f3a;padding:16px;overflow:auto;transform:translateX(100%);transition:transform .15s}
   .editor.open{transform:none}

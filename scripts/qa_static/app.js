@@ -149,14 +149,22 @@ function renderBars() {
         const notes = (e.chord !== "%" && e.voicing) ? notesFor(e.voicing) : "";
         const ivals = (e.chord !== "%") ? intervalsFor(e.voicing) : "";
         const civals = (e.chord !== "%") ? chordIvalsFor(e.voicing, e.chord) : "";
+        const canLeft = bi > 0;
+        const canRight = bi < sec.bars.length - 1;
         chip.innerHTML =
           `<div class="nm">${e.chord}${mismatch ? '<span class="warn"></span>' : ""}</div>
            <div class="vc">${e.voicing || "—"}</div>
            ${notes ? `<div class="nt">${notes}</div>` : ""}
            ${civals ? `<div class="ci">${civals}</div>` : ""}
            ${ivals ? `<div class="iv">${ivals}</div>` : ""}
-           <div class="tx">${e.text ? "_" + e.text : "—"}</div>`;
+           <div class="tx">${e.text ? "_" + e.text : "—"}</div>
+           <div class="mv">
+             <button class="mvl" title="move to previous bar" ${canLeft ? "" : "disabled"}>←</button>
+             <button class="mvr" title="move to next bar" ${canRight ? "" : "disabled"}>→</button>
+           </div>`;
         chip.onclick = () => openEditor(si, bi, ei);
+        chip.querySelector(".mvl").onclick = (ev) => { ev.stopPropagation(); moveChord(si, bi, ei, -1); };
+        chip.querySelector(".mvr").onclick = (ev) => { ev.stopPropagation(); moveChord(si, bi, ei, +1); };
         chips.appendChild(chip);
       });
       bd.appendChild(chips);
@@ -168,6 +176,20 @@ function renderBars() {
 
 function parseVoicing(s) {
   return s.split(",").map((t) => (t === "x" ? "x" : parseInt(t, 10)));
+}
+
+// Move a chord entry to the adjacent bar (dir -1 = previous, +1 = next).
+// Moving left appends to the end of the previous bar; right prepends to the next.
+function moveChord(si, bi, ei, dir) {
+  const bars = song().sections[si].bars;
+  const target = bi + dir;
+  if (target < 0 || target >= bars.length) return;
+  const [entry] = bars[bi].splice(ei, 1);
+  if (dir < 0) bars[target].push(entry);
+  else bars[target].unshift(entry);
+  state.sel = null;
+  document.getElementById("editor").classList.remove("open");
+  renderBars();
 }
 
 function openEditor(si, bi, ei) {
