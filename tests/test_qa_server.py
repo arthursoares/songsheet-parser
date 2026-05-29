@@ -61,3 +61,26 @@ def test_save_invalid_song_rejected(tmp_path):
     assert json.loads(body)["ok"] is False
     on_disk = json.loads((root / "1-album" / "01-song-one.json").read_text())
     assert on_disk["songs"][0]["sections"][0]["bars"][0][0]["chord"] == "Dm7"
+
+
+def test_serves_index_html(tmp_path, monkeypatch):
+    root = _corpus(tmp_path)
+    static = tmp_path / "static"
+    (static / "vendor").mkdir(parents=True)
+    (static / "index.html").write_text("<html>QA</html>")
+    monkeypatch.setattr(S, "STATIC_DIR", static)
+    status, ctype, body = S.handle("GET", "/", b"", root)
+    assert status == 200
+    assert ctype == "text/html"
+    assert b"QA" in body
+
+
+def test_serves_static_js(tmp_path, monkeypatch):
+    root = _corpus(tmp_path)
+    static = tmp_path / "static"
+    static.mkdir()
+    (static / "app.js").write_text("// app")
+    monkeypatch.setattr(S, "STATIC_DIR", static)
+    status, ctype, body = S.handle("GET", "/app.js", b"", root)
+    assert status == 200
+    assert "javascript" in ctype

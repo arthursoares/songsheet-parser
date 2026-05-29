@@ -65,6 +65,18 @@ def handle(method: str, path: str, body: bytes, root: Path):
             return _json(404, {"error": "no page"})
         return 200, "image/png", png.read_bytes()
 
+    # static files (index.html at "/", else by name under STATIC_DIR)
+    if method == "GET":
+        rel = "index.html" if path == "/" else path.lstrip("/")
+        if ".." not in rel and all(SAFE.match(seg) for seg in rel.split("/")):
+            f = STATIC_DIR / rel
+            if f.exists() and f.is_file():
+                ext = f.suffix.lower()
+                ctype = {".html": "text/html", ".js": "text/javascript",
+                         ".css": "text/css", ".png": "image/png",
+                         ".json": "application/json"}.get(ext, "application/octet-stream")
+                return 200, ctype, f.read_bytes()
+
     return _json(404, {"error": "unknown route"})
 
 
@@ -85,3 +97,42 @@ def save_song(target: Path, body: bytes):
 
     target.write_text(json.dumps(doc, ensure_ascii=False, indent=2))
     return _json(200, {"ok": True})
+
+
+def serve(songs_root: Path, port: int):
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+    class Handler(BaseHTTPRequestHandler):
+        def _run(self, method):
+            length = int(self.headers.get("Content-Length", 0) or 0)
+            body = self.rfile.read(length) if length else b""
+            status, ctype, payload = handle(method, self.path, body, songs_root)
+            self.send_response(status)
+            self.send_header("Content-Type", ctype)
+            self.send_header("Content-Length", str(len(payload)))
+            self.end_headers()
+            self.wfile.write(payload)
+
+        def do_GET(self):
+            self._run("GET")
+
+        def do_POST(self):
+            self._run("POST")
+
+        def log_message(self, *a):
+            pass
+
+    print(f"QA server on http://localhost:{port}  (songs: {songs_root})")
+    ThreadingHTTPServer(("127.0.0.1", port), Handler).serve_forever()
+
+
+def main():
+    ap = argparse.ArgumentParser(description="Songsheet QA correction server")
+    ap.add_argument("--songs", type=Path, default=ROOT / "data" / "joao-gilberto" / "songs")
+    ap.add_argument("--port", type=int, default=8000)
+    args = ap.parse_args()
+    serve(args.songs, args.port)
+
+
+if __name__ == "__main__":
+    main()
