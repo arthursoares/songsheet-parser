@@ -34,11 +34,55 @@ def song_filename(index: int, title: str) -> str:
     return f"{index + 1:02d}-{slugify(title)}.json"
 
 
+def migrate_voicing(voicing: str):
+    """Migrate an old 6-char voicing (e.g. 'x5756x') to the comma fret-number form
+    ('x,5,7,5,6,x'). Returns the comma form, or None if the value can't be migrated
+    unambiguously (e.g. an overflow string like 'x91110119' that ran two-digit frets
+    together) — caller should drop the voicing and let it be re-entered by hand.
+
+    A value that already contains a comma is assumed new-format and returned as-is.
+    """
+    if voicing is None:
+        return None
+    if "," in voicing:
+        return voicing
+    if not re.fullmatch(r"[0-9xX]{6}", voicing):
+        return None  # malformed / overflow — not splittable
+    return ",".join("x" if c in "xX" else c for c in voicing)
+
+
+def _migrate_song_voicings(song: dict) -> None:
+    """Rewrite all voicings in a song to comma form in place; drop unmigratable ones."""
+    for sec in song.get("sections", []):
+        for bar in sec.get("bars", []):
+            for entry in bar:
+                v = entry.get("voicing")
+                if v is None:
+                    continue
+                migrated = migrate_voicing(v)
+                if migrated is None:
+                    del entry["voicing"]  # overflow: leave for manual fix in QA tool
+                else:
+                    entry["voicing"] = migrated
+    for name, voicings in (song.get("chords") or {}).items():
+        kept = []
+        for vo in voicings:
+            m = migrate_voicing(vo.get("voicing"))
+            if m is not None:
+                vo["voicing"] = m
+                kept.append(vo)
+        song["chords"][name] = kept
+
+
 def split_songs(assembled: dict) -> list[dict]:
-    """Return [{filename, doc, pages}] — one self-contained document per song."""
+    """Return [{filename, doc, pages}] — one self-contained document per song.
+
+    Voicings are migrated from the old 6-char form to the comma fret-number form.
+    """
     document = assembled.get("document", {})
     out = []
     for i, song in enumerate(assembled.get("songs", [])):
+        _migrate_song_voicings(song)
         doc = {"document": document, "songs": [song]}
         out.append({
             "filename": song_filename(i, song.get("title") or f"song-{i + 1}"),

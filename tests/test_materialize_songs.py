@@ -31,6 +31,36 @@ def test_split_songs_returns_one_doc_per_song():
     assert docs[1]["pages"] == [2, 3]
 
 
+def test_migrate_voicing_old_to_comma():
+    assert M.migrate_voicing("x5756x") == "x,5,7,5,6,x"
+    assert M.migrate_voicing("022100") == "0,2,2,1,0,0"
+
+
+def test_migrate_voicing_passthrough_and_unmigratable():
+    assert M.migrate_voicing("x,5,7,5,6,x") == "x,5,7,5,6,x"  # already comma
+    assert M.migrate_voicing("x91110119") is None             # overflow, not splittable
+    assert M.migrate_voicing(None) is None
+
+
+def test_split_songs_migrates_voicings_and_drops_overflow():
+    assembled = {
+        "document": {"title": "A"},
+        "songs": [{
+            "title": "S", "pages": [1],
+            "chords": {"Dm7": [{"voicing": "x5756x"}]},
+            "sections": [{"label": None, "bars": [
+                [{"chord": "Dm7", "voicing": "x5756x"}],
+                [{"chord": "F#maj7", "voicing": "x91110119"}],
+            ]}],
+        }],
+    }
+    docs = M.split_songs(assembled)
+    bars = docs[0]["doc"]["songs"][0]["sections"][0]["bars"]
+    assert bars[0][0]["voicing"] == "x,5,7,5,6,x"   # migrated
+    assert "voicing" not in bars[1][0]              # overflow dropped
+    assert docs[0]["doc"]["songs"][0]["chords"]["Dm7"][0]["voicing"] == "x,5,7,5,6,x"
+
+
 def test_materialize_one_writes_json_and_copies_pages(tmp_path):
     stem = "1 - Album"
     work = tmp_path / "ssv" / stem
