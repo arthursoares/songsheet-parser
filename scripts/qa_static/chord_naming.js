@@ -13,10 +13,11 @@
   function setSpelling(mode) { _spelling = mode === "flat" ? "flat" : "sharp"; }
   function getSpelling() { return _spelling; }
 
-  // Global key tonic (e.g. "C") for interval analysis; "" = none. Set by the app.
-  let _keyTonic = "";
-  function setKeyTonic(t) { _keyTonic = t || ""; }
-  function getKeyTonic() { return _keyTonic; }
+  // Global key for interval analysis, full string incl. mode (e.g. "C" or "Dm");
+  // "" = none. Set by the app.
+  let _key = "";
+  function setKeyTonic(k) { _key = k || ""; }
+  function getKeyTonic() { return _key; }
 
   // Respell a note name to the chosen accidental (e.g. "A#"<->"Bb"); naturals unchanged.
   function spell(note) {
@@ -49,38 +50,55 @@
     return notes;
   }
 
-  // Roman-numeral scale degree of one note relative to a major-key tonic.
-  // Case reflects the diatonic triad quality in major (I ii iii IV V vi vii);
-  // chromatic notes get a flat/sharp prefix. Dedup-free, inversion-proof (per note).
-  const _MAJOR_QUAL = ["I", "ii", "iii", "IV", "V", "vi", "vii"];
-  const _DEGREE_MAP = {
-    0: [0, ""], 2: [1, ""], 4: [2, ""], 5: [3, ""], 7: [4, ""], 9: [5, ""], 11: [6, ""],
-    1: [1, "b"], 3: [2, "b"], 6: [3, "#"], 8: [5, "b"], 10: [6, "b"],
+  // Roman-numeral scale degree of one note relative to a key tonic + mode.
+  // Case reflects the diatonic triad quality of the mode; chromatic notes get a
+  // flat/sharp prefix. Inversion-proof (computed per note from the tonic).
+  // Major:        I  ii  iii IV V  vi  vii        (scale 0 2 4 5 7 9 11)
+  // Minor (nat.): i  ii° III iv v  VI  VII         (scale 0 2 3 5 7 8 10)
+  const _QUAL = {
+    major: ["I", "ii", "iii", "IV", "V", "vi", "vii"],
+    minor: ["i", "ii°", "III", "iv", "v", "VI", "VII"],
   };
-  function degree(tonic, note) {
+  // semitone-from-tonic -> [degree index, accidental]
+  const _DEGREE_MAP = {
+    major: {
+      0: [0, ""], 2: [1, ""], 4: [2, ""], 5: [3, ""], 7: [4, ""], 9: [5, ""], 11: [6, ""],
+      1: [1, "b"], 3: [2, "b"], 6: [3, "#"], 8: [5, "b"], 10: [6, "b"],
+    },
+    minor: {
+      0: [0, ""], 2: [1, ""], 3: [2, ""], 5: [3, ""], 7: [4, ""], 8: [5, ""], 10: [6, ""],
+      1: [1, "b"], 4: [2, "#"], 6: [3, "#"], 9: [5, "#"], 11: [6, "#"],
+    },
+  };
+  function degree(tonic, note, mode) {
     const T = window.Tonal;
+    mode = mode === "minor" ? "minor" : "major";
     const semis = ((T.Note.chroma(note) - T.Note.chroma(tonic)) % 12 + 12) % 12;
-    const [idx, acc] = _DEGREE_MAP[semis];
-    return acc + _MAJOR_QUAL[idx];
+    const [idx, acc] = _DEGREE_MAP[mode][semis];
+    return acc + _QUAL[mode][idx];
   }
 
-  // For a voicing + key tonic (e.g. "C"), return the per-note degrees in playing
-  // order, deduped to match pcNotes. Empty if no tonic or no notes.
-  function intervalsInKey(voicing, tonic) {
-    if (!tonic) return [];
-    const T = window.Tonal;
-    if (!T.Note.chroma(tonic) && tonic !== "C") {
-      // tonic might be a chord/garbage; take just the note part
-      const m = String(tonic).match(/^[A-Ga-g][#b]?/);
-      if (!m) return [];
-      tonic = m[0];
-    }
+  // Parse a key string into {tonic, mode}. "Dm"/"Dmin"/"D minor" -> minor; "D" -> major.
+  // Returns null if no usable tonic note can be found.
+  function parseKey(key) {
+    if (!key) return null;
+    const m = String(key).match(/^([A-Ga-g][#b]?)\s*(m(?!aj)|min|minor|-)?/);
+    if (!m) return null;
+    const tonic = m[1][0].toUpperCase() + m[1].slice(1);
+    return { tonic, mode: m[2] ? "minor" : "major" };
+  }
+
+  // For a voicing + key (e.g. "C" or "Dm"), return the per-note degrees in playing
+  // order, deduped to match pcNotes. Empty if no usable key or no notes.
+  function intervalsInKey(voicing, key) {
+    const parsed = parseKey(key);
+    if (!parsed) return [];
     const seen = new Set(), out = [];
     voicingToNotes(voicing).forEach((n) => {
       const pc = n.replace(/[0-9]/g, "");
       if (seen.has(pc)) return;
       seen.add(pc);
-      out.push(degree(tonic, n));
+      out.push(degree(parsed.tonic, n, parsed.mode));
     });
     return out;
   }
@@ -144,7 +162,7 @@
 
   window.ChordNaming = {
     voicingToNotes, pcNotes, suggestNames, validateName, nameMatchesVoicing,
-    setSpelling, getSpelling, spell, degree, intervalsInKey,
+    setSpelling, getSpelling, spell, degree, intervalsInKey, parseKey,
     setKeyTonic, getKeyTonic,
   };
 })();

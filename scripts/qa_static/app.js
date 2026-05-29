@@ -39,15 +39,16 @@ async function init() {
     if (!state.doc) return;
     state.doc.document.status = ev.target.value;
   };
-  // key selector — drives interval analysis; stored on song.key
+  // key selector — drives interval analysis; stored on song.key. Major + minor.
   const keySel = document.getElementById("keySel");
-  const KEYS = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+  const ROOTS = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+  const KEYS = ROOTS.concat(ROOTS.map((r) => r + "m")); // major then minor
   keySel.innerHTML = '<option value="">key: —</option>' +
     KEYS.map((k) => `<option value="${k}">key: ${k}</option>`).join("");
   keySel.onchange = (ev) => {
     if (!state.doc) return;
     song().key = ev.target.value || null;
-    window.ChordNaming.setKeyTonic(keyTonic());
+    window.ChordNaming.setKeyTonic(songKey());
     renderBars();
     if (document.getElementById("dict").style.display !== "none") renderDict();
     if (state.sel) openEditor(state.sel.si, state.sel.bi, state.sel.ei);
@@ -79,8 +80,8 @@ async function loadSong() {
   state.dictEdit = null;
   const status = (state.doc.document && state.doc.document.status) || "pending";
   document.getElementById("statusSel").value = status;
-  document.getElementById("keySel").value = keyTonic();
-  window.ChordNaming.setKeyTonic(keyTonic());
+  document.getElementById("keySel").value = songKey();
+  window.ChordNaming.setKeyTonic(songKey());
   renderPages();
   renderBars();
   showView("bars");
@@ -89,19 +90,19 @@ async function loadSong() {
 
 function song() { return state.doc.songs[0]; }
 
-// Usable tonic note from song.key (may be null or non-standard); "" if none.
-function keyTonic() {
-  const k = song().key;
-  if (!k) return "";
-  const m = String(k).match(/^[A-G][#b]?/);
-  return m ? m[0] : "";
+// Usable key string from song.key (may be null or non-standard); "" if none.
+// Returns a normalized "<root>" or "<root>m" via ChordNaming.parseKey.
+function songKey() {
+  const parsed = window.ChordNaming.parseKey(song().key);
+  if (!parsed) return "";
+  return parsed.tonic + (parsed.mode === "minor" ? "m" : "");
 }
 
 // intervals line (per-note scale degrees in the key) for a voicing string, or "".
 function intervalsFor(voicing) {
-  const t = keyTonic();
-  if (!t || !voicing) return "";
-  return window.ChordNaming.intervalsInKey(parseVoicing(voicing), t).join(" ");
+  const k = songKey();
+  if (!k || !voicing) return "";
+  return window.ChordNaming.intervalsInKey(parseVoicing(voicing), k).join(" ");
 }
 
 function renderPages() {
