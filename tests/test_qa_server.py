@@ -37,3 +37,27 @@ def test_get_missing_song_404(tmp_path):
     root = _corpus(tmp_path)
     status, _, _ = S.handle("GET", "/api/song/1-album/nope.json", b"", root)
     assert status == 404
+
+
+def test_save_valid_song_writes(tmp_path):
+    root = _corpus(tmp_path)
+    doc = json.loads((root / "1-album" / "01-song-one.json").read_text())
+    doc["songs"][0]["sections"][0]["bars"][0][0]["chord"] = "Am7"
+    status, _, body = S.handle("POST", "/api/song/1-album/01-song-one.json",
+                               json.dumps(doc).encode(), root)
+    assert status == 200
+    assert json.loads(body)["ok"] is True
+    on_disk = json.loads((root / "1-album" / "01-song-one.json").read_text())
+    assert on_disk["songs"][0]["sections"][0]["bars"][0][0]["chord"] == "Am7"
+
+
+def test_save_invalid_song_rejected(tmp_path):
+    root = _corpus(tmp_path)
+    doc = json.loads((root / "1-album" / "01-song-one.json").read_text())
+    doc["songs"][0]["sections"][0]["bars"][0][0] = {"voicing": "x,5,7,5,6,x"}
+    status, _, body = S.handle("POST", "/api/song/1-album/01-song-one.json",
+                               json.dumps(doc).encode(), root)
+    assert status == 422
+    assert json.loads(body)["ok"] is False
+    on_disk = json.loads((root / "1-album" / "01-song-one.json").read_text())
+    assert on_disk["songs"][0]["sections"][0]["bars"][0][0]["chord"] == "Dm7"

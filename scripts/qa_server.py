@@ -69,4 +69,19 @@ def handle(method: str, path: str, body: bytes, root: Path):
 
 
 def save_song(target: Path, body: bytes):
-    return _json(501, {"error": "not implemented"})  # Task 4
+    import jsonschema
+
+    try:
+        doc = json.loads(body)
+    except json.JSONDecodeError as e:
+        return _json(400, {"ok": False, "error": f"invalid JSON: {e}"})
+
+    schema = json.loads(SCHEMA_PATH.read_text())
+    try:
+        jsonschema.validate(doc, schema)
+    except jsonschema.ValidationError as e:
+        loc = list(e.absolute_path)
+        return _json(422, {"ok": False, "error": f"{loc}: {e.message}"})
+
+    target.write_text(json.dumps(doc, ensure_ascii=False, indent=2))
+    return _json(200, {"ok": True})
