@@ -109,21 +109,21 @@ function Fretboard(container, onChange) {
     container.appendChild(text);
     container.appendChild(err);
 
-    // notes readout (low -> high), computed from the current voicing
+    // per-string notes readout (aligned to the voicing, x for muted)
+    const CN = window.ChordNaming;
     const notesEl = document.createElement("div");
     notesEl.className = "fb-notes";
-    const notes = (window.ChordNaming && window.ChordNaming.pcNotes)
-      ? window.ChordNaming.pcNotes(voicing) : [];
-    notesEl.textContent = notes.length ? "notes: " + notes.join(" ") : "notes: —";
+    const hasNotes = voicing.some((f) => f !== "x");
+    notesEl.textContent = (CN && hasNotes)
+      ? "notes: " + CN.perStringNotes(voicing).join(" ") : "notes: —";
     container.appendChild(notesEl);
 
-    // intervals readout (scale degrees in the current key), if a key is set
-    const tonic = (window.ChordNaming && window.ChordNaming.getKeyTonic)
-      ? window.ChordNaming.getKeyTonic() : "";
-    if (tonic && notes.length) {
+    // per-string scale degrees in the current key, if a key is set
+    const tonic = (CN && CN.getKeyTonic) ? CN.getKeyTonic() : "";
+    if (tonic && hasNotes) {
       const iv = document.createElement("div");
       iv.className = "fb-notes";
-      iv.textContent = "intervals: " + window.ChordNaming.intervalsInKey(voicing, tonic).join(" ");
+      iv.textContent = "intervals: " + CN.perStringInKey(voicing, tonic).join(" ");
       container.appendChild(iv);
     }
   }

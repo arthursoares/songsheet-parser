@@ -50,6 +50,16 @@
     return notes;
   }
 
+  // Per-string note name for each of the 6 strings, "x" for muted/unplayed.
+  // Aligns 1:1 with the voicing array (no dedup). Uses current flat/sharp spelling.
+  function perStringNotes(voicing) {
+    return voicing.map((f, i) => {
+      if (f === "x" || f === null || f === undefined) return "x";
+      return spell(window.Tonal.Midi.midiToNoteName(TUNING_MIDI[i] + Number(f),
+        { pitchClass: false }));
+    });
+  }
+
   // Roman-numeral scale degree of one note relative to a key tonic + mode.
   // Case reflects the diatonic triad quality of the mode; chromatic notes get a
   // flat/sharp prefix. Inversion-proof (computed per note from the tonic).
@@ -103,6 +113,17 @@
     return out;
   }
 
+  // Per-string scale degrees, "x" for muted. Aligns 1:1 with the voicing.
+  function perStringInKey(voicing, key) {
+    const parsed = parseKey(key);
+    if (!parsed) return [];
+    return voicing.map((f, i) => {
+      if (f === "x" || f === null || f === undefined) return "x";
+      const note = window.Tonal.Midi.midiToNoteName(TUNING_MIDI[i] + Number(f), { pitchClass: false });
+      return degree(parsed.tonic, note, parsed.mode);
+    });
+  }
+
   // Parse a name with chord-symbol (the ChordMark parser). Returns the result
   // object on success (with .normalized.notes), or null if not a valid ChordMark chord.
   function _parseChordmark(name) {
@@ -138,6 +159,22 @@
       out.push(label);
     });
     return out;
+  }
+
+  // Per-string chord intervals, "x" for muted. Aligns 1:1 with the voicing.
+  function perStringChordIntervals(voicing, chordName, upper = true) {
+    if (!chordName || chordName === "%") return [];
+    const parsed = _parseChordmark(chordName);
+    const root = parsed && parsed.normalized && parsed.normalized.rootNote;
+    if (!root) return [];
+    const T = window.Tonal;
+    const map = upper ? _CHORD_INTERVAL : { ..._CHORD_INTERVAL, ..._CHORD_INTERVAL_BASIC };
+    return voicing.map((f, i) => {
+      if (f === "x" || f === null || f === undefined) return "x";
+      const note = T.Midi.midiToNoteName(TUNING_MIDI[i] + Number(f), { pitchClass: false });
+      const semis = ((T.Note.chroma(note) - T.Note.chroma(root)) % 12 + 12) % 12;
+      return map[semis];
+    });
   }
 
   // Respell the root (and slash-bass) of a chord name to the chosen accidental,
@@ -194,5 +231,6 @@
     voicingToNotes, pcNotes, suggestNames, validateName, nameMatchesVoicing,
     setSpelling, getSpelling, spell, degree, intervalsInKey, parseKey,
     chordIntervals, setKeyTonic, getKeyTonic,
+    perStringNotes, perStringInKey, perStringChordIntervals,
   };
 })();

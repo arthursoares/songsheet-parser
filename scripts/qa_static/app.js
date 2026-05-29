@@ -98,17 +98,23 @@ function songKey() {
   return parsed.tonic + (parsed.mode === "minor" ? "m" : "");
 }
 
-// intervals line (per-note scale degrees in the key) for a voicing string, or "".
+// per-string notes aligned to the voicing (x for muted), or "".
+function notesFor(voicing) {
+  if (!voicing) return "";
+  return window.ChordNaming.perStringNotes(parseVoicing(voicing)).join(" ");
+}
+
+// per-string scale degrees in the song key, aligned to the voicing, or "".
 function intervalsFor(voicing) {
   const k = songKey();
   if (!k || !voicing) return "";
-  return window.ChordNaming.intervalsInKey(parseVoicing(voicing), k).join(" ");
+  return window.ChordNaming.perStringInKey(parseVoicing(voicing), k).join(" ");
 }
 
-// chord-relative intervals (per-note, from the chord's own root) or "".
+// per-string chord-relative intervals (from the chord's own root), aligned, or "".
 function chordIvalsFor(voicing, chord) {
   if (!voicing || !chord || chord === "%") return "";
-  return window.ChordNaming.chordIntervals(parseVoicing(voicing), chord).join(" ");
+  return window.ChordNaming.perStringChordIntervals(parseVoicing(voicing), chord).join(" ");
 }
 
 function renderPages() {
@@ -140,8 +146,7 @@ function renderBars() {
         const chip = document.createElement("div");
         chip.className = "chip" + (e.chord === "%" ? " pct" : "") +
           (state.sel && state.sel.si === si && state.sel.bi === bi && state.sel.ei === ei ? " sel" : "");
-        const notes = (e.chord !== "%" && e.voicing)
-          ? window.ChordNaming.pcNotes(parseVoicing(e.voicing)).join(" ") : "";
+        const notes = (e.chord !== "%" && e.voicing) ? notesFor(e.voicing) : "";
         const ivals = (e.chord !== "%") ? intervalsFor(e.voicing) : "";
         const civals = (e.chord !== "%") ? chordIvalsFor(e.voicing, e.chord) : "";
         chip.innerHTML =
@@ -207,7 +212,7 @@ function openEditor(si, bi, ei) {
       : `<div class="s"><span>no detection</span></div>`;
     document.querySelectorAll("#edSuggest .s[data-n]").forEach((el) =>
       el.onclick = () => { document.getElementById("edName").value = el.dataset.n; refreshNaming(); });
-    const ci = window.ChordNaming.chordIntervals(curVoicing, name);
+    const ci = window.ChordNaming.perStringChordIntervals(curVoicing, name);
     document.getElementById("edIvals").textContent = ci.length ? "chord intervals: " + ci.join(" ") : "";
   }
   refreshNaming();
@@ -301,7 +306,7 @@ function renderDict() {
       <input type="checkbox" ${state.dictSel.has(e.key) ? "checked" : ""} data-sel="${e.key}">
       <span class="dnm">${e.chord}</span>${mism}
       <span class="dvc">${e.voicing || "—"}</span>
-      <span class="dnt">${e.notes.join(" ")}</span>
+      <span class="dnt">${notesFor(e.voicing)}</span>
       ${civals ? `<span class="dci">${civals}</span>` : ""}
       ${ivals ? `<span class="div">${ivals}</span>` : ""}
       <span class="dct">${e.count}×</span>
