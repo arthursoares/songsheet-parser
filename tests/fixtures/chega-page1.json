@@ -11,20 +11,20 @@
       "pages": [1],
       "key": "Dm",
       "chords": {
-        "Dm7": [{ "voicing": "x5756x", "confidence": 0.7 }],
-        "Bdim7": [{ "voicing": "x7878x", "confidence": 0.7 }]
+        "Dm7": [{ "voicing": "x,5,7,5,6,x", "confidence": 0.7 }],
+        "Bdim7": [{ "voicing": "x,7,8,7,8,x", "confidence": 0.7 }]
       },
       "sections": [
         {
           "label": null,
           "bars": [
-            [{ "chord": "Gm7/9", "voicing": "3x332x" }],
+            [{ "chord": "Gm7/9", "voicing": "3,x,3,3,2,x" }],
             [{ "chord": "%" }],
-            [{ "chord": "Dm7", "voicing": "x5756x", "text": "Vai mi nha" }],
+            [{ "chord": "Dm7", "voicing": "x,5,7,5,6,x", "text": "Vai mi nha" }],
             [{ "chord": "%", "text": "tris" }],
             [
-              { "chord": "Em7", "voicing": "020030", "text": "te za e" },
-              { "chord": "A13", "voicing": "x02022", "text": "di za" }
+              { "chord": "Em7", "voicing": "0,2,0,0,3,0", "text": "te za e" },
+              { "chord": "A13", "voicing": "x,0,2,0,2,2", "text": "di za" }
             ]
           ]
         }

@@ -39,7 +39,7 @@ Return ONLY JSON, no markdown fences, in this exact shape:
         {
           "label": null,
           "bars": [
-            [ { "chord": "Dm7", "voicing": "x5756x", "text": "Vai mi nha" } ]
+            [ { "chord": "Dm7", "voicing": "x,5,7,5,6,x", "text": "Vai mi nha" } ]
           ]
         }
       ]
@@ -57,11 +57,12 @@ CRITICAL RULES:
 
 2. CHORD ENTRIES — one object per chord placement in the bar:
    - "chord": the chord name as printed (e.g. "Dm7", "F7+5", "C#m7/G#").
-   - "voicing": the fingering read from THAT chord's diagram — 6 chars, low E
-     string first: x=muted, 0=open, or fret number. Read the position marker
-     (e.g. "5fr") — many chords are NOT open position. This is PER OCCURRENCE:
-     the same chord name can have different voicings on different placements.
-     Omit "voicing" only if no diagram is drawn for that placement.
+   - "voicing": the fingering read from THAT chord's diagram, as 6 comma-separated
+     strings, low E string first: each is "x" (muted) or a fret NUMBER 0-24.
+     Example: "x,5,7,5,6,x". Read the position marker (e.g. "5fr") — many chords
+     are NOT open position, so frets can be two digits (e.g. "x,9,11,10,11,9").
+     This is PER OCCURRENCE: the same chord name can have different voicings on
+     different placements. Omit "voicing" only if no diagram is drawn for that placement.
 
 3. CONTINUATION — if a chord sounds through the next bar with no new chord
    struck in that next bar, emit that next bar as [ { "chord": "%" } ].

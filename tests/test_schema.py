@@ -22,17 +22,26 @@ def test_valid_document_passes():
 def test_chord_entry_requires_chord():
     schema = load_schema()
     doc = json.loads(FIXTURE.read_text())
-    doc["songs"][0]["sections"][0]["bars"][0] = [{"voicing": "x5756x"}]
+    doc["songs"][0]["sections"][0]["bars"][0] = [{"voicing": "x,5,7,5,6,x"}]
     with pytest.raises(jsonschema.ValidationError):
         jsonschema.validate(doc, schema)
 
 
-def test_voicing_must_be_six_chars():
+def test_voicing_must_be_comma_fret_form():
     schema = load_schema()
     doc = json.loads(FIXTURE.read_text())
-    doc["songs"][0]["sections"][0]["bars"][0] = [{"chord": "Dm7", "voicing": "xx"}]
+    # old 6-char form is no longer valid; needs comma separation
+    doc["songs"][0]["sections"][0]["bars"][0] = [{"chord": "Dm7", "voicing": "x5756x"}]
     with pytest.raises(jsonschema.ValidationError):
         jsonschema.validate(doc, schema)
+
+
+def test_voicing_accepts_two_digit_frets():
+    schema = load_schema()
+    doc = json.loads(FIXTURE.read_text())
+    # the fret>=10 case the old format could not express
+    doc["songs"][0]["sections"][0]["bars"][0] = [{"chord": "F#maj7", "voicing": "x,9,11,10,11,9"}]
+    jsonschema.validate(doc, schema)  # must not raise
 
 
 def test_percent_continuation_is_valid_chord():

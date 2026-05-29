@@ -7,8 +7,30 @@ def test_single_chord_fills_bar_no_dots():
 
 
 def test_single_chord_with_voicing_is_inline():
-    bar = [{"chord": "Dm7", "voicing": "x5756x"}]
+    bar = [{"chord": "Dm7", "voicing": "x,5,7,5,6,x"}]
     assert cm.render_chord_line(bar) == "Dm7[x5756x]"
+
+
+def test_voicing_to_inline_low_frets():
+    assert cm.voicing_to_inline("x,5,7,5,6,x") == "x5756x"
+    assert cm.voicing_to_inline("0,2,2,1,0,0") == "022100"
+
+
+def test_voicing_to_inline_high_frets_use_letters():
+    # the fret>=10 case that the old 6-char format could not represent
+    assert cm.voicing_to_inline("x,9,11,10,11,9") == "x9bab9"
+    assert cm.voicing_to_inline("12,12,14,14,14,12") == "cceeec"  # 12->c, 14->e
+
+
+def test_voicing_to_inline_rejects_bad_input():
+    import pytest
+
+    with pytest.raises(ValueError):
+        cm.voicing_to_inline("x,9,11")          # wrong count
+    with pytest.raises(ValueError):
+        cm.voicing_to_inline("x,9,25,1,1,1")     # out of range
+    with pytest.raises(ValueError):
+        cm.voicing_to_inline("x,9,z,1,1,1")      # non-numeric
 
 
 def test_percent_renders_as_percent():
@@ -57,12 +79,12 @@ def test_lyric_line_skips_missing_text_entries():
 def test_render_song_full():
     song = {
         "title": "T",
-        "chords": {"Dm7": [{"voicing": "x5756x"}]},
+        "chords": {"Dm7": [{"voicing": "x,5,7,5,6,x"}]},
         "sections": [
             {
                 "label": None,
                 "bars": [
-                    [{"chord": "Dm7", "voicing": "x5756x", "text": "Vai mi nha"}],
+                    [{"chord": "Dm7", "voicing": "x,5,7,5,6,x", "text": "Vai mi nha"}],
                     [{"chord": "%", "text": "tris"}],
                 ],
             }

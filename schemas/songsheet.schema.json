@@ -8,8 +8,8 @@
   "definitions": {
     "voicing": {
       "type": "string",
-      "pattern": "^[0-9x]{6}$",
-      "description": "6 chars low-E to high-e: x=muted, 0=open, or fret digit"
+      "pattern": "^(x|\\d{1,2})(,(x|\\d{1,2})){5}$",
+      "description": "6 comma-separated strings low-E to high-e: x=muted, or fret number 0-24 (range enforced in code)"
     },
     "chordEntry": {
       "type": "object",
