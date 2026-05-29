@@ -151,9 +151,11 @@ function renderBars() {
         const civals = (e.chord !== "%") ? chordIvalsFor(e.voicing, e.chord) : "";
         const canLeft = bi > 0;
         const canRight = bi < sec.bars.length - 1;
+        const dia = (e.chord !== "%" && e.voicing) ? window.ChordDiagram.svg(e.voicing) : "";
         chip.innerHTML =
           `<div class="nm">${e.chord}${mismatch ? '<span class="warn"></span>' : ""}</div>
            <div class="vc">${e.voicing || "—"}</div>
+           ${dia}
            ${notes ? `<div class="nt">${notes}</div>` : ""}
            ${civals ? `<div class="ci">${civals}</div>` : ""}
            ${ivals ? `<div class="iv">${ivals}</div>` : ""}
@@ -328,6 +330,7 @@ function renderDict() {
       <input type="checkbox" ${state.dictSel.has(e.key) ? "checked" : ""} data-sel="${e.key}">
       <span class="dnm">${e.chord}</span>${mism}
       <span class="dvc">${e.voicing || "—"}</span>
+      ${e.voicing ? window.ChordDiagram.svg(e.voicing) : ""}
       <span class="dnt">${notesFor(e.voicing)}</span>
       ${civals ? `<span class="dci">${civals}</span>` : ""}
       ${ivals ? `<span class="div">${ivals}</span>` : ""}
