@@ -44,6 +44,13 @@ def test_get_song(tmp_path):
     assert json.loads(body)["songs"][0]["title"] == "Song One"
 
 
+def test_query_string_is_ignored(tmp_path):
+    root = _corpus(tmp_path)
+    status, _, body = S.handle("GET", "/api/song/1-album/01-song-one.json?t=7", b"", root)
+    assert status == 200
+    assert json.loads(body)["songs"][0]["title"] == "Song One"
+
+
 def test_get_missing_song_404(tmp_path):
     root = _corpus(tmp_path)
     status, _, _ = S.handle("GET", "/api/song/1-album/nope.json", b"", root)

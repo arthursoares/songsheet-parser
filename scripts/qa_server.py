@@ -60,6 +60,7 @@ def list_albums(root: Path):
 
 def handle(method: str, path: str, body: bytes, root: Path):
     """Pure router. Returns (status:int, content_type:str, body:bytes)."""
+    path = path.split("?", 1)[0]  # drop query string (e.g. cache-bust ?t=)
     parts = [p for p in path.split("/") if p != ""]
 
     if method == "GET" and path == "/api/albums":
