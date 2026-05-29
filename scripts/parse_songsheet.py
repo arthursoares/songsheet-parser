@@ -6,10 +6,12 @@ Usage:
     python parse_songsheet.py image.png --output data/artist/json/
     python parse_songsheet.py data/artist/png/*.png --output data/artist/json/
     
-Environment:
-    ANTHROPIC_API_KEY - for Claude
-    GEMINI_API_KEY    - for Gemini  
-    OPENAI_API_KEY    - for GPT-4V
+Providers:
+    codex   - OpenAI vision (default, e.g. gpt-5.5) via your ChatGPT/Codex
+              subscription. Requires `codex login` (reads ~/.codex/auth.json).
+    claude  - Anthropic Claude (ANTHROPIC_API_KEY)
+    gemini  - Google Gemini (GEMINI_API_KEY)
+    openai  - OpenAI via paid API key (OPENAI_API_KEY)
 """
 
 import argparse
@@ -20,56 +22,64 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-PARSE_PROMPT = """Analyze this Brazilian songsheet image and extract structured data.
+PARSE_PROMPT = """Analyze this Brazilian songsheet image (one page) and extract a structured JSON object.
 
-Return a JSON object with:
+Return ONLY JSON, no markdown fences, in this exact shape:
 
 {
-  "title": "Song title",
-  "composer": "Composer name (if visible)",
-  "key": "Key signature (if indicated)",
-  
-  "chords": {
-    "ChordName": {
-      "fingering": "6 characters for 6 strings (low E to high e): x=muted, 0=open, or fret number",
-      "fret": starting_fret_position
-    }
-  },
-  
-  "bars": [
+  "document": { "title": "<book/song title on page>" },
+  "songs": [
     {
-      "lyrics": "lyrics for this bar only",
-      "chords": ["ChordName"],
-      "beats": 4
+      "title": "<song title>",
+      "composers": ["<composer>", "..."],
+      "pages": [<this page number if known, else omit>],
+      "key": "<key if shown, else null>",
+      "chords": {},
+      "sections": [
+        {
+          "label": null,
+          "bars": [
+            [ { "chord": "Dm7", "voicing": "x,5,7,5,6,x", "text": "Vai mi nha" } ]
+          ]
+        }
+      ]
     }
-  ],
-  
-  "_flags": ["any uncertainties or unclear elements"],
-  "_confidence": 0.0 to 1.0
+  ]
 }
 
-CRITICAL INSTRUCTIONS:
+CRITICAL RULES:
 
-1. CHORD DIAGRAMS - Read carefully:
-   - Look for a fret position number (e.g., "3fr", "5") on the side — this is the starting fret
-   - Many chords are NOT in open position — they may be at 3rd, 5th, 7th fret etc.
-   - Count dots relative to the position marker
-   - Format: 6 characters, low E string first. Example: 5x665x means E=5th fret, A=muted, D=6th, G=6th, B=5th, e=muted
-   - Barre chords: if a barre spans strings, all those strings get the same fret number
+1. BARS ARE DELIMITED BY VERTICAL TICK MARKS on the horizontal staff line.
+   - Each segment between ticks is ONE bar.
+   - A "bar" in the JSON is an ARRAY of chord entries, left to right.
+   - Two chord diagrams drawn close together may still be in SEPARATE bars —
+     decide bar membership by the tick marks, NEVER by visual proximity.
 
-2. BAR STRUCTURE - This is essential:
-   - There is a thin horizontal line between the chord diagrams and the lyrics
-   - Small VERTICAL lines on that horizontal line mark BAR DIVISIONS
-   - Each segment between vertical lines is ONE BAR (one measure)
-   - Typically 4 bars per line, like: |——|——|——|——|
-   - Each bar usually has ONE chord and a few syllables of lyrics
-   - Do NOT treat each text line as one bar — look for the vertical bar lines!
+2. CHORD ENTRIES — one object per chord placement in the bar:
+   - "chord": the chord name as printed (e.g. "Dm7", "F7+5", "C#m7/G#").
+   - "voicing": the fingering read from THAT chord's diagram, as 6 comma-separated
+     strings, low E string first: each is "x" (muted) or a fret NUMBER 0-24.
+     Example: "x,5,7,5,6,x". Read the position marker (e.g. "5fr") — many chords
+     are NOT open position, so frets can be two digits (e.g. "x,9,11,10,11,9").
+     This is PER OCCURRENCE: the same chord name can have different voicings on
+     different placements. Omit "voicing" only if no diagram is drawn for that placement.
 
-3. LYRICS:
-   - Split lyrics by bar — only include the syllables that fall within each bar
-   - Hyphens indicate syllable breaks within words
+3. CONTINUATION — if a chord sounds through the next bar with no new chord
+   struck in that next bar, emit that next bar as [ { "chord": "%" } ].
+   ("%" = measure repeat: keep playing the previous chord.)
 
-Return ONLY the JSON, no markdown or explanation."""
+4. LYRICS — "text" is the syllables sung from that chord's onset until the next
+   chord. Dashes in the source are SPACING ONLY: strip them and join syllables
+   with single spaces (e.g. printed "mi - nha" becomes "mi nha"). Omit "text"
+   for instrumental bars with no lyrics.
+
+5. Leave "chords" as an empty object {} — it is generated later, not by you.
+
+6. OMIT any field whose value is unknown rather than emitting null for it.
+   In particular do NOT emit "page_count": null — leave the key out entirely.
+   ("key" may be null if no key is shown.)
+
+Return ONLY the JSON object."""
 
 
 def encode_image(image_path: Path) -> str:
@@ -192,10 +202,21 @@ def parse_with_openai(image_path: Path, model: str = "gpt-4o") -> dict:
     return json.loads(text.strip())
 
 
-def parse_songsheet(image_path: Path, provider: str = "gemini", model: str = None) -> dict:
+def parse_with_codex(image_path: Path, model: str = None) -> dict:
+    """Parse using an OpenAI vision model via the Codex/ChatGPT subscription."""
+    import codex_client
+
+    model = model or codex_client.DEFAULT_MODEL
+    return codex_client.codex_vision_json(image_path, PARSE_PROMPT, model=model)
+
+
+def parse_songsheet(image_path: Path, provider: str = "codex", model: str = None) -> dict:
     """Parse a songsheet image and return structured JSON."""
-    
+
+    import codex_client
+
     parsers = {
+        "codex": (parse_with_codex, codex_client.DEFAULT_MODEL),
         "claude": (parse_with_claude, "claude-sonnet-4-20250514"),
         "gemini": (parse_with_gemini, "gemini-2.0-flash"),
         "openai": (parse_with_openai, "gpt-4o"),
@@ -208,12 +229,13 @@ def parse_songsheet(image_path: Path, provider: str = "gemini", model: str = Non
     model = model or default_model
     
     result = parser_fn(image_path, model)
-    
-    # Add metadata
-    result["source"] = image_path.name
-    result["_parsed_at"] = datetime.now(timezone.utc).isoformat()
-    result["_model"] = f"{provider}/{model}"
-    
+
+    # Add provenance metadata (kept alongside the document/songs payload)
+    result.setdefault("_meta", {})
+    result["_meta"]["source"] = image_path.name
+    result["_meta"]["parsed_at"] = datetime.now(timezone.utc).isoformat()
+    result["_meta"]["model"] = f"{provider}/{model}"
+
     return result
 
 
@@ -221,7 +243,7 @@ def main():
     parser = argparse.ArgumentParser(description="Parse songsheet images to JSON")
     parser.add_argument("images", nargs="+", type=Path, help="Image files to parse")
     parser.add_argument("-o", "--output", type=Path, required=True, help="Output directory")
-    parser.add_argument("-p", "--provider", default="gemini", choices=["claude", "gemini", "openai"])
+    parser.add_argument("-p", "--provider", default="codex", choices=["codex", "claude", "gemini", "openai"])
     parser.add_argument("-m", "--model", help="Override model name")
     parser.add_argument("--dry-run", action="store_true", help="Show what would be done")
     

@@ -1,105 +1,95 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "Songsheet",
-  "description": "Parsed songsheet in intermediate JSON format",
+  "title": "Songsheet Document",
+  "description": "Chord-anchored songsheet model: document -> songs -> sections -> bars -> chord entries",
   "type": "object",
-  "required": ["source", "title", "chords", "bars"],
-  "properties": {
-    "source": {
+  "required": ["document", "songs"],
+  "additionalProperties": true,
+  "definitions": {
+    "voicing": {
       "type": "string",
-      "description": "Source filename (e.g., sample-03.png)"
+      "pattern": "^(x|\\d{1,2})(,(x|\\d{1,2})){5}$",
+      "description": "6 comma-separated strings low-E to high-e: x=muted, or fret number 0-24 (range enforced in code)"
     },
-    "title": {
-      "type": "string",
-      "description": "Song title"
-    },
-    "composer": {
-      "type": "string",
-      "description": "Composer/artist name"
-    },
-    "key": {
-      "type": "string",
-      "description": "Key signature (e.g., F, Am, Bb)"
-    },
-    "tempo": {
-      "type": "string",
-      "description": "Tempo indication if present"
-    },
-    "chords": {
+    "chordEntry": {
       "type": "object",
-      "description": "Chord definitions, keyed by chord name",
-      "additionalProperties": {
-        "type": "object",
-        "required": ["fingering"],
-        "properties": {
-          "fingering": {
-            "type": "string",
-            "description": "String-by-string fingering (e.g., x32010 for C)",
-            "pattern": "^[0-9x]{6}$"
-          },
-          "fret": {
-            "type": "integer",
-            "description": "Starting fret position (1 if open position)",
-            "minimum": 1
-          },
-          "notes": {
-            "type": "string",
-            "description": "Optional: actual notes in the voicing"
-          }
+      "required": ["chord"],
+      "additionalProperties": false,
+      "properties": {
+        "chord": {
+          "type": "string",
+          "description": "Chord name, or '%' for measure-repeat (continued chord)"
+        },
+        "voicing": { "$ref": "#/definitions/voicing" },
+        "text": {
+          "type": "string",
+          "description": "Syllables sung from this chord's onset, dashes stripped"
         }
       }
     },
-    "bars": {
+    "bar": {
       "type": "array",
-      "description": "Sequential bars of the song",
+      "description": "A bar is an ordered array of chord entries",
+      "items": { "$ref": "#/definitions/chordEntry" }
+    },
+    "voicingIndexEntry": {
+      "type": "object",
+      "required": ["voicing"],
+      "additionalProperties": false,
+      "properties": {
+        "voicing": { "$ref": "#/definitions/voicing" },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    }
+  },
+  "properties": {
+    "document": {
+      "type": "object",
+      "required": ["title"],
+      "additionalProperties": false,
+      "properties": {
+        "title": { "type": "string" },
+        "source_pdf": { "type": "string" },
+        "page_count": { "type": "integer", "minimum": 1 },
+        "status": { "enum": ["pending", "in_progress", "done"] }
+      }
+    },
+    "songs": {
+      "type": "array",
       "items": {
         "type": "object",
-        "required": ["chords"],
+        "required": ["title", "sections"],
+        "additionalProperties": false,
         "properties": {
-          "lyrics": {
-            "type": "string",
-            "description": "Lyrics for this bar"
-          },
+          "title": { "type": "string" },
+          "composers": { "type": "array", "items": { "type": "string" } },
+          "pages": { "type": "array", "items": { "type": "integer" } },
+          "key": { "type": ["string", "null"] },
           "chords": {
-            "type": "array",
-            "description": "Chords in this bar (null for beats without chord change)",
-            "items": {
-              "type": ["string", "null"]
+            "type": "object",
+            "description": "Optional, parser-generated index: name -> distinct voicings seen",
+            "additionalProperties": {
+              "type": "array",
+              "items": { "$ref": "#/definitions/voicingIndexEntry" }
             }
           },
-          "beats": {
-            "type": "integer",
-            "description": "Number of beats in this bar",
-            "default": 4
-          },
-          "section": {
-            "type": "string",
-            "description": "Section marker (e.g., verse, chorus, bridge)"
+          "sections": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["bars"],
+              "additionalProperties": false,
+              "properties": {
+                "label": { "type": ["string", "null"] },
+                "bars": {
+                  "type": "array",
+                  "items": { "$ref": "#/definitions/bar" }
+                }
+              }
+            }
           }
         }
       }
-    },
-    "_flags": {
-      "type": "array",
-      "description": "Flags for human review",
-      "items": {
-        "type": "string"
-      }
-    },
-    "_confidence": {
-      "type": "number",
-      "description": "Overall parse confidence (0-1)",
-      "minimum": 0,
-      "maximum": 1
-    },
-    "_parsed_at": {
-      "type": "string",
-      "format": "date-time",
-      "description": "Timestamp of parsing"
-    },
-    "_model": {
-      "type": "string",
-      "description": "Vision model used for parsing"
     }
   }
 }

@@ -3,6 +3,11 @@ source/
 *.pdf
 /data/png/
 
+# Materialized page images are rendered copyrighted scans — never commit.
+data/*/songs/*/pages/
+# Per-song corpus JSON is personal-use song data (kept local, like the scans).
+data/*/songs/
+
 # Python
 __pycache__/
 *.pyc
