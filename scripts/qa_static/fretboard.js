@@ -116,6 +116,16 @@ function Fretboard(container, onChange) {
       ? window.ChordNaming.pcNotes(voicing) : [];
     notesEl.textContent = notes.length ? "notes: " + notes.join(" ") : "notes: —";
     container.appendChild(notesEl);
+
+    // intervals readout (scale degrees in the current key), if a key is set
+    const tonic = (window.ChordNaming && window.ChordNaming.getKeyTonic)
+      ? window.ChordNaming.getKeyTonic() : "";
+    if (tonic && notes.length) {
+      const iv = document.createElement("div");
+      iv.className = "fb-notes";
+      iv.textContent = "intervals: " + window.ChordNaming.intervalsInKey(voicing, tonic).join(" ");
+      container.appendChild(iv);
+    }
   }
 
   function emit() { onChange(voicing.slice()); }

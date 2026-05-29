@@ -13,6 +13,11 @@
   function setSpelling(mode) { _spelling = mode === "flat" ? "flat" : "sharp"; }
   function getSpelling() { return _spelling; }
 
+  // Global key tonic (e.g. "C") for interval analysis; "" = none. Set by the app.
+  let _keyTonic = "";
+  function setKeyTonic(t) { _keyTonic = t || ""; }
+  function getKeyTonic() { return _keyTonic; }
+
   // Respell a note name to the chosen accidental (e.g. "A#"<->"Bb"); naturals unchanged.
   function spell(note) {
     const pc = note.replace(/[0-9]/g, "");
@@ -42,6 +47,42 @@
       notes.push(window.Tonal.Midi.midiToNoteName(midi, { pitchClass: false }));
     });
     return notes;
+  }
+
+  // Roman-numeral scale degree of one note relative to a major-key tonic.
+  // Case reflects the diatonic triad quality in major (I ii iii IV V vi vii);
+  // chromatic notes get a flat/sharp prefix. Dedup-free, inversion-proof (per note).
+  const _MAJOR_QUAL = ["I", "ii", "iii", "IV", "V", "vi", "vii"];
+  const _DEGREE_MAP = {
+    0: [0, ""], 2: [1, ""], 4: [2, ""], 5: [3, ""], 7: [4, ""], 9: [5, ""], 11: [6, ""],
+    1: [1, "b"], 3: [2, "b"], 6: [3, "#"], 8: [5, "b"], 10: [6, "b"],
+  };
+  function degree(tonic, note) {
+    const T = window.Tonal;
+    const semis = ((T.Note.chroma(note) - T.Note.chroma(tonic)) % 12 + 12) % 12;
+    const [idx, acc] = _DEGREE_MAP[semis];
+    return acc + _MAJOR_QUAL[idx];
+  }
+
+  // For a voicing + key tonic (e.g. "C"), return the per-note degrees in playing
+  // order, deduped to match pcNotes. Empty if no tonic or no notes.
+  function intervalsInKey(voicing, tonic) {
+    if (!tonic) return [];
+    const T = window.Tonal;
+    if (!T.Note.chroma(tonic) && tonic !== "C") {
+      // tonic might be a chord/garbage; take just the note part
+      const m = String(tonic).match(/^[A-Ga-g][#b]?/);
+      if (!m) return [];
+      tonic = m[0];
+    }
+    const seen = new Set(), out = [];
+    voicingToNotes(voicing).forEach((n) => {
+      const pc = n.replace(/[0-9]/g, "");
+      if (seen.has(pc)) return;
+      seen.add(pc);
+      out.push(degree(tonic, n));
+    });
+    return out;
   }
 
   // Parse a name with chord-symbol (the ChordMark parser). Returns the result
@@ -103,6 +144,7 @@
 
   window.ChordNaming = {
     voicingToNotes, pcNotes, suggestNames, validateName, nameMatchesVoicing,
-    setSpelling, getSpelling, spell,
+    setSpelling, getSpelling, spell, degree, intervalsInKey,
+    setKeyTonic, getKeyTonic,
   };
 })();

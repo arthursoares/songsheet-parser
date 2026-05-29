@@ -23,6 +23,8 @@
   .chip .nm{font-weight:600}.chip.pct .nm{color:#6ea8fe}
   .chip .vc{font:11px ui-monospace,monospace;color:#9aa3b2}
   .chip .nt{font:11px ui-monospace,monospace;color:#7fb3a0}
+  .chip .iv{font:11px ui-monospace,monospace;color:#c8a26b}
+  .dhead .div{font:11px ui-monospace,monospace;color:#c8a26b}
   .chip .tx{font-size:12px;opacity:.85}
   .chip .warn{display:inline-block;width:8px;height:8px;border-radius:50%;background:#f85149;margin-left:5px}
   .editor{position:fixed;right:0;top:49px;bottom:0;width:360px;background:#1e222b;border-left:1px solid #2a2f3a;padding:16px;overflow:auto;transform:translateX(100%);transition:transform .15s}
@@ -79,6 +81,9 @@
   <select id="albumSel"></select>
   <select id="songSel"></select>
   <span id="albumProgress" style="color:#9aa3b2;font-size:12px"></span>
+  <select id="keySel" title="song key (for interval analysis)">
+    <option value="">key: —</option>
+  </select>
   <select id="statusSel" title="editing status">
     <option value="pending">○ pending</option>
     <option value="in_progress">◐ in progress</option>

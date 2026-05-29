@@ -39,6 +39,19 @@ async function init() {
     if (!state.doc) return;
     state.doc.document.status = ev.target.value;
   };
+  // key selector — drives interval analysis; stored on song.key
+  const keySel = document.getElementById("keySel");
+  const KEYS = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+  keySel.innerHTML = '<option value="">key: —</option>' +
+    KEYS.map((k) => `<option value="${k}">key: ${k}</option>`).join("");
+  keySel.onchange = (ev) => {
+    if (!state.doc) return;
+    song().key = ev.target.value || null;
+    window.ChordNaming.setKeyTonic(keyTonic());
+    renderBars();
+    if (document.getElementById("dict").style.display !== "none") renderDict();
+    if (state.sel) openEditor(state.sel.si, state.sel.bi, state.sel.ei);
+  };
   document.getElementById("tabBars").onclick = () => showView("bars");
   document.getElementById("tabDict").onclick = () => showView("dict");
 
@@ -66,6 +79,8 @@ async function loadSong() {
   state.dictEdit = null;
   const status = (state.doc.document && state.doc.document.status) || "pending";
   document.getElementById("statusSel").value = status;
+  document.getElementById("keySel").value = keyTonic();
+  window.ChordNaming.setKeyTonic(keyTonic());
   renderPages();
   renderBars();
   showView("bars");
@@ -73,6 +88,21 @@ async function loadSong() {
 }
 
 function song() { return state.doc.songs[0]; }
+
+// Usable tonic note from song.key (may be null or non-standard); "" if none.
+function keyTonic() {
+  const k = song().key;
+  if (!k) return "";
+  const m = String(k).match(/^[A-G][#b]?/);
+  return m ? m[0] : "";
+}
+
+// intervals line (per-note scale degrees in the key) for a voicing string, or "".
+function intervalsFor(voicing) {
+  const t = keyTonic();
+  if (!t || !voicing) return "";
+  return window.ChordNaming.intervalsInKey(parseVoicing(voicing), t).join(" ");
+}
 
 function renderPages() {
   const pages = song().pages || [];
@@ -105,10 +135,12 @@ function renderBars() {
           (state.sel && state.sel.si === si && state.sel.bi === bi && state.sel.ei === ei ? " sel" : "");
         const notes = (e.chord !== "%" && e.voicing)
           ? window.ChordNaming.pcNotes(parseVoicing(e.voicing)).join(" ") : "";
+        const ivals = (e.chord !== "%") ? intervalsFor(e.voicing) : "";
         chip.innerHTML =
           `<div class="nm">${e.chord}${mismatch ? '<span class="warn"></span>' : ""}</div>
            <div class="vc">${e.voicing || "—"}</div>
            ${notes ? `<div class="nt">${notes}</div>` : ""}
+           ${ivals ? `<div class="iv">${ivals}</div>` : ""}
            <div class="tx">${e.text ? "_" + e.text : "—"}</div>`;
         chip.onclick = () => openEditor(si, bi, ei);
         chips.appendChild(chip);
@@ -251,11 +283,13 @@ function renderDict() {
     const row = document.createElement("div");
     row.className = "drow" + (state.dictSel.has(e.key) ? " sel" : "");
     const mism = e.nameMatchesVoicing === false ? '<span class="warn"></span>' : "";
+    const ivals = intervalsFor(e.voicing);
     row.innerHTML = `<div class="dhead">
       <input type="checkbox" ${state.dictSel.has(e.key) ? "checked" : ""} data-sel="${e.key}">
       <span class="dnm">${e.chord}</span>${mism}
       <span class="dvc">${e.voicing || "—"}</span>
       <span class="dnt">${e.notes.join(" ")}</span>
+      ${ivals ? `<span class="div">${ivals}</span>` : ""}
       <span class="dct">${e.count}×</span>
     </div>`;
     row.querySelector("[data-sel]").onclick = (ev) => {
