@@ -109,9 +109,13 @@
     <div class="viewtabs">
       <button id="tabBars" class="tab active">Bars</button>
       <button id="tabDict" class="tab">Dictionary</button>
+      <button id="tabPreview" class="tab">Preview</button>
     </div>
     <div id="bars"></div>
     <div id="dict" style="display:none"></div>
+    <div id="preview" style="display:none">
+      <iframe id="previewFrame" style="width:100%;height:calc(100vh - 110px);border:1px solid #2a2f3a;border-radius:8px;background:#fff"></iframe>
+    </div>
   </div>
 </div>
 <aside class="editor" id="editor"></aside>

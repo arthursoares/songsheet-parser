@@ -78,6 +78,16 @@ def handle(method: str, path: str, body: bytes, root: Path):
         if method == "POST":
             return save_song(target, body)
 
+    # /api/render/{album}/{file}  -> ChordMark HTML rendered via the fork
+    if parts[:2] == ["api", "render"] and len(parts) == 4 and method == "GET":
+        album, fname = parts[2], parts[3]
+        target = _safe_under(root, album, fname)
+        if target is None:
+            return _json(400, {"error": "bad path"})
+        if not target.exists():
+            return _json(404, {"error": "not found"})
+        return render_song_html(target)
+
     # /api/page/{album}/{file}/{n}  -> pages/<file-stem>-p<n>.png
     if parts[:2] == ["api", "page"] and len(parts) == 5 and method == "GET":
         album, fname, n = parts[2], parts[3], parts[4]
@@ -123,6 +133,47 @@ def save_song(target: Path, body: bytes):
 
     target.write_text(json.dumps(doc, ensure_ascii=False, indent=2))
     return _json(200, {"ok": True})
+
+
+def _html_error(msg):
+    body = (f"<!doctype html><meta charset='utf-8'>"
+            f"<body style='font:14px sans-serif;color:#b00;padding:20px'>"
+            f"ChordMark preview unavailable:<br><pre>{msg}</pre></body>")
+    return 200, "text/html", body.encode()
+
+
+def render_song_html(song_path: Path):
+    """Render a saved song to ChordMark HTML via the fork (node render_chordmark.js)."""
+    import shutil
+    import subprocess
+    import tempfile
+
+    import chordmark_render
+
+    node = shutil.which("node")
+    render_js = SCRIPTS / "render_chordmark.js"
+    if not node or not render_js.exists():
+        return _html_error("node or render_chordmark.js not found")
+
+    try:
+        doc = json.loads(song_path.read_text())
+        songs = doc.get("songs", [])
+        chordmark = "\n\n".join(chordmark_render.render_song(s) for s in songs)
+    except Exception as e:  # noqa: BLE001
+        return _html_error(f"failed to build ChordMark: {e}")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        cm_path = Path(tmp) / "song.chordmark"
+        html_path = Path(tmp) / "song.html"
+        cm_path.write_text(chordmark)
+        try:
+            r = subprocess.run([node, str(render_js), str(cm_path), str(html_path)],
+                               capture_output=True, text=True, timeout=60)
+        except subprocess.TimeoutExpired:
+            return _html_error("fork render timed out")
+        if r.returncode != 0 or not html_path.exists():
+            return _html_error(f"fork render failed:\n{r.stderr or r.stdout}")
+        return 200, "text/html", html_path.read_bytes()
 
 
 def serve(songs_root: Path, port: int):

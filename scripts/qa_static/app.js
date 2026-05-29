@@ -55,6 +55,7 @@ async function init() {
   };
   document.getElementById("tabBars").onclick = () => showView("bars");
   document.getElementById("tabDict").onclick = () => showView("dict");
+  document.getElementById("tabPreview").onclick = () => showView("preview");
 
   // global flat/sharp spelling toggle — re-renders bars (and editor if open)
   const spellBtn = document.getElementById("spellToggle");
@@ -275,6 +276,9 @@ async function save() {
       if (opt) opt.textContent = `${STATUS_LABEL[s.status] || "○"}  ${s.file}`;
       updateProgress();
     }
+    // refresh the ChordMark preview against the just-saved file
+    state._previewToken = (state._previewToken || 0) + 1;
+    if (document.getElementById("preview").style.display !== "none") renderPreview();
   } else { status.textContent = "✗ " + res.error; status.style.color = "#f85149"; }
 }
 
@@ -283,9 +287,19 @@ async function save() {
 function showView(which) {
   document.getElementById("bars").style.display = which === "bars" ? "" : "none";
   document.getElementById("dict").style.display = which === "dict" ? "" : "none";
+  document.getElementById("preview").style.display = which === "preview" ? "" : "none";
   document.getElementById("tabBars").classList.toggle("active", which === "bars");
   document.getElementById("tabDict").classList.toggle("active", which === "dict");
+  document.getElementById("tabPreview").classList.toggle("active", which === "preview");
   if (which === "dict") renderDict();
+  if (which === "preview") renderPreview();
+}
+
+// Point the preview iframe at the server's fork-rendered HTML for the saved song.
+// Reflects last-saved state (a cache-bust param forces refresh after Save).
+function renderPreview() {
+  const frame = document.getElementById("previewFrame");
+  frame.src = `/api/render/${state.album}/${state.file}?t=${state._previewToken || 0}`;
 }
 
 function renderDict() {
