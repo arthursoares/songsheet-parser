@@ -108,6 +108,21 @@ function Fretboard(container, onChange) {
     text.onkeydown = (e) => { if (e.key === "Enter") apply(); };
     container.appendChild(text);
     container.appendChild(err);
+
+    // notes readout (low -> high), computed from the current voicing
+    const notesEl = document.createElement("div");
+    notesEl.className = "fb-notes";
+    let notes = [];
+    if (window.ChordNaming && window.ChordNaming.voicingToNotes) {
+      // pitch-class names without octave, deduped in playing order
+      const seen = new Set();
+      window.ChordNaming.voicingToNotes(voicing).forEach((n) => {
+        const pc = n.replace(/[0-9]/g, "");
+        if (!seen.has(pc)) { seen.add(pc); notes.push(pc); }
+      });
+    }
+    notesEl.textContent = notes.length ? "notes: " + notes.join(" ") : "notes: —";
+    container.appendChild(notesEl);
   }
 
   function emit() { onChange(voicing.slice()); }
