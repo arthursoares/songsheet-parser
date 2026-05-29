@@ -1,5 +1,5 @@
 // Songsheet QA app: load albums/songs, render pages + editable chord chips, edit panel, save.
-let state = { album: null, file: null, doc: null, sel: null };
+let state = { album: null, file: null, doc: null, sel: null, dictSel: new Set(), dictEdit: null };
 
 async function api(path, opts) {
   const r = await fetch(path, opts);
@@ -18,6 +18,8 @@ async function init() {
   albumSel.onchange = () => { fillSongs(); loadSong(); };
   songSel.onchange = loadSong;
   document.getElementById("saveBtn").onclick = save;
+  document.getElementById("tabBars").onclick = () => showView("bars");
+  document.getElementById("tabDict").onclick = () => showView("dict");
 
   // global flat/sharp spelling toggle — re-renders bars (and editor if open)
   const spellBtn = document.getElementById("spellToggle");
@@ -26,6 +28,7 @@ async function init() {
     window.ChordNaming.setSpelling(next);
     spellBtn.textContent = next === "flat" ? "♭ flat" : "♯ sharp";
     renderBars();
+    if (document.getElementById("dict").style.display !== "none") renderDict();
     if (state.sel) openEditor(state.sel.si, state.sel.bi, state.sel.ei);
   };
 
@@ -38,8 +41,11 @@ async function loadSong() {
   state.file = document.getElementById("songSel").value;
   state.doc = await api(`/api/song/${state.album}/${state.file}`);
   state.sel = null;
+  state.dictSel.clear();
+  state.dictEdit = null;
   renderPages();
   renderBars();
+  showView("bars");
   document.getElementById("editor").classList.remove("open");
 }
 
@@ -163,6 +169,119 @@ async function save() {
     { method: "POST", body: JSON.stringify(state.doc) });
   if (res.ok) { status.textContent = "✓ saved"; status.style.color = "#3fb950"; }
   else { status.textContent = "✗ " + res.error; status.style.color = "#f85149"; }
+}
+
+// ---- Dictionary view ----
+
+function showView(which) {
+  document.getElementById("bars").style.display = which === "bars" ? "" : "none";
+  document.getElementById("dict").style.display = which === "dict" ? "" : "none";
+  document.getElementById("tabBars").classList.toggle("active", which === "bars");
+  document.getElementById("tabDict").classList.toggle("active", which === "dict");
+  if (which === "dict") renderDict();
+}
+
+function renderDict() {
+  const root = document.getElementById("dict");
+  const entries = window.ChordDictionary.buildDictionary(song());
+  root.innerHTML = "";
+
+  // merge bar (shown when 2+ selected)
+  const mergeBar = document.createElement("div");
+  mergeBar.className = "dmergebar" + (state.dictSel.size >= 2 ? " show" : "");
+  mergeBar.innerHTML = `<b>${state.dictSel.size} selected</b> — merge into one chord:
+    <button class="apply" id="dMergeBtn">Merge…</button>
+    <button id="dClearSel">Clear</button>`;
+  root.appendChild(mergeBar);
+  if (state.dictSel.size >= 2) {
+    document.getElementById("dMergeBtn").onclick = () => openMerge(entries);
+    document.getElementById("dClearSel").onclick = () => { state.dictSel.clear(); renderDict(); };
+  }
+
+  entries.forEach((e) => {
+    const row = document.createElement("div");
+    row.className = "drow" + (state.dictSel.has(e.key) ? " sel" : "");
+    const mism = e.nameMatchesVoicing === false ? '<span class="warn"></span>' : "";
+    row.innerHTML = `<div class="dhead">
+      <input type="checkbox" ${state.dictSel.has(e.key) ? "checked" : ""} data-sel="${e.key}">
+      <span class="dnm">${e.chord}</span>${mism}
+      <span class="dvc">${e.voicing || "—"}</span>
+      <span class="dnt">${e.notes.join(" ")}</span>
+      <span class="dct">${e.count}×</span>
+    </div>`;
+    row.querySelector("[data-sel]").onclick = (ev) => {
+      ev.stopPropagation();
+      if (state.dictSel.has(e.key)) state.dictSel.delete(e.key);
+      else state.dictSel.add(e.key);
+      renderDict();
+    };
+    row.querySelector(".dhead").onclick = () => {
+      state.dictEdit = state.dictEdit === e.key ? null : e.key;
+      renderDict();
+    };
+    if (state.dictEdit === e.key) row.appendChild(buildDictEditor(e));
+    root.appendChild(row);
+  });
+}
+
+function buildDictEditor(entry) {
+  const wrap = document.createElement("div");
+  wrap.className = "dedit";
+  wrap.onclick = (e) => e.stopPropagation();
+  wrap.innerHTML = `
+    <input type="text" class="dName" value="${entry.chord}">
+    <div class="dFb"></div>
+    <div class="dsuggest"></div>
+    <div class="dactions">
+      <button class="apply">Apply to ${entry.count}×</button>
+      <button class="cancel">Cancel</button>
+    </div>`;
+  let curVoicing = entry.voicing
+    ? entry.voicing.split(",").map((t) => (t === "x" ? "x" : parseInt(t, 10)))
+    : ["x", "x", "x", "x", "x", "x"];
+  const fb = window.Fretboard(wrap.querySelector(".dFb"), (v) => { curVoicing = v; refreshSug(); });
+  fb.set(curVoicing);
+
+  function refreshSug() {
+    const sug = window.ChordNaming.suggestNames(curVoicing);
+    wrap.querySelector(".dsuggest").innerHTML =
+      sug.map((s) => `<span class="s" data-n="${s.name}">${s.name}</span>`).join("");
+    wrap.querySelectorAll(".dsuggest .s").forEach((el) =>
+      el.onclick = () => { wrap.querySelector(".dName").value = el.dataset.n; });
+  }
+  refreshSug();
+
+  wrap.querySelector(".apply").onclick = () => {
+    const name = wrap.querySelector(".dName").value.trim();
+    const v = window.ChordNaming.validateName(name);
+    if (!v.valid && name !== "%") { alert("Not a valid ChordMark chord: " + name); return; }
+    const vc = fb.get();
+    const voicing = vc.every((f) => f === "x") ? "" : vc.join(",");
+    window.ChordDictionary.applyEdit(song(), entry.key, { chord: name, voicing });
+    state.dictEdit = null;
+    renderBars();
+    renderDict();
+  };
+  wrap.querySelector(".cancel").onclick = () => { state.dictEdit = null; renderDict(); };
+  return wrap;
+}
+
+function openMerge(entries) {
+  const keys = [...state.dictSel];
+  const largest = entries
+    .filter((e) => state.dictSel.has(e.key))
+    .sort((a, b) => b.count - a.count)[0];
+  const name = prompt("Merge chord name:", largest.chord);
+  if (name === null) return;
+  const voicing = prompt("Merge voicing (comma form, blank = none):", largest.voicing || "");
+  if (voicing === null) return;
+  const v = window.ChordNaming.validateName(name.trim());
+  if (!v.valid && name.trim() !== "%") { alert("Not a valid ChordMark chord: " + name); return; }
+  window.ChordDictionary.mergeEntries(song(), keys, { chord: name.trim(), voicing: voicing.trim() });
+  state.dictSel.clear();
+  state.dictEdit = null;
+  renderBars();
+  renderDict();
 }
 
 init();

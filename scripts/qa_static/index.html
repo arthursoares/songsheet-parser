@@ -48,6 +48,26 @@
   .fb-text{margin-top:10px}
   .fb-err{color:#f85149;font-size:12px;min-height:16px;margin-top:4px}
   .fb-notes{color:#9aa3b2;font:12px ui-monospace,monospace;margin-top:6px}
+  .viewtabs{display:flex;gap:6px;margin-bottom:10px}
+  .tab{background:#1e222b;color:#9aa3b2;border:1px solid #2a2f3a;border-radius:6px;padding:5px 12px;cursor:pointer}
+  .tab.active{background:#2d3b5a;color:#e6e8ee;border-color:#6ea8fe}
+  .drow{border:1px solid #2a2f3a;border-radius:8px;padding:8px;margin-bottom:8px;background:#171a21}
+  .drow.sel{border-color:#6ea8fe}
+  .dhead{display:flex;align-items:center;gap:8px;flex-wrap:wrap;cursor:pointer}
+  .dhead .dnm{font-weight:700}
+  .dhead .dvc{font:11px ui-monospace,monospace;color:#9aa3b2}
+  .dhead .dnt{font:11px ui-monospace,monospace;color:#7fb3a0}
+  .dhead .dct{font-size:11px;color:#9aa3b2;margin-left:auto}
+  .dhead .warn{display:inline-block;width:8px;height:8px;border-radius:50%;background:#f85149}
+  .dedit{margin-top:8px;border-top:1px solid #2a2f3a;padding-top:8px}
+  .dedit input[type=text]{width:100%;background:#11141b;border:1px solid #2a2f3a;color:#e6e8ee;border-radius:6px;padding:7px;margin-bottom:6px}
+  .dsuggest .s{display:inline-block;border:1px solid #2a2f3a;border-radius:6px;padding:2px 8px;margin:2px;cursor:pointer;font-size:12px}
+  .dsuggest .s:hover{border-color:#6ea8fe}
+  .dactions{display:flex;gap:8px;margin-top:8px}
+  .dactions button{border-radius:6px;padding:7px 12px;border:1px solid #2a2f3a;background:#171a21;color:#e6e8ee;cursor:pointer}
+  .dactions .apply{background:#6ea8fe;color:#06132b;border:0;font-weight:600}
+  .dmergebar{position:sticky;top:0;background:#11141b;border:1px solid #6ea8fe;border-radius:8px;padding:8px;margin-bottom:8px;display:none}
+  .dmergebar.show{display:block}
   .ed-actions{display:flex;gap:8px;margin-top:16px}
   .ed-actions button{flex:1;border-radius:6px;padding:9px;border:1px solid #2a2f3a;background:#171a21;color:#e6e8ee;cursor:pointer}
   .ed-actions .apply{background:#6ea8fe;color:#06132b;border:0;font-weight:600}
@@ -65,13 +85,21 @@
 </header>
 <div class="layout">
   <div class="col left" id="pages"></div>
-  <div class="col right" id="bars"></div>
+  <div class="col right">
+    <div class="viewtabs">
+      <button id="tabBars" class="tab active">Bars</button>
+      <button id="tabDict" class="tab">Dictionary</button>
+    </div>
+    <div id="bars"></div>
+    <div id="dict" style="display:none"></div>
+  </div>
 </div>
 <aside class="editor" id="editor"></aside>
 <script src="vendor/tonal.bundle.js"></script>
 <script src="vendor/chord-symbol.bundle.js"></script>
 <script src="chord_naming.js"></script>
 <script src="fretboard.js"></script>
+<script src="chord_dictionary.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
