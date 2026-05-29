@@ -43,6 +43,24 @@ function Fretboard(container, onChange) {
     // DOM grid
     const grid = document.createElement("div");
     grid.className = "fb-grid";
+
+    // fret-number legend column (left side): blank marker slot, a number per fret row, blank label slot
+    const legend = document.createElement("div");
+    legend.className = "fb-col fb-legend";
+    const legendMark = document.createElement("div");
+    legendMark.className = "fb-mark";
+    legend.appendChild(legendMark);
+    for (let f = 0; f < WINDOW; f++) {
+      const fn = document.createElement("div");
+      fn.className = "fb-fretnum";
+      fn.textContent = start + f;
+      legend.appendChild(fn);
+    }
+    const legendLbl = document.createElement("div");
+    legendLbl.className = "fb-lbl";
+    legend.appendChild(legendLbl);
+    grid.appendChild(legend);
+
     for (let s = 0; s < STRINGS; s++) {
       const col = document.createElement("div");
       col.className = "fb-col";
