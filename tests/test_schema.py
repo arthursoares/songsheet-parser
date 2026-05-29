@@ -57,3 +57,14 @@ def test_stray_key_on_song_is_rejected():
     doc["songs"][0]["unexpected_field"] = "nope"
     with pytest.raises(jsonschema.ValidationError):
         jsonschema.validate(doc, schema)
+
+
+def test_document_status_enum():
+    schema = load_schema()
+    doc = json.loads(FIXTURE.read_text())
+    for s in ("pending", "in_progress", "done"):
+        doc["document"]["status"] = s
+        jsonschema.validate(doc, schema)  # valid values
+    doc["document"]["status"] = "finished"  # not in enum
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(doc, schema)

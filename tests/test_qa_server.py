@@ -23,7 +23,18 @@ def test_list_albums(tmp_path):
     status, ctype, body = S.handle("GET", "/api/albums", b"", root)
     assert status == 200
     data = json.loads(body)
-    assert data == [{"album": "1-album", "songs": ["01-song-one.json"]}]
+    assert data == [{"album": "1-album",
+                     "songs": [{"file": "01-song-one.json", "status": "pending"}]}]
+
+
+def test_list_albums_reads_status(tmp_path):
+    root = _corpus(tmp_path)
+    p = root / "1-album" / "01-song-one.json"
+    doc = json.loads(p.read_text())
+    doc["document"]["status"] = "done"
+    p.write_text(json.dumps(doc))
+    _, _, body = S.handle("GET", "/api/albums", b"", root)
+    assert json.loads(body)[0]["songs"][0]["status"] == "done"
 
 
 def test_get_song(tmp_path):

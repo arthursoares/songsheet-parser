@@ -1,23 +1,44 @@
 // Songsheet QA app: load albums/songs, render pages + editable chord chips, edit panel, save.
-let state = { album: null, file: null, doc: null, sel: null, dictSel: new Set(), dictEdit: null };
+let state = { album: null, file: null, doc: null, sel: null, dictSel: new Set(), dictEdit: null, dictSort: "count" };
 
 async function api(path, opts) {
   const r = await fetch(path, opts);
   return r.json();
 }
 
+const STATUS_LABEL = { pending: "○ pending", in_progress: "◐ in progress", done: "✓ done" };
+
+let albums = [];
+
+function fillSongs() {
+  const albumSel = document.getElementById("albumSel");
+  const songSel = document.getElementById("songSel");
+  const a = albums.find((x) => x.album === albumSel.value);
+  songSel.innerHTML = a.songs
+    .map((s) => `<option value="${s.file}">${STATUS_LABEL[s.status] || "○"}  ${s.file}</option>`)
+    .join("");
+  updateProgress();
+}
+
+function updateProgress() {
+  const a = albums.find((x) => x.album === document.getElementById("albumSel").value);
+  if (!a) return;
+  const done = a.songs.filter((s) => s.status === "done").length;
+  document.getElementById("albumProgress").textContent = `${done}/${a.songs.length} done`;
+}
+
 async function init() {
-  const albums = await api("/api/albums");
+  albums = await api("/api/albums");
   const albumSel = document.getElementById("albumSel");
   albumSel.innerHTML = albums.map((a) => `<option>${a.album}</option>`).join("");
   const songSel = document.getElementById("songSel");
-  function fillSongs() {
-    const a = albums.find((x) => x.album === albumSel.value);
-    songSel.innerHTML = a.songs.map((s) => `<option>${s}</option>`).join("");
-  }
   albumSel.onchange = () => { fillSongs(); loadSong(); };
   songSel.onchange = loadSong;
   document.getElementById("saveBtn").onclick = save;
+  document.getElementById("statusSel").onchange = (ev) => {
+    if (!state.doc) return;
+    state.doc.document.status = ev.target.value;
+  };
   document.getElementById("tabBars").onclick = () => showView("bars");
   document.getElementById("tabDict").onclick = () => showView("dict");
 
@@ -43,6 +64,8 @@ async function loadSong() {
   state.sel = null;
   state.dictSel.clear();
   state.dictEdit = null;
+  const status = (state.doc.document && state.doc.document.status) || "pending";
+  document.getElementById("statusSel").value = status;
   renderPages();
   renderBars();
   showView("bars");
@@ -167,8 +190,19 @@ async function save() {
   status.textContent = "saving…"; status.style.color = "#9aa3b2";
   const res = await api(`/api/song/${state.album}/${state.file}`,
     { method: "POST", body: JSON.stringify(state.doc) });
-  if (res.ok) { status.textContent = "✓ saved"; status.style.color = "#3fb950"; }
-  else { status.textContent = "✗ " + res.error; status.style.color = "#f85149"; }
+  if (res.ok) {
+    status.textContent = "✓ saved"; status.style.color = "#3fb950";
+    // reflect the saved status in the local album cache → progress count + dropdown label
+    const a = albums.find((x) => x.album === state.album);
+    const s = a && a.songs.find((x) => x.file === state.file);
+    if (s) {
+      s.status = (state.doc.document && state.doc.document.status) || "pending";
+      const opt = [...document.getElementById("songSel").options]
+        .find((o) => o.value === state.file);
+      if (opt) opt.textContent = `${STATUS_LABEL[s.status] || "○"}  ${s.file}`;
+      updateProgress();
+    }
+  } else { status.textContent = "✗ " + res.error; status.style.color = "#f85149"; }
 }
 
 // ---- Dictionary view ----
@@ -183,8 +217,23 @@ function showView(which) {
 
 function renderDict() {
   const root = document.getElementById("dict");
-  const entries = window.ChordDictionary.buildDictionary(song());
+  const entries = window.ChordDictionary.buildDictionary(song()); // count desc by default
+  if (state.dictSort === "alpha") {
+    entries.sort((a, b) =>
+      a.chord.localeCompare(b.chord, undefined, { numeric: true, sensitivity: "base" })
+      || (a.voicing || "").localeCompare(b.voicing || ""));
+  }
   root.innerHTML = "";
+
+  // sort control
+  const sortBar = document.createElement("div");
+  sortBar.className = "dsort";
+  sortBar.innerHTML = `sort:
+    <button class="tab ${state.dictSort === "count" ? "active" : ""}" data-sort="count">count</button>
+    <button class="tab ${state.dictSort === "alpha" ? "active" : ""}" data-sort="alpha">A–Z</button>`;
+  sortBar.querySelectorAll("[data-sort]").forEach((b) =>
+    b.onclick = () => { state.dictSort = b.dataset.sort; renderDict(); });
+  root.appendChild(sortBar);
 
   // merge bar (shown when 2+ selected)
   const mergeBar = document.createElement("div");

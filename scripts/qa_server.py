@@ -38,10 +38,22 @@ def _json(status, obj):
     return status, "application/json", json.dumps(obj, ensure_ascii=False).encode()
 
 
+def _song_status(path: Path):
+    """Read document.status from a song JSON; default 'pending'. Never raises."""
+    try:
+        doc = json.loads(path.read_text())
+        return doc.get("document", {}).get("status") or "pending"
+    except Exception:
+        return "pending"
+
+
 def list_albums(root: Path):
     out = []
     for album in sorted(p for p in root.iterdir() if p.is_dir()):
-        songs = sorted(f.name for f in album.glob("*.json"))
+        songs = [
+            {"file": f.name, "status": _song_status(f)}
+            for f in sorted(album.glob("*.json"))
+        ]
         out.append({"album": album.name, "songs": songs})
     return out
 

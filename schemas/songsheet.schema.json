@@ -50,7 +50,8 @@
       "properties": {
         "title": { "type": "string" },
         "source_pdf": { "type": "string" },
-        "page_count": { "type": "integer", "minimum": 1 }
+        "page_count": { "type": "integer", "minimum": 1 },
+        "status": { "enum": ["pending", "in_progress", "done"] }
       }
     },
     "songs": {

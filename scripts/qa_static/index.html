@@ -68,6 +68,7 @@
   .dactions .apply{background:#6ea8fe;color:#06132b;border:0;font-weight:600}
   .dmergebar{position:sticky;top:0;background:#11141b;border:1px solid #6ea8fe;border-radius:8px;padding:8px;margin-bottom:8px;display:none}
   .dmergebar.show{display:block}
+  .dsort{display:flex;gap:6px;align-items:center;color:#9aa3b2;font-size:12px;margin-bottom:8px}
   .ed-actions{display:flex;gap:8px;margin-top:16px}
   .ed-actions button{flex:1;border-radius:6px;padding:9px;border:1px solid #2a2f3a;background:#171a21;color:#e6e8ee;cursor:pointer}
   .ed-actions .apply{background:#6ea8fe;color:#06132b;border:0;font-weight:600}
@@ -77,6 +78,12 @@
 <header>
   <select id="albumSel"></select>
   <select id="songSel"></select>
+  <span id="albumProgress" style="color:#9aa3b2;font-size:12px"></span>
+  <select id="statusSel" title="editing status">
+    <option value="pending">○ pending</option>
+    <option value="in_progress">◐ in progress</option>
+    <option value="done">✓ done</option>
+  </select>
   <span id="flagCount" style="color:#9aa3b2;font-size:12px"></span>
   <button id="spellToggle" title="toggle note spelling" style="background:#1e222b;color:#e6e8ee;border:1px solid #2a2f3a;font-weight:600">♯ sharp</button>
   <span class="spacer"></span>
