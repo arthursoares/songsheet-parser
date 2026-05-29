@@ -110,6 +110,36 @@
     return res && !res.error ? res : null;
   }
 
+  // Interval shorthand for each semitone distance from a chord root (numeric +
+  // accidentals). Upper structure prefers extension labels (9/11/13).
+  const _CHORD_INTERVAL = {
+    0: "1", 1: "b9", 2: "9", 3: "b3", 4: "3", 5: "11",
+    6: "b5", 7: "5", 8: "b13", 9: "13", 10: "b7", 11: "7",
+  };
+  // Within the basic triad/7th range some semitones read better as the lower form.
+  const _CHORD_INTERVAL_BASIC = { 1: "b2", 2: "2", 5: "4", 8: "#5", 9: "6" };
+
+  // Per-note intervals of a voicing relative to the CHORD's own root (from its
+  // name), e.g. Dm9/A -> ["1","b3","5","b7","9"] regardless of the A in the bass.
+  // Returns [] if the name doesn't parse to a root. `upper` true uses 9/11/13 labels.
+  function chordIntervals(voicing, chordName, upper = true) {
+    if (!chordName || chordName === "%") return [];
+    const parsed = _parseChordmark(chordName);
+    const root = parsed && parsed.normalized && parsed.normalized.rootNote;
+    if (!root) return [];
+    const T = window.Tonal;
+    const map = upper ? _CHORD_INTERVAL : { ..._CHORD_INTERVAL, ..._CHORD_INTERVAL_BASIC };
+    const seen = new Set(), out = [];
+    voicingToNotes(voicing).forEach((n) => {
+      const semis = ((T.Note.chroma(n) - T.Note.chroma(root)) % 12 + 12) % 12;
+      const label = map[semis];
+      if (seen.has(label)) return;
+      seen.add(label);
+      out.push(label);
+    });
+    return out;
+  }
+
   // Respell the root (and slash-bass) of a chord name to the chosen accidental,
   // leaving the quality/extensions untouched. e.g. "Bb7/D" -> "A#7/D" under sharp.
   function _respellName(name) {
@@ -163,6 +193,6 @@
   window.ChordNaming = {
     voicingToNotes, pcNotes, suggestNames, validateName, nameMatchesVoicing,
     setSpelling, getSpelling, spell, degree, intervalsInKey, parseKey,
-    setKeyTonic, getKeyTonic,
+    chordIntervals, setKeyTonic, getKeyTonic,
   };
 })();

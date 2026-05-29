@@ -105,6 +105,12 @@ function intervalsFor(voicing) {
   return window.ChordNaming.intervalsInKey(parseVoicing(voicing), k).join(" ");
 }
 
+// chord-relative intervals (per-note, from the chord's own root) or "".
+function chordIvalsFor(voicing, chord) {
+  if (!voicing || !chord || chord === "%") return "";
+  return window.ChordNaming.chordIntervals(parseVoicing(voicing), chord).join(" ");
+}
+
 function renderPages() {
   const pages = song().pages || [];
   document.getElementById("pages").innerHTML = pages.map((n) =>
@@ -137,10 +143,12 @@ function renderBars() {
         const notes = (e.chord !== "%" && e.voicing)
           ? window.ChordNaming.pcNotes(parseVoicing(e.voicing)).join(" ") : "";
         const ivals = (e.chord !== "%") ? intervalsFor(e.voicing) : "";
+        const civals = (e.chord !== "%") ? chordIvalsFor(e.voicing, e.chord) : "";
         chip.innerHTML =
           `<div class="nm">${e.chord}${mismatch ? '<span class="warn"></span>' : ""}</div>
            <div class="vc">${e.voicing || "—"}</div>
            ${notes ? `<div class="nt">${notes}</div>` : ""}
+           ${civals ? `<div class="ci">${civals}</div>` : ""}
            ${ivals ? `<div class="iv">${ivals}</div>` : ""}
            <div class="tx">${e.text ? "_" + e.text : "—"}</div>`;
         chip.onclick = () => openEditor(si, bi, ei);
@@ -167,6 +175,7 @@ function openEditor(si, bi, ei) {
     <label>Chord name</label>
     <input type="text" id="edName" value="${e.chord}">
     <div id="edBadge"></div>
+    <div id="edIvals" class="fb-notes"></div>
     <label>Anchored lyric</label>
     <input type="text" id="edText" value="${e.text || ""}">
     <label>Voicing</label>
@@ -198,6 +207,8 @@ function openEditor(si, bi, ei) {
       : `<div class="s"><span>no detection</span></div>`;
     document.querySelectorAll("#edSuggest .s[data-n]").forEach((el) =>
       el.onclick = () => { document.getElementById("edName").value = el.dataset.n; refreshNaming(); });
+    const ci = window.ChordNaming.chordIntervals(curVoicing, name);
+    document.getElementById("edIvals").textContent = ci.length ? "chord intervals: " + ci.join(" ") : "";
   }
   refreshNaming();
 
@@ -285,11 +296,13 @@ function renderDict() {
     row.className = "drow" + (state.dictSel.has(e.key) ? " sel" : "");
     const mism = e.nameMatchesVoicing === false ? '<span class="warn"></span>' : "";
     const ivals = intervalsFor(e.voicing);
+    const civals = chordIvalsFor(e.voicing, e.chord);
     row.innerHTML = `<div class="dhead">
       <input type="checkbox" ${state.dictSel.has(e.key) ? "checked" : ""} data-sel="${e.key}">
       <span class="dnm">${e.chord}</span>${mism}
       <span class="dvc">${e.voicing || "—"}</span>
       <span class="dnt">${e.notes.join(" ")}</span>
+      ${civals ? `<span class="dci">${civals}</span>` : ""}
       ${ivals ? `<span class="div">${ivals}</span>` : ""}
       <span class="dct">${e.count}×</span>
     </div>`;
