@@ -34,6 +34,17 @@ python scripts/parse_songsheet.py data/<artist>/png/*.png --output data/<artist>
 
 # Stage 3 — JSON document → one .chordmark per song.
 python scripts/json_to_chordmark.py data/<artist>/json/ --output data/<artist>/chordmark/
+
+# Validate a whole PDF: render→parse→assemble pages into songs, schema-check, report.
+#   Caches per-page JSON under --workdir for resumable runs (parsing is the slow part).
+python scripts/validate_extraction.py "data/<artist>/pdf/Album.pdf" --workdir /tmp/ssv --report-json /tmp/r.json
+
+# Promote assembled docs (from a validation run's workdir) into a per-song corpus + page PNGs.
+#   Migrates old 6-char voicings → comma form; this is what the QA tool reads/writes.
+python scripts/materialize_songs.py --workdir /tmp/ssv --out data/<artist>/songs [--only "<pdf stem>"]
+
+# QA correction tool: review songs beside scans, fix name/voicing/lyric. Open http://localhost:8000.
+python scripts/qa_server.py --songs data/<artist>/songs [--port 8000]
 ```
 
 Single page end-to-end: render a PNG, run stage 2 then stage 3.
@@ -71,13 +82,22 @@ document → songs[] → sections[] → bars[]
   the Nth `text` fragment. No `at_syllable`, no substring lookup.
 - **`chord: "%"`** = measure-repeat: the previous chord keeps playing into this bar (not a piano "hold" —
   the guitar re-strums). This is how a chord spanning multiple bars is expressed.
-- **`voicing` is per-occurrence** (6 chars, low-E first) — the same chord name recurs with different
-  diagrams, so voicing lives on the entry, rendered as inline `Name[xxxxxx]` in ChordMark.
+- **`voicing` is per-occurrence** — 6 comma-separated strings low-E→high-e, each `x` (muted) or a
+  fret number 0–24 (e.g. `x,5,7,5,6,x`). The same chord name recurs with different diagrams, so
+  voicing lives on the entry. The converter renders it inline as `Name[...]` (frets 10–24 → `a`–`o`).
 - **`text`** = syllables sung from that chord's onset, source dashes stripped. Omitted for instrumental bars.
 - **No durations in the JSON** — timing is interpreter-derived. `chordmark_render.render_chord_line`
   distributes a bar's beats across its chords (largest-remainder, earliest-wins) and emits `.` dots.
 - **`chords`** (per song) is an optional, parser-*generated* index `name → [{voicing, confidence}]` — a
   convenience for dictionary rendering, never source of truth.
+
+**Correction workflow:** `validate_extraction.py` assembles a PDF's per-page parses into songs
+(stitching across page breaks) under a scratch workdir; `materialize_songs.py` promotes those into a
+committed-shape per-song corpus at `data/<artist>/songs/<album>/<NN>-<song>.json` (+ `pages/` PNGs),
+migrating old voicings to comma form. `qa_server.py` + `scripts/qa_static/` is a localhost browser tool
+to review each song beside its scan and fix name/voicing/lyric; reverse chord detection (tonal.js) is
+validated through chord-symbol (the fork's parser), and saves are schema-checked. The song corpus and
+page images are git-ignored (copyright / personal-use song data).
 
 ## Conventions that bite
 
@@ -104,7 +124,7 @@ document → songs[] → sections[] → bars[]
 `schemas/songsheet.schema.json` (draft-07) defines the document model. Required top-level:
 `document` (only `title` required within it) and `songs`. Each song requires `title` and
 `sections`. A chord entry requires `chord` (string; `%` allowed), with optional `voicing`
-(`^[0-9x]{6}$`) and `text`; `document`/song/section objects are closed
+(`^(x|\d{1,2})(,(x|\d{1,2})){5}$`, frets 0–24) and `text`; `document`/song/section objects are closed
 (`additionalProperties: false`), top-level is open (`_meta` provenance is added there).
 `tests/test_schema.py` + `tests/fixtures/chega-page1.json` exercise it.
 
