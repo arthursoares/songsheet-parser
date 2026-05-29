@@ -112,15 +112,8 @@ function Fretboard(container, onChange) {
     // notes readout (low -> high), computed from the current voicing
     const notesEl = document.createElement("div");
     notesEl.className = "fb-notes";
-    let notes = [];
-    if (window.ChordNaming && window.ChordNaming.voicingToNotes) {
-      // pitch-class names without octave, deduped in playing order
-      const seen = new Set();
-      window.ChordNaming.voicingToNotes(voicing).forEach((n) => {
-        const pc = n.replace(/[0-9]/g, "");
-        if (!seen.has(pc)) { seen.add(pc); notes.push(pc); }
-      });
-    }
+    const notes = (window.ChordNaming && window.ChordNaming.pcNotes)
+      ? window.ChordNaming.pcNotes(voicing) : [];
     notesEl.textContent = notes.length ? "notes: " + notes.join(" ") : "notes: —";
     container.appendChild(notesEl);
   }

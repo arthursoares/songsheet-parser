@@ -18,6 +18,17 @@ async function init() {
   albumSel.onchange = () => { fillSongs(); loadSong(); };
   songSel.onchange = loadSong;
   document.getElementById("saveBtn").onclick = save;
+
+  // global flat/sharp spelling toggle — re-renders bars (and editor if open)
+  const spellBtn = document.getElementById("spellToggle");
+  spellBtn.onclick = () => {
+    const next = window.ChordNaming.getSpelling() === "sharp" ? "flat" : "sharp";
+    window.ChordNaming.setSpelling(next);
+    spellBtn.textContent = next === "flat" ? "♭ flat" : "♯ sharp";
+    renderBars();
+    if (state.sel) openEditor(state.sel.si, state.sel.bi, state.sel.ei);
+  };
+
   fillSongs();
   loadSong();
 }
@@ -63,9 +74,12 @@ function renderBars() {
         const chip = document.createElement("div");
         chip.className = "chip" + (e.chord === "%" ? " pct" : "") +
           (state.sel && state.sel.si === si && state.sel.bi === bi && state.sel.ei === ei ? " sel" : "");
+        const notes = (e.chord !== "%" && e.voicing)
+          ? window.ChordNaming.pcNotes(parseVoicing(e.voicing)).join(" ") : "";
         chip.innerHTML =
           `<div class="nm">${e.chord}${mismatch ? '<span class="warn"></span>' : ""}</div>
            <div class="vc">${e.voicing || "—"}</div>
+           ${notes ? `<div class="nt">${notes}</div>` : ""}
            <div class="tx">${e.text ? "_" + e.text : "—"}</div>`;
         chip.onclick = () => openEditor(si, bi, ei);
         chips.appendChild(chip);
