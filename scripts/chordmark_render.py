@@ -93,8 +93,41 @@ def _render_chord_definitions(chords_index):
     return lines
 
 
+MAX_BARS_PER_LINE = 4
+
+
+def _bar_has_lyric(bar):
+    return any(e.get("text") for e in bar)
+
+
+def _group_bars(bars):
+    """Group a section's bars into chord lines for ChordMark.
+
+    Consecutive bars are grouped while they share lyric-presence (a sung run vs.
+    an instrumental run), capped at MAX_BARS_PER_LINE so lines stay readable.
+    This makes the output render as flowing systems instead of one bar per line.
+    Returns a list of bar-lists.
+    """
+    groups, cur, cur_lyric = [], [], None
+    for bar in bars:
+        has = _bar_has_lyric(bar)
+        if cur and (has != cur_lyric or len(cur) >= MAX_BARS_PER_LINE):
+            groups.append(cur)
+            cur = []
+        cur.append(bar)
+        cur_lyric = has
+    if cur:
+        groups.append(cur)
+    return groups
+
+
 def render_song(song):
-    """Render one song dict to a ChordMark string."""
+    """Render one song dict to a ChordMark string.
+
+    Bars are grouped onto chord lines (by lyric phrase, capped per line) with the
+    lyric line beneath, matching ChordMark's bar-per-space / lyric-line grammar so
+    it renders as systems rather than a vertical stack.
+    """
     lines = []
 
     definitions = _render_chord_definitions(song.get("chords"))
@@ -106,10 +139,11 @@ def render_song(song):
         label = section.get("label")
         if label:
             lines.append("#" + label)
-        for bar in section.get("bars", []):
-            lines.append(render_chord_line(bar))
-            lyric = render_lyric_line(bar)
-            if lyric is not None:
-                lines.append(lyric)
+        for group in _group_bars(section.get("bars", [])):
+            lines.append(" ".join(render_chord_line(bar) for bar in group))
+            lyric_parts = [render_lyric_line(bar) for bar in group]
+            lyric_parts = [p for p in lyric_parts if p is not None]
+            if lyric_parts:
+                lines.append(" ".join(lyric_parts))
 
     return "\n".join(lines) + "\n"

@@ -92,13 +92,25 @@ def test_render_song_full():
         ],
     }
     out = cm.render_song(song)
+    # both bars carry lyrics, so they group onto one chord line + one lyric line
     assert out == (
         "chord Dm7 x,5,7,5,6,x\n"
         "\n"
-        "Dm7[x,5,7,5,6,x]\n"
-        "_Vai mi nha\n"
-        "%\n"
-        "_tris\n"
+        "Dm7[x,5,7,5,6,x] %\n"
+        "_Vai mi nha _tris\n"
+    )
+
+
+def test_render_song_groups_instrumental_separately_from_sung():
+    song = {"title": "T", "chords": {}, "sections": [{"label": None, "bars": [
+        [{"chord": "Gm7/9"}], [{"chord": "%"}],            # instrumental run
+        [{"chord": "Dm7", "text": "Vai"}], [{"chord": "%", "text": "mi"}],  # sung run
+    ]}]}
+    out = cm.render_song(song)
+    assert out == (
+        "Gm7/9 %\n"          # instrumental bars grouped, no lyric line
+        "Dm7 %\n"            # sung bars grouped
+        "_Vai _mi\n"
     )
 
 
