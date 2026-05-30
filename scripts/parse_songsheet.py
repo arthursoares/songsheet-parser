@@ -39,7 +39,7 @@ Return ONLY JSON, no markdown fences, in this exact shape:
         {
           "label": null,
           "bars": [
-            [ { "chord": "Dm7", "voicing": "x,5,7,5,6,x", "text": "Vai mi nha" } ]
+            [ { "chord": "Dm7", "voicing": "x,5,7,5,6,x", "text": "Vai mi- nha" } ]
           ]
         }
       ]
