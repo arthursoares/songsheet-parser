@@ -92,3 +92,28 @@ def diagram(voicing):
                       f'cy="{padT+(row-0.5)*fy:.1f}" r="{fy*0.32:.1f}"/>')
 
     return (f'<svg class="diag" viewBox="0 0 {W} {H}">' + "".join(el) + "</svg>")
+
+
+def render_bar_html(bar, inline_diagrams=False):
+    """Render one bar as chord-over-syllable slots (optionally with inline diagrams).
+
+    Each chord entry becomes a slot: the chord name (or '.' if it is a held '%'
+    bar) above, its syllables below. Hyphenation is taken verbatim from `text`
+    (a trailing '-' on a syllable is a word continuation).
+    """
+    slots = []
+    for entry in bar:
+        chord = entry.get("chord", "")
+        label = "." if chord == "%" else nice_name(chord)
+        text = entry.get("text") or ""
+        voicing = entry.get("voicing")
+        idia = (f'<span class="idia">{diagram(voicing)}</span>'
+                if inline_diagrams and voicing and chord != "%" else "")
+        slots.append(
+            '<span class="slot">'
+            f'<span class="ch"><b class="cn">{_html.escape(label)}</b></span>'
+            f'{idia}'
+            f'<span class="ly">{_html.escape(text)}</span>'
+            "</span>"
+        )
+    return "".join(slots)

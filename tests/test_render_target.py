@@ -24,3 +24,24 @@ def test_diagram_detects_barre():
 
 def test_diagram_invalid_voicing_is_empty():
     assert rt.diagram("x,9") == ""
+
+
+def test_render_bar_chord_over_syllable():
+    bar = [{"chord": "Dm7", "voicing": "x,5,7,5,6,x", "text": "Vai"}]
+    out = rt.render_bar_html(bar)
+    assert "Dm7" in out
+    assert "Vai" in out
+
+
+def test_render_bar_held_shows_dot():
+    bar = [{"chord": "%", "text": "mi- nha"}]
+    out = rt.render_bar_html(bar)
+    assert 'class="cn">.<' in out
+    assert "mi-" in out and "nha" in out
+
+
+def test_render_bar_dim_uses_degree_sign():
+    bar = [{"chord": "Bdim7", "voicing": "x,7,8,7,8,x", "text": "te-"}]
+    out = rt.render_bar_html(bar)
+    assert "°" in out          # Bdim7 -> B°7 region
+    assert "dim" not in out         # the literal 'dim' should be gone
