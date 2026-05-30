@@ -124,3 +124,19 @@ def test_render_song_emits_section_label():
     }
     out = cm.render_song(song)
     assert out == "#Intro\nGm7/9\n"
+
+
+def test_leading_percent_is_resolved_to_real_chord():
+    # A chord line must not start with "%" (ChordMark would misparse it as lyric).
+    # A held chord that lands first on a grouped line is de-referenced to the
+    # actual sounding chord, carrying its voicing + text.
+    song = {"title": "T", "chords": {}, "sections": [{"label": None, "bars": [
+        [{"chord": "Dm7", "voicing": "x,5,7,5,6,x"}],   # establishes the chord
+        [{"chord": "A7"}], [{"chord": "G7"}], [{"chord": "C7"}],  # fill bar 1's line
+        [{"chord": "%", "text": "held"}],               # would start a new line as "%"
+    ]}]}
+    out = cm.render_song(song)
+    for line in out.splitlines():
+        assert not line.startswith("%"), f"chord line starts with %: {line!r}"
+    # the resolved chord (Dm7 with its voicing) appears on the continued line
+    assert "Dm7[x,5,7,5,6,x]" in out

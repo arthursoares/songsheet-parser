@@ -121,6 +121,30 @@ def _group_bars(bars):
     return groups
 
 
+def _resolve_leading_percent(group, last_real):
+    """Avoid a chord line that starts with '%'.
+
+    ChordMark only accepts '%' (bar repeat) when it is NOT the first token of a
+    chord line, so a group whose first bar leads with '%' would be misparsed as a
+    lyric line. Replace that leading '%' with the actual chord still sounding
+    (last_real = {"chord", "voicing"}), preserving the entry's text. Returns a
+    (possibly new) group; the original is not mutated.
+    """
+    if not group or not last_real:
+        return group
+    first = group[0]
+    if not first or first[0].get("chord") != PERCENT:
+        return group
+    patched_entry = dict(first[0])
+    patched_entry["chord"] = last_real["chord"]
+    if last_real.get("voicing"):
+        patched_entry["voicing"] = last_real["voicing"]
+    else:
+        patched_entry.pop("voicing", None)
+    new_group = [[patched_entry] + first[1:]] + group[1:]
+    return new_group
+
+
 def render_song(song):
     """Render one song dict to a ChordMark string.
 
@@ -135,15 +159,23 @@ def render_song(song):
         lines.extend(definitions)
         lines.append("")
 
+    last_real = None  # most recent struck chord, to de-reference a leading '%'
     for section in song.get("sections", []):
         label = section.get("label")
         if label:
             lines.append("#" + label)
         for group in _group_bars(section.get("bars", [])):
+            group = _resolve_leading_percent(group, last_real)
             lines.append(" ".join(render_chord_line(bar) for bar in group))
             lyric_parts = [render_lyric_line(bar) for bar in group]
             lyric_parts = [p for p in lyric_parts if p is not None]
             if lyric_parts:
                 lines.append(" ".join(lyric_parts))
+            # update the running "currently sounding" chord from this group
+            for bar in group:
+                for entry in bar:
+                    c = entry.get("chord")
+                    if c and c != PERCENT:
+                        last_real = {"chord": c, "voicing": entry.get("voicing")}
 
     return "\n".join(lines) + "\n"
