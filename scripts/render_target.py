@@ -117,3 +117,48 @@ def render_bar_html(bar, inline_diagrams=False):
             "</span>"
         )
     return "".join(slots)
+
+
+def _iter_entries(sections):
+    for sec in sections or []:
+        for bar in sec.get("bars", []):
+            for entry in bar:
+                yield entry
+
+
+def dictionary_entries(sections, mode="per_voicing"):
+    """Distinct chord diagrams for the dictionary.
+
+    per_voicing: one entry per distinct (chord, voicing), most-frequent first.
+    per_name:    one entry per chord name, using its most-common voicing.
+    Entries without a voicing, and '%' held bars, are excluded.
+    """
+    counts = {}
+    order = []
+    for entry in _iter_entries(sections):
+        chord = entry.get("chord")
+        voicing = entry.get("voicing")
+        if not chord or chord == "%" or not voicing:
+            continue
+        key = (chord, voicing)
+        if key not in counts:
+            counts[key] = {"chord": chord, "voicing": voicing, "count": 0}
+            order.append(key)
+        counts[key]["count"] += 1
+
+    if mode == "per_name":
+        best = {}
+        for key in order:
+            e = counts[key]
+            cur = best.get(e["chord"])
+            if cur is None or e["count"] > cur["count"]:
+                best[e["chord"]] = e
+        seen, result = set(), []
+        for key in order:
+            name = counts[key]["chord"]
+            if name not in seen:
+                seen.add(name)
+                result.append(best[name])
+        return result
+
+    return [counts[key] for key in order]

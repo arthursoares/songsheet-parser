@@ -45,3 +45,25 @@ def test_render_bar_dim_uses_degree_sign():
     out = rt.render_bar_html(bar)
     assert "°" in out          # Bdim7 -> B°7 region
     assert "dim" not in out         # the literal 'dim' should be gone
+
+
+def _song_two_dm7_voicings():
+    return {"title": "T", "sections": [{"label": None, "bars": [
+        [{"chord": "Dm7", "voicing": "x,5,7,5,6,x"}],
+        [{"chord": "Dm7", "voicing": "x,x,0,2,2,1"}],
+        [{"chord": "Dm7", "voicing": "x,5,7,5,6,x"}],
+        [{"chord": "%"}],
+    ]}]}
+
+
+def test_dictionary_per_voicing_lists_distinct_voicings():
+    entries = rt.dictionary_entries(_song_two_dm7_voicings()["sections"], mode="per_voicing")
+    voicings = sorted(e["voicing"] for e in entries)
+    assert voicings == ["x,5,7,5,6,x", "x,x,0,2,2,1"]
+
+
+def test_dictionary_per_name_collapses_to_most_common():
+    entries = rt.dictionary_entries(_song_two_dm7_voicings()["sections"], mode="per_name")
+    assert len(entries) == 1
+    assert entries[0]["chord"] == "Dm7"
+    assert entries[0]["voicing"] == "x,5,7,5,6,x"
