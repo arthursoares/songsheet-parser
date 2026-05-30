@@ -108,7 +108,7 @@ def test_render_song_groups_instrumental_separately_from_sung():
     ]}]}
     out = cm.render_song(song)
     assert out == (
-        "Gm7/9 %\n"          # instrumental bars grouped, no lyric line
+        "Gm9 %\n"            # instrumental bars grouped, no lyric line
         "Dm7 %\n"            # sung bars grouped
         "_Vai _mi\n"
     )
@@ -123,7 +123,7 @@ def test_render_song_emits_section_label():
         ],
     }
     out = cm.render_song(song)
-    assert out == "#Intro\nGm7/9\n"
+    assert out == "#Intro\nGm9\n"
 
 
 def test_leading_percent_is_resolved_to_real_chord():

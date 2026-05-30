@@ -4,8 +4,28 @@ No file or network I/O — all functions take plain dicts/lists and return strin
 so they are directly unit-testable.
 """
 
+import re
+
 DEFAULT_BEATS = 4
 PERCENT = "%"
+
+
+def normalize_chord_name(name):
+    """Map Brazilian tension-slash notation to a chord-symbol-parseable name.
+
+    The songbook writes added tensions with a slash infix (C7/9, Cm7/9, C7/13),
+    which the fork's chord-symbol parser rejects — it reads the first '/' as a
+    bass note, so e.g. "D#m7/9/A#" fails and (because a ChordMark chord line is
+    all-or-nothing) drops the whole line to raw text. Fold the infix tension into
+    the chord quality so the fork can parse it: 7/9 -> 9, 7/11 -> 11, 7/13 -> 13,
+    6/9 -> 69. Any trailing '/<bass>' is preserved. The stored JSON keeps the
+    original spelling; this runs only when emitting ChordMark for the fork.
+    """
+    if not name or name == PERCENT:
+        return name
+    out = re.sub(r"7/(9|11|13)", r"\1", name)   # C7/9 -> C9, Cm7/9 -> Cm9
+    out = re.sub(r"6/9", "69", out)             # C6/9 -> C69
+    return out
 
 
 def voicing_to_inline(voicing):
@@ -36,7 +56,7 @@ def voicing_to_inline(voicing):
 
 def _chord_token(entry):
     """Render one chord entry's name with optional inline voicing (no dots)."""
-    name = entry["chord"]
+    name = normalize_chord_name(entry["chord"])
     voicing = entry.get("voicing")
     if voicing:
         return f"{name}[{voicing_to_inline(voicing)}]"
@@ -89,7 +109,7 @@ def _render_chord_definitions(chords_index):
         for v in voicings:
             voicing = v.get("voicing")
             if voicing:
-                lines.append(f"chord {name} {voicing_to_inline(voicing)}")
+                lines.append(f"chord {normalize_chord_name(name)} {voicing_to_inline(voicing)}")
     return lines
 
 
@@ -100,18 +120,18 @@ def _bar_has_lyric(bar):
     return any(e.get("text") for e in bar)
 
 
-def _group_bars(bars):
+def _group_bars(bars, max_bars=MAX_BARS_PER_LINE):
     """Group a section's bars into chord lines for ChordMark.
 
     Consecutive bars are grouped while they share lyric-presence (a sung run vs.
-    an instrumental run), capped at MAX_BARS_PER_LINE so lines stay readable.
+    an instrumental run), capped at `max_bars` so lines stay readable.
     This makes the output render as flowing systems instead of one bar per line.
     Returns a list of bar-lists.
     """
     groups, cur, cur_lyric = [], [], None
     for bar in bars:
         has = _bar_has_lyric(bar)
-        if cur and (has != cur_lyric or len(cur) >= MAX_BARS_PER_LINE):
+        if cur and (has != cur_lyric or len(cur) >= max_bars):
             groups.append(cur)
             cur = []
         cur.append(bar)
@@ -145,12 +165,12 @@ def _resolve_leading_percent(group, last_real):
     return new_group
 
 
-def render_song(song):
+def render_song(song, bars_per_line=MAX_BARS_PER_LINE):
     """Render one song dict to a ChordMark string.
 
-    Bars are grouped onto chord lines (by lyric phrase, capped per line) with the
-    lyric line beneath, matching ChordMark's bar-per-space / lyric-line grammar so
-    it renders as systems rather than a vertical stack.
+    Bars are grouped onto chord lines (by lyric phrase, capped at `bars_per_line`)
+    with the lyric line beneath, matching ChordMark's bar-per-space / lyric-line
+    grammar so it renders as systems rather than a vertical stack.
     """
     lines = []
 
@@ -164,7 +184,7 @@ def render_song(song):
         label = section.get("label")
         if label:
             lines.append("#" + label)
-        for group in _group_bars(section.get("bars", [])):
+        for group in _group_bars(section.get("bars", []), bars_per_line):
             group = _resolve_leading_percent(group, last_real)
             lines.append(" ".join(render_chord_line(bar) for bar in group))
             lyric_parts = [render_lyric_line(bar) for bar in group]
