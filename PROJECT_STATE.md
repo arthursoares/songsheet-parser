@@ -69,6 +69,9 @@ per-occurrence. Lyrics carry word-continuation dashes (`tris- te- za e`). Schema
 - Continuation-song splits: a song spanning pages can appear as two entries when the title-page name
   differs from the running header (e.g. "Brigas, nunca mais" / "Brigas Nunca Mais"). Assembler matches
   exact normalized titles; fuzzy merge is a future improvement.
+- Multi-format extraction (pluggable format profiles) — planned; two samples analyzed (Lumiar/Caetano
+  scanned songbook ≈ current pipeline; Rousseau digital chord-grid arrangement, lyric-less). See
+  `docs/superpowers/plans/2026-05-30-multi-format-extraction.md`.
 
 ### Deferred (QA tool roadmap)
 - **MusicXML export** (alongside PDF/PNG/HTML/.chordmark/ChordPro).

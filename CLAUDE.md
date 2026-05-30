@@ -118,6 +118,11 @@ api.openai.com) → `OPENAI_API_KEY`.
 (pure, I/O-free) turns the model into ChordMark and `scripts/json_to_chordmark.py` is a thin CLI over it.
 The model (full reference: `docs/superpowers/specs/2026-05-28-songsheet-data-model-design.md`):
 
+The parser is currently **single-format** — tuned to the João Gilberto guitar-diagram songbook. A
+plan to support other songbook PDF layouts via pluggable `--format` profiles (plus `extract_pages.py
+--split-spreads` for two-up scans and a PyMuPDF digital-text cross-check) lives in
+`docs/superpowers/plans/2026-05-30-multi-format-extraction.md` (not yet implemented).
+
 ```
 document → songs[] → sections[] → bars[]
 ```
