@@ -34,14 +34,24 @@ per-occurrence. Lyrics carry word-continuation dashes (`tris- te- za e`). Schema
   `/tmp/ssv/full-report.json`). Materialized per-song under `data/joao-gilberto/songs/<album>/`
   (git-ignored — copyrighted scans + personal-use song data).
 - Comma fret-number voicing format (fixes up-the-neck chords); migration built into materialize.
-- **QA correction tool** (`qa_server.py` + `qa_static/`): Bars/Dictionary/Preview tabs, per-chord
-  edit (name/voicing/lyric), move-between-bars, chord dictionary (batch-edit/merge, alphabetical or
-  by count), reverse detection (tonal) validated through chord-symbol, key-aware Roman intervals,
-  ♯/♭ toggle, per-song status + album progress.
-- **Two render styles:** `render_chordmark.py` (→ ChordMark via the fork) and `render_target.py`
-  (pure-Python polished lead sheet). Round-trip to the fork verified end-to-end.
+- **QA correction tool v2** (`qa_server.py` + `qa_static/`):
+  - Song-list **sidebar** (search, status filter, status badges, click-to-load with dirty-guard,
+    current-song highlight); provenance + per-song **note** in the footer.
+  - Tabs **Bars / Review / Dictionary / Preview**. Bars: per-chord edit (name/voicing/lyric),
+    move-between-bars, plus **structural editing** (add/delete bar, split/merge bar, add/delete
+    section, inline section-label rename). Review: worklist of flagged chords + Next-flagged.
+    Dictionary: batch-edit/merge, alphabetical or by count. Preview: live render of unsaved edits
+    + a Source toggle for the generated ChordMark.
+  - Reverse detection (tonal) validated through chord-symbol, key-aware Roman intervals, ♯/♭
+    toggle, per-song status + album progress, **undo/redo**, dirty-state guard, keyboard shortcuts
+    (⌘S save, Esc, n/p songs, ] next-flagged, Enter apply, ⌘Z/⌘⇧Z undo/redo).
+  - **In-app exports** from Preview: PDF / PNG / HTML / .chordmark / ChordPro per song, plus a
+    whole-album **songbook PDF** (PDF/PNG via headless Chrome on the server).
+- **Three render modules:** `chordmark_render.py` (→ ChordMark via the fork), `render_target.py`
+  (pure-Python lead sheet + `render_songbook`), and `chordpro_render.py` (→ ChordPro). Round-trip
+  to the fork verified end-to-end.
 - Lyric hyphenation: parse prompt preserves dashes; `migrate_hyphenation.py` LLM-seeds existing songs.
-- Test suite: 59 passing (pytest). JS verified via `node --check` + Node smoke harnesses.
+- Test suite: 89 passing (pytest). JS verified via `node --check` + Node smoke harnesses.
 
 ### In progress / next
 - **Hyphenation seeded for only 1 song** so far (Chega de Saudade). Run
@@ -51,7 +61,6 @@ per-occurrence. Lyrics carry word-continuation dashes (`tris- te- za e`). Schema
 - Continuation-song splits: a song spanning pages can appear as two entries when the title-page name
   differs from the running header (e.g. "Brigas, nunca mais" / "Brigas Nunca Mais"). Assembler matches
   exact normalized titles; fuzzy merge is a future improvement.
-- No in-app export button — export via the `/api/render` URL (⌘P → PDF) or headless-Chrome PNG.
 
 ## Stale docs
 

@@ -35,6 +35,8 @@ you review each song beside its scan and correct it before converting.
   per-occurrence). See `docs/superpowers/specs/2026-05-28-songsheet-data-model-design.md`.
 - **[ChordMark](https://chordmark.netlify.app/)** — Encodes rhythm, lyrics, chord positions.
   One `.chordmark` file is written per song.
+- **Lead sheet / ChordPro** — the QA tool can also export a polished lead sheet (PDF/PNG/HTML) or
+  a `.chordpro` file per song, plus a whole-album songbook PDF (see the QA tool section).
 
 ## Setup
 
@@ -81,45 +83,57 @@ python scripts/materialize_songs.py --workdir /tmp/ssv --out data/<artist>/songs
 python scripts/qa_server.py --songs data/<artist>/songs
 ```
 
-In the browser, pick an album + song; the scan shows on the left and three tabs on the right:
+The window has three columns: a **song-list sidebar** (left), the **scanned pages** (middle), and
+the **editor tabs** (right).
+
+The **sidebar** lists every song in the current album with a status badge, a search box, and a
+status filter (All / Pending / In progress / Done). Click a song to load it (guarded by an
+unsaved-changes confirm); the current song is highlighted. The sidebar footer shows the song's
+**provenance** (source page numbers) and a free-text **per-song note** that persists with the song.
+
+The right column has four tabs:
 
 - **Bars** — chord chips in reading order, each showing name / voicing / a small chord-diagram
   thumbnail / notes / intervals. Click a chip to edit its **name**, **voicing** (clickable
   fretboard *or* type `x,5,7,5,6,x`), and **lyric**; **← →** move a chord to the adjacent bar.
   Reverse chord detection ([tonal.js](https://github.com/tonaljs/tonal)) suggests names,
   validated through ChordMark's parser ([chord-symbol](https://github.com/no-chris/chord-symbol));
-  a red dot flags name↔voicing mismatches.
+  a red dot flags name↔voicing mismatches. Also supports **structural editing**: add/delete a bar,
+  split/merge a bar, add/delete a section, and inline section-label rename.
+- **Review** — a worklist of the current song's flagged chords (name↔voicing mismatch or invalid
+  name) with section·bar·reason. Click a row to jump to the chip and open its editor; a header
+  **Next-flagged** action steps through them.
 - **Dictionary** — the song's distinct chords grouped by (name + voicing), alphabetical or by
   count; batch-edit a chord across all its occurrences, or merge two groups that are the same
   chord misread two ways.
-- **Preview** — renders the song two ways (see below).
+- **Preview** — renders the song (see below), with in-app export.
 
 Header controls: **key** selector (drives Roman-numeral interval analysis, major or minor),
 **♯/♭** spelling toggle, per-song **status** (pending / in progress / done) with an album
-progress count. **Save** writes schema-validated JSON back to disk.
+progress count. **Save** writes schema-validated JSON back to disk. Edits support **undo/redo**,
+and a dirty-state guard warns before navigating away or switching songs with unsaved edits.
+
+**Keyboard shortcuts:** ⌘S/Ctrl+S save · Esc close editor · `n`/`p` next/previous song ·
+`]` next-flagged chord · Enter applies in the chord editor · ⌘Z/Ctrl+Z undo · ⌘⇧Z/Ctrl+Y redo.
 
 ### Preview & export
 
-The **Preview** tab renders the *saved* song (re-renders on Save) in either of two styles, via
-`GET /api/render/<album>/<file>?style=<fork|target>`:
+The **Preview** tab renders a live view of the **current in-memory edits** (no Save required), in
+either of two styles, by POSTing the document to `POST /api/render-doc?style=<fork|target>`:
 
 - **fork** — through Arthur's ChordMark fork (inline diagrams, ChordMark layout); needs Node +
   the fork repo at `../chordmark/chord-mark`.
 - **target** — a polished lead sheet (centered title, alphabetical diagram dictionary, two-column
   chord-over-syllable body, Roman fret positions, barres, `°` for diminished). Pure Python, no
-  fork needed. Extra params: `dict=per_voicing|per_name`, `inline=0|1`.
+  fork needed. Extra params: `dict=per_voicing|per_name`, `inline=0|1`, `bars=4|6|8`.
 
-**Exporting a render** (no in-app button yet — use the browser):
+A **Source** toggle shows the generated `.chordmark` text (also for the current edits, via
+`POST /api/chordmark-doc`) beside the render.
 
-```bash
-# open the render URL directly, then ⌘P → Save as PDF (target CSS is A4-ready):
-open "http://localhost:8000/api/render/<album>/<file>?style=target"
-
-# or screenshot to PNG headlessly:
-"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless \
-  --screenshot=song.png --window-size=900,1300 \
-  "http://localhost:8000/api/render/<album>/<file>?style=target"
-```
+**In-app export** buttons (in the Preview tab) download the rendered song as **PDF, PNG, HTML,
+.chordmark, or ChordPro**, plus **Export album → songbook PDF** for the whole album as one
+document. PDF and PNG are produced by headless Chrome on the server (Google Chrome / Chromium must
+be on `PATH`, or installed at the standard macOS location); a download shows an "Exported ✓" toast.
 
 `scripts/render_chordmark.js` renders a `.chordmark` file to standalone HTML via the fork if you
 want that path outside the server.

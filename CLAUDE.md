@@ -43,8 +43,9 @@ python scripts/validate_extraction.py "data/<artist>/pdf/Album.pdf" --workdir /t
 #   Migrates old 6-char voicings → comma form; this is what the QA tool reads/writes.
 python scripts/materialize_songs.py --workdir /tmp/ssv --out data/<artist>/songs [--only "<pdf stem>"]
 
-# QA correction tool: review songs beside scans; Bars / Dictionary / Preview tabs. Open localhost:8000.
-python scripts/qa_server.py --songs data/<artist>/songs [--port 8000]
+# QA correction tool: review songs beside scans; song-list sidebar + Bars / Review / Dictionary /
+#   Preview tabs; structural edit, undo/redo, per-song note, live preview, in-app exports.
+python scripts/qa_server.py --songs data/<artist>/songs [--port 8000]   # open localhost:8000
 
 # Seed lyric word-continuation dashes into existing songs (LLM, idempotent).
 python scripts/migrate_hyphenation.py data/<artist>/songs/ [--dry-run]
@@ -56,16 +57,36 @@ node scripts/render_chordmark.js in.chordmark out.html [--chordmark-repo PATH]
 Single page end-to-end: render a PNG, run stage 2 then stage 3.
 
 **QA tool internals** (`scripts/qa_static/`, pure-JS, no build):
-- `app.js` orchestrates; `chord_naming.js` = detect (tonal) + validate (chord-symbol) + intervals;
-  `chord_dictionary.js` = group/batch-edit/merge; `fretboard.js` = dual-mode voicing editor;
-  `diagram.js` = SVG chord thumbnail; `vendor/` = bundled tonal + chord-symbol.
-- `qa_server.py` (stdlib HTTP): `GET /api/albums`, `GET|POST /api/song/<album>/<file>` (POST is
-  schema-validated), `GET /api/page/...`, `GET /api/render/<album>/<file>?style=fork|target&dict=&inline=`.
-- **Two render styles:** `render_chordmark.py` (→ ChordMark via the fork; needs node) and
-  `render_target.py` (pure-Python lead sheet: alphabetical diagram dictionary, 2-col
-  chord-over-syllable, Roman positions, barres, `°`, held bars as `.`). **Export:** open a
-  `/api/render` URL and ⌘P→PDF (target CSS is A4-ready), or headless-Chrome screenshot to PNG.
-  No in-app export button yet.
+- `app.js` orchestrates (song-list sidebar with search + status filter, undo/redo stacks,
+  dirty-state guard, keyboard shortcuts, structural edits, live preview, in-app export wiring);
+  `chord_naming.js` = detect (tonal) + validate (chord-symbol) + intervals; `chord_dictionary.js`
+  = group/batch-edit/merge; `fretboard.js` = dual-mode voicing editor; `diagram.js` = SVG chord
+  thumbnail; `vendor/` = bundled tonal + chord-symbol.
+- **Tabs:** Bars / Review / Dictionary / Preview. Bars also does structural editing
+  (add/delete bar, split/merge bar, add/delete section, inline section-label rename). Review is a
+  worklist of flagged chords (name↔voicing mismatch or invalid name). Preview has a **Source**
+  toggle (shows the generated `.chordmark` beside the render) and the export buttons.
+- **Keyboard:** ⌘S/Ctrl+S save, Esc close editor, `n`/`p` prev/next song, `]` next-flagged, Enter
+  applies in the chord editor, ⌘Z/⌘⇧Z (Ctrl+Y) undo/redo.
+- `qa_server.py` (stdlib HTTP), exact routes in `handle()`:
+  - `GET /api/albums`
+  - `GET|POST /api/song/<album>/<file>` (POST is schema-validated)
+  - `GET /api/chordmark/<album>/<file>?bars=` — generated ChordMark source for a saved song
+  - `GET /api/render/<album>/<file>?style=fork|target&dict=&inline=&bars=` — HTML of a saved song
+  - `POST /api/render-doc?style=&dict=&inline=&bars=` — render HTML from a POSTed (unsaved) doc
+  - `POST /api/chordmark-doc?bars=` — ChordMark source from a POSTed (unsaved) doc
+  - `GET /api/export/<album>/<file>?fmt=chordmark|html|pdf|png|chordpro&...` — downloadable file
+  - `GET /api/export-album/<album>?fmt=pdf|html&...` — whole-album songbook (one document)
+  - `GET /api/page/<album>/<file>/<n>` — page PNG
+  (`style=target` extras: `dict=per_voicing|per_name`, `inline=0|1`; `bars` is 4/6/8, default 4.)
+- **Live preview & export:** the Preview tab renders the *in-memory* edits via `/api/render-doc`
+  (and `/api/chordmark-doc` for Source) — no Save needed. Export buttons hit `/api/export…`;
+  PDF/PNG are produced by headless Chrome on the server (`render_song_doc`/`_chrome_convert`).
+- **Three render modules** (pure, I/O-free): `chordmark_render.py` (→ ChordMark via the fork;
+  needs node), `render_target.py` (pure-Python lead sheet: alphabetical diagram dictionary, 2-col
+  chord-over-syllable, Roman positions, barres, `°`, held bars as `.`; exposes `render_song` and
+  `render_songbook` for the whole-album PDF), and `chordpro_render.py`
+  (`render_chordpro`, → ChordPro).
 
 ### Setup & auth
 
@@ -141,7 +162,9 @@ page images are git-ignored (copyright / personal-use song data).
 
 `schemas/songsheet.schema.json` (draft-07) defines the document model. Required top-level:
 `document` (only `title` required within it) and `songs`. Each song requires `title` and
-`sections`. A chord entry requires `chord` (string; `%` allowed), with optional `voicing`
+`sections`, and accepts optional `note` (free-text QA note) and `status`
+(`pending`/`in_progress`/`done`) strings — both written by the QA tool. A chord entry requires
+`chord` (string; `%` allowed), with optional `voicing`
 (`^(x|\d{1,2})(,(x|\d{1,2})){5}$`, frets 0–24) and `text`; `document`/song/section objects are closed
 (`additionalProperties: false`), top-level is open (`_meta` provenance is added there).
 `tests/test_schema.py` + `tests/fixtures/chega-page1.json` exercise it.
