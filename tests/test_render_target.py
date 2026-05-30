@@ -33,11 +33,32 @@ def test_render_bar_chord_over_syllable():
     assert "Vai" in out
 
 
-def test_render_bar_held_shows_dot():
+def test_render_bar_held_shows_percent():
     bar = [{"chord": "%", "text": "mi- nha"}]
     out = rt.render_bar_html(bar)
-    assert 'class="cn">.<' in out
+    assert 'class="cn">%<' in out          # held entry uses the % bar-repeat glyph
     assert "mi-" in out and "nha" in out
+
+
+def test_render_bar_wrapped_in_cell():
+    out = rt.render_bar_html([{"chord": "C", "text": "I"}])
+    assert 'class="bar"' in out            # each bar is its own grid cell (CSS draws the |)
+
+
+def test_render_bar_multichord_has_beat_dots():
+    bar = [{"chord": "F", "text": "But"}, {"chord": "G", "text": "you"}]
+    out = rt.render_bar_html(bar)
+    assert "F.." in out and "G.." in out   # two chords over four beats -> 2 + 2
+
+
+def test_render_bar_single_chord_no_dots():
+    assert "C." not in rt.render_bar_html([{"chord": "C"}])
+
+
+def test_body_bars_per_line_chunks_lines():
+    sections = [{"label": None, "bars": [[{"chord": "C"}] for _ in range(8)]}]
+    assert rt._body_html(sections, False, bars_per_line=4).count('class="ln"') == 2
+    assert rt._body_html(sections, False, bars_per_line=8).count('class="ln"') == 1
 
 
 def test_render_bar_dim_uses_degree_sign():

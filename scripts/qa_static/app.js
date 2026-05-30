@@ -56,10 +56,15 @@ async function init() {
   document.getElementById("tabBars").onclick = () => showView("bars");
   document.getElementById("tabDict").onclick = () => showView("dict");
   document.getElementById("tabPreview").onclick = () => showView("preview");
-  ["pvStyle", "pvDict", "pvInline"].forEach((id) =>
+  document.getElementById("tabChordmark").onclick = () => showView("chordmark");
+  document.getElementById("cmCopy").onclick = copyChordmark;
+  ["pvStyle", "pvDict", "pvInline", "pvBars"].forEach((id) =>
     document.getElementById(id).addEventListener("change", () => {
       if (document.getElementById("preview").style.display !== "none") renderPreview();
     }));
+  document.getElementById("cmBars").addEventListener("change", () => {
+    if (document.getElementById("chordmark").style.display !== "none") renderChordmark();
+  });
 
   // global flat/sharp spelling toggle — re-renders bars (and editor if open)
   const spellBtn = document.getElementById("spellToggle");
@@ -283,6 +288,7 @@ async function save() {
     // refresh the ChordMark preview against the just-saved file
     state._previewToken = (state._previewToken || 0) + 1;
     if (document.getElementById("preview").style.display !== "none") renderPreview();
+    if (document.getElementById("chordmark").style.display !== "none") renderChordmark();
   } else { status.textContent = "✗ " + res.error; status.style.color = "#f85149"; }
 }
 
@@ -292,11 +298,39 @@ function showView(which) {
   document.getElementById("bars").style.display = which === "bars" ? "" : "none";
   document.getElementById("dict").style.display = which === "dict" ? "" : "none";
   document.getElementById("preview").style.display = which === "preview" ? "" : "none";
+  document.getElementById("chordmark").style.display = which === "chordmark" ? "" : "none";
   document.getElementById("tabBars").classList.toggle("active", which === "bars");
   document.getElementById("tabDict").classList.toggle("active", which === "dict");
   document.getElementById("tabPreview").classList.toggle("active", which === "preview");
+  document.getElementById("tabChordmark").classList.toggle("active", which === "chordmark");
   if (which === "dict") renderDict();
   if (which === "preview") renderPreview();
+  if (which === "chordmark") renderChordmark();
+}
+
+// ChordMark tab: show the generated .chordmark source beside the fork render.
+// Reflects last-saved state (a cache-bust token forces refresh after Save).
+async function renderChordmark() {
+  const ta = document.getElementById("cmSource");
+  const frame = document.getElementById("cmFrame");
+  const bars = document.getElementById("cmBars").value;
+  const t = state._previewToken || 0;
+  try {
+    const r = await fetch(`/api/chordmark/${state.album}/${state.file}?bars=${bars}&t=${t}`);
+    ta.value = r.ok ? await r.text() : "/* could not build ChordMark: " + (await r.text()) + " */";
+  } catch (e) {
+    ta.value = "/* failed to load ChordMark: " + e + " */";
+  }
+  frame.src = `/api/render/${state.album}/${state.file}?style=fork&bars=${bars}&t=${t}`;
+}
+
+function copyChordmark() {
+  const ta = document.getElementById("cmSource");
+  const msg = document.getElementById("cmCopyMsg");
+  const done = () => { msg.textContent = "✓ copied"; setTimeout(() => (msg.textContent = ""), 1500); };
+  navigator.clipboard.writeText(ta.value).then(done, () => {
+    ta.select(); document.execCommand("copy"); done();
+  });
 }
 
 // Point the preview iframe at the server's fork-rendered HTML for the saved song.
@@ -306,9 +340,10 @@ function renderPreview() {
   const style = document.getElementById("pvStyle").value;
   const dict = document.getElementById("pvDict").value;
   const inline = document.getElementById("pvInline").checked ? "1" : "0";
+  const bars = document.getElementById("pvBars").value;
   const t = state._previewToken || 0;
   frame.src = `/api/render/${state.album}/${state.file}`
-    + `?style=${style}&dict=${dict}&inline=${inline}&t=${t}`;
+    + `?style=${style}&dict=${dict}&inline=${inline}&bars=${bars}&t=${t}`;
 }
 
 function renderDict() {

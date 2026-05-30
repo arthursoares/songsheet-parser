@@ -116,6 +116,35 @@ def test_serves_static_js(tmp_path, monkeypatch):
     assert "javascript" in ctype
 
 
+def test_chordmark_source(tmp_path):
+    root = _corpus(tmp_path)
+    status, ctype, body = S.handle(
+        "GET", "/api/chordmark/1-album/01-song-one.json", b"", root)
+    assert status == 200
+    assert ctype.startswith("text/plain")
+    assert b"Dm7" in body
+
+
+def test_chordmark_source_ignores_query(tmp_path):
+    root = _corpus(tmp_path)
+    status, _, body = S.handle(
+        "GET", "/api/chordmark/1-album/01-song-one.json?t=9", b"", root)
+    assert status == 200
+    assert b"Dm7" in body
+
+
+def test_chordmark_missing_404(tmp_path):
+    root = _corpus(tmp_path)
+    status, _, _ = S.handle("GET", "/api/chordmark/1-album/nope.json", b"", root)
+    assert status == 404
+
+
+def test_chordmark_rejects_path_traversal(tmp_path):
+    root = _corpus(tmp_path)
+    status, _, _ = S.handle("GET", "/api/chordmark/../evil.json", b"", root)
+    assert status == 400
+
+
 def test_render_target_style(tmp_path):
     root = _corpus(tmp_path)
     status, ctype, body = S.handle(

@@ -94,29 +94,49 @@ def diagram(voicing):
     return (f'<svg class="diag" viewBox="0 0 {W} {H}">' + "".join(el) + "</svg>")
 
 
-def render_bar_html(bar, inline_diagrams=False):
-    """Render one bar as chord-over-syllable slots (optionally with inline diagrams).
+def _bar_tokens(bar):
+    """Per-entry (label, text, voicing, chord) for a bar, with duration dots.
 
-    Each chord entry becomes a slot: the chord name (or '.' if it is a held '%'
-    bar) above, its syllables below. Hyphenation is taken verbatim from `text`
-    (a trailing '-' on a syllable is a word continuation).
+    A multi-chord bar gets beat dots distributed exactly as ChordMark does
+    (largest-remainder over DEFAULT_BEATS): two chords -> 'C.. G..', and
+    'F... G.' for 3+1. A single-chord bar gets no dots (it fills the bar).
+    A held '%' entry is shown as '%' (ChordMark bar-repeat convention), never '.'.
+    """
+    n = len(bar)
+    if n <= 1:
+        durs = [None] * n
+    else:
+        durs = chordmark_render._distribute_beats(n, chordmark_render.DEFAULT_BEATS)
+    out = []
+    for entry, dur in zip(bar, durs):
+        chord = entry.get("chord", "")
+        label = "%" if chord == "%" else nice_name(chord)
+        if dur is not None:
+            label = label + "." * dur
+        out.append((label, entry.get("text") or "", entry.get("voicing"), chord))
+    return out
+
+
+def render_bar_html(bar, inline_diagrams=False):
+    """Render one bar as a grid cell of chord-over-syllable slots.
+
+    Each chord entry is a slot: the chord name (with beat dots for multi-chord
+    bars, or '%' for a held entry) above its syllables below. The enclosing
+    `.bar` cell draws the bar lines (the `|`) and gives every bar equal width.
+    Hyphenation is verbatim from `text` (a trailing '-' marks a word continuation).
     """
     slots = []
-    for entry in bar:
-        chord = entry.get("chord", "")
-        label = "." if chord == "%" else nice_name(chord)
-        text = entry.get("text") or ""
-        voicing = entry.get("voicing")
+    for label, text, voicing, chord in _bar_tokens(bar):
         idia = (f'<span class="idia">{diagram(voicing)}</span>'
                 if inline_diagrams and voicing and chord != "%" else "")
         slots.append(
-            '<span class="slot">'
+            '<span class="sl">'
             f'<span class="ch"><b class="cn">{_html.escape(label)}</b></span>'
             f'{idia}'
             f'<span class="ly">{_html.escape(text)}</span>'
             "</span>"
         )
-    return "".join(slots)
+    return '<div class="bar">' + "".join(slots) + "</div>"
 
 
 def _iter_entries(sections):
@@ -189,15 +209,20 @@ h1 { text-align:center; font-size: 2.4rem; font-weight:700; margin:0 0 .15rem; }
 .diag .dot { fill:#111; }
 .diag .mk { font:6.5px Georgia,serif; fill:#111; }
 .diag .pos { font:italic 7.5px Georgia,serif; fill:#111; }
-.seclabel { font-weight:700; text-decoration:underline; margin:.6rem 0 .4rem; }
-.body { columns: 2; column-gap: 2.4rem; font-size: 1.02rem; line-height: 1.15; }
-.line { break-inside: avoid; margin: 0 0 1.05rem; }
-.slot { display:inline-flex; flex-direction:column; vertical-align:bottom;
-  padding-right:.8em; }
-.slot .ch { height:1.3em; white-space:nowrap; } .slot .cn { font-weight:700; }
-.slot .ly { white-space:pre; }
-.slot .idia { display:block; }
-.slot .idia svg { width:42px; height:auto; }
+.seclabel { font-weight:700; text-decoration:underline; margin:1rem 0 .45rem;
+  font-family: Georgia, serif; }
+.body { font-family: "SF Mono", ui-monospace, Menlo, Consolas, monospace;
+  font-size:.88rem; line-height:1.3; }
+.ln { display:grid; gap:0; margin:0 0 .55rem; break-inside:avoid; }
+.bar { border-left:1px solid #888; padding:.05rem .6ch .2rem; min-width:0;
+  overflow:hidden; }
+.ln .bar:last-child { border-right:1px solid #888; }
+.sl { display:inline-flex; flex-direction:column; vertical-align:bottom;
+  padding-right:.9ch; }
+.sl .ch { height:1.4em; white-space:pre; } .sl .cn { font-weight:700; }
+.sl .ly { white-space:pre-wrap; overflow-wrap:anywhere; }
+.sl .idia { display:block; }
+.sl .idia svg { width:42px; height:auto; }
 """
 
 
@@ -209,21 +234,29 @@ def _dictionary_html(sections, mode):
     return '<div class="dict">' + "".join(parts) + "</div>"
 
 
-def _body_html(sections, inline_diagrams):
+def _chunk(items, n):
+    """Split a list into consecutive chunks of at most n (n>=1)."""
+    n = max(1, n)
+    return [items[i:i + n] for i in range(0, len(items), n)]
+
+
+def _body_html(sections, inline_diagrams, bars_per_line=4):
+    """Render sections as an even bar-grid: `bars_per_line` equal-width bars per
+    line, each its own cell (CSS draws the bar lines), chords over their syllables."""
+    cols = f"grid-template-columns:repeat({bars_per_line},1fr)"
     lines = []
     for sec in sections or []:
         label = sec.get("label")
         if label:
             lines.append(f'<div class="seclabel">{_html.escape(label)}</div>')
-        for group in chordmark_render._group_bars(sec.get("bars", [])):
-            slots = []
-            for bar in group:
-                slots.append(render_bar_html(bar, inline_diagrams=inline_diagrams))
-            lines.append('<div class="line">' + "".join(slots) + "</div>")
+        for group in _chunk(sec.get("bars", []), bars_per_line):
+            cells = "".join(render_bar_html(bar, inline_diagrams=inline_diagrams)
+                            for bar in group)
+            lines.append(f'<div class="ln" style="{cols}">{cells}</div>')
     return '<div class="body">' + "".join(lines) + "</div>"
 
 
-def render_song(song, dictionary="per_voicing", inline_diagrams=False):
+def render_song(song, dictionary="per_voicing", inline_diagrams=False, bars_per_line=4):
     """Render a song dict to a full standalone target-look HTML page."""
     sections = song.get("sections", [])
     title = _html.escape(song.get("title") or "")
@@ -234,6 +267,6 @@ def render_song(song, dictionary="per_voicing", inline_diagrams=False):
         '<body><div class="page">'
         f"<h1>{title}</h1><div class=\"composer\">{composer}</div>"
         f"{_dictionary_html(sections, dictionary)}"
-        f"{_body_html(sections, inline_diagrams)}"
+        f"{_body_html(sections, inline_diagrams, bars_per_line)}"
         "</div></body></html>"
     )

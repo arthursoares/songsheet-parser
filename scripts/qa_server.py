@@ -47,6 +47,15 @@ def _query_params(path):
     return {k: v[-1] for k, v in parse_qs(q).items()}
 
 
+def _bars_per_line(params):
+    """The bars-per-line layout guide from ?bars=, restricted to 4/6/8 (default 4)."""
+    try:
+        n = int(params.get("bars", 4))
+    except (TypeError, ValueError):
+        n = 4
+    return n if n in (4, 6, 8) else 4
+
+
 def _song_status(path: Path):
     """Read document.status from a song JSON; default 'pending'. Never raises."""
     try:
@@ -89,6 +98,20 @@ def handle(method: str, path: str, body: bytes, root: Path):
         if method == "POST":
             return save_song(target, body)
 
+    # /api/chordmark/{album}/{file}  -> the generated ChordMark source text
+    if parts[:2] == ["api", "chordmark"] and len(parts) == 4 and method == "GET":
+        album, fname = parts[2], parts[3]
+        target = _safe_under(root, album, fname)
+        if target is None:
+            return _json(400, {"error": "bad path"})
+        if not target.exists():
+            return _json(404, {"error": "not found"})
+        try:
+            text = _build_chordmark(target, _bars_per_line(_query_params(orig_path)))
+        except Exception as e:  # noqa: BLE001
+            return _json(500, {"error": f"chordmark build failed: {e}"})
+        return 200, "text/plain; charset=utf-8", text.encode()
+
     # /api/render/{album}/{file}  -> ChordMark HTML rendered via the fork
     if parts[:2] == ["api", "render"] and len(parts) == 4 and method == "GET":
         album, fname = parts[2], parts[3]
@@ -98,13 +121,15 @@ def handle(method: str, path: str, body: bytes, root: Path):
         if not target.exists():
             return _json(404, {"error": "not found"})
         params = _query_params(orig_path)
+        bars = _bars_per_line(params)
         if params.get("style") == "target":
             return render_target_html(
                 target,
                 dictionary=params.get("dict", "per_voicing"),
                 inline=params.get("inline") == "1",
+                bars_per_line=bars,
             )
-        return render_song_html(target)
+        return render_song_html(target, bars_per_line=bars)
 
     # /api/page/{album}/{file}/{n}  -> pages/<file-stem>-p<n>.png
     if parts[:2] == ["api", "page"] and len(parts) == 5 and method == "GET":
@@ -158,7 +183,7 @@ def _html_error(msg):
     return 200, "text/html", body.encode()
 
 
-def render_target_html(song_path: Path, dictionary="per_voicing", inline=False):
+def render_target_html(song_path: Path, dictionary="per_voicing", inline=False, bars_per_line=4):
     """Render a saved song to the target lead-sheet HTML (pure Python, no fork)."""
     import render_target
 
@@ -167,19 +192,28 @@ def render_target_html(song_path: Path, dictionary="per_voicing", inline=False):
         songs = doc.get("songs", [])
         if not songs:
             return _html_error("no songs in document")
-        html = render_target.render_song(songs[0], dictionary=dictionary, inline_diagrams=inline)
+        html = render_target.render_song(songs[0], dictionary=dictionary,
+                                         inline_diagrams=inline, bars_per_line=bars_per_line)
         return 200, "text/html", html.encode()
     except Exception as e:  # noqa: BLE001
         return _html_error(f"target render failed: {e}")
 
 
-def render_song_html(song_path: Path):
+def _build_chordmark(song_path: Path, bars_per_line=4) -> str:
+    """Build ChordMark source text for every song in a saved document."""
+    import chordmark_render
+
+    doc = json.loads(song_path.read_text())
+    songs = doc.get("songs", [])
+    return "\n\n".join(chordmark_render.render_song(s, bars_per_line=bars_per_line)
+                       for s in songs)
+
+
+def render_song_html(song_path: Path, bars_per_line=4):
     """Render a saved song to ChordMark HTML via the fork (node render_chordmark.js)."""
     import shutil
     import subprocess
     import tempfile
-
-    import chordmark_render
 
     node = shutil.which("node")
     render_js = SCRIPTS / "render_chordmark.js"
@@ -187,9 +221,7 @@ def render_song_html(song_path: Path):
         return _html_error("node or render_chordmark.js not found")
 
     try:
-        doc = json.loads(song_path.read_text())
-        songs = doc.get("songs", [])
-        chordmark = "\n\n".join(chordmark_render.render_song(s) for s in songs)
+        chordmark = _build_chordmark(song_path, bars_per_line)
     except Exception as e:  # noqa: BLE001
         return _html_error(f"failed to build ChordMark: {e}")
 

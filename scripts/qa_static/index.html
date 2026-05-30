@@ -61,6 +61,11 @@
   .viewtabs{display:flex;gap:6px;margin-bottom:10px}
   .tab{background:#1e222b;color:#9aa3b2;border:1px solid #2a2f3a;border-radius:6px;padding:5px 12px;cursor:pointer}
   .tab.active{background:#2d3b5a;color:#e6e8ee;border-color:#6ea8fe}
+  .cmctl{display:flex;gap:10px;align-items:center;margin-bottom:8px}
+  .cmctl button{background:#6ea8fe;color:#06132b;border:0;border-radius:6px;padding:6px 12px;font-weight:600;cursor:pointer}
+  .cmsplit{display:flex;gap:8px;height:calc(100vh - 150px)}
+  #cmSource{width:42%;height:100%;box-sizing:border-box;background:#0c0e12;color:#cfe3d8;border:1px solid #2a2f3a;border-radius:8px;padding:10px;font:12px/1.55 ui-monospace,monospace;resize:none;white-space:pre;tab-size:2}
+  #cmFrame{flex:1;height:100%;border:1px solid #2a2f3a;border-radius:8px;background:#fff}
   .drow{border:1px solid #2a2f3a;border-radius:8px;padding:8px;margin-bottom:8px;background:#171a21}
   .drow.sel{border-color:#6ea8fe}
   .dhead{display:flex;align-items:center;gap:8px;flex-wrap:wrap;cursor:pointer}
@@ -110,6 +115,7 @@
       <button id="tabBars" class="tab active">Bars</button>
       <button id="tabDict" class="tab">Dictionary</button>
       <button id="tabPreview" class="tab">Preview</button>
+      <button id="tabChordmark" class="tab">ChordMark</button>
     </div>
     <div id="bars"></div>
     <div id="dict" style="display:none"></div>
@@ -121,9 +127,26 @@
         <label>dictionary
           <select id="pvDict"><option value="per_voicing">per voicing</option><option value="per_name">per name</option></select>
         </label>
+        <label>bars/line
+          <select id="pvBars"><option>4</option><option>6</option><option>8</option></select>
+        </label>
         <label><input type="checkbox" id="pvInline"> inline diagrams</label>
       </div>
       <iframe id="previewFrame" style="width:100%;height:calc(100vh - 140px);border:1px solid #2a2f3a;border-radius:8px;background:#fff"></iframe>
+    </div>
+    <div id="chordmark" style="display:none">
+      <div class="cmctl">
+        <button id="cmCopy">Copy ChordMark</button>
+        <label style="color:#9aa3b2;font-size:12px">bars/line
+          <select id="cmBars"><option>4</option><option>6</option><option>8</option></select>
+        </label>
+        <span id="cmCopyMsg" style="color:#9aa3b2;font-size:12px"></span>
+        <span style="color:#9aa3b2;font-size:12px">generated source (read-only) · fork render on the right</span>
+      </div>
+      <div class="cmsplit">
+        <textarea id="cmSource" readonly spellcheck="false"></textarea>
+        <iframe id="cmFrame"></iframe>
+      </div>
     </div>
   </div>
 </div>
