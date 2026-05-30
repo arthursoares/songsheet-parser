@@ -43,11 +43,29 @@ python scripts/validate_extraction.py "data/<artist>/pdf/Album.pdf" --workdir /t
 #   Migrates old 6-char voicings → comma form; this is what the QA tool reads/writes.
 python scripts/materialize_songs.py --workdir /tmp/ssv --out data/<artist>/songs [--only "<pdf stem>"]
 
-# QA correction tool: review songs beside scans, fix name/voicing/lyric. Open http://localhost:8000.
+# QA correction tool: review songs beside scans; Bars / Dictionary / Preview tabs. Open localhost:8000.
 python scripts/qa_server.py --songs data/<artist>/songs [--port 8000]
+
+# Seed lyric word-continuation dashes into existing songs (LLM, idempotent).
+python scripts/migrate_hyphenation.py data/<artist>/songs/ [--dry-run]
+
+# Render a .chordmark to HTML via Arthur's fork (needs ../chordmark/chord-mark + node).
+node scripts/render_chordmark.js in.chordmark out.html [--chordmark-repo PATH]
 ```
 
 Single page end-to-end: render a PNG, run stage 2 then stage 3.
+
+**QA tool internals** (`scripts/qa_static/`, pure-JS, no build):
+- `app.js` orchestrates; `chord_naming.js` = detect (tonal) + validate (chord-symbol) + intervals;
+  `chord_dictionary.js` = group/batch-edit/merge; `fretboard.js` = dual-mode voicing editor;
+  `diagram.js` = SVG chord thumbnail; `vendor/` = bundled tonal + chord-symbol.
+- `qa_server.py` (stdlib HTTP): `GET /api/albums`, `GET|POST /api/song/<album>/<file>` (POST is
+  schema-validated), `GET /api/page/...`, `GET /api/render/<album>/<file>?style=fork|target&dict=&inline=`.
+- **Two render styles:** `render_chordmark.py` (→ ChordMark via the fork; needs node) and
+  `render_target.py` (pure-Python lead sheet: alphabetical diagram dictionary, 2-col
+  chord-over-syllable, Roman positions, barres, `°`, held bars as `.`). **Export:** open a
+  `/api/render` URL and ⌘P→PDF (target CSS is A4-ready), or headless-Chrome screenshot to PNG.
+  No in-app export button yet.
 
 ### Setup & auth
 
