@@ -114,7 +114,16 @@
     <div id="bars"></div>
     <div id="dict" style="display:none"></div>
     <div id="preview" style="display:none">
-      <iframe id="previewFrame" style="width:100%;height:calc(100vh - 110px);border:1px solid #2a2f3a;border-radius:8px;background:#fff"></iframe>
+      <div class="pvctl">
+        <label>style
+          <select id="pvStyle"><option value="fork">Fork</option><option value="target">Target</option></select>
+        </label>
+        <label>dictionary
+          <select id="pvDict"><option value="per_voicing">per voicing</option><option value="per_name">per name</option></select>
+        </label>
+        <label><input type="checkbox" id="pvInline"> inline diagrams</label>
+      </div>
+      <iframe id="previewFrame" style="width:100%;height:calc(100vh - 140px);border:1px solid #2a2f3a;border-radius:8px;background:#fff"></iframe>
     </div>
   </div>
 </div>
