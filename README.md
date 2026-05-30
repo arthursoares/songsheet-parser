@@ -91,7 +91,7 @@ status filter (All / Pending / In progress / Done). Click a song to load it (gua
 unsaved-changes confirm); the current song is highlighted. The sidebar footer shows the song's
 **provenance** (source page numbers) and a free-text **per-song note** that persists with the song.
 
-The right column has four tabs:
+The right column has six tabs:
 
 - **Bars** — chord chips in reading order, each showing name / voicing / a small chord-diagram
   thumbnail / notes / intervals. Click a chip to edit its **name**, **voicing** (clickable
@@ -100,6 +100,10 @@ The right column has four tabs:
   validated through ChordMark's parser ([chord-symbol](https://github.com/no-chris/chord-symbol));
   a red dot flags name↔voicing mismatches. Also supports **structural editing**: add/delete a bar,
   split/merge a bar, add/delete a section, and inline section-label rename.
+- **Lyrics** *(prototype)* — a lyrics-first layout where each chord renders above its anchored
+  syllable, per section. **Drag a chord token onto a different syllable to re-anchor it** (per-bar
+  rebuild, wired into undo / dirty-state / Save). Known prototype limits: re-anchoring is scoped to
+  **within a single bar** (cross-bar drops no-op), and syllable splitting is whitespace-based.
 - **Review** — a worklist of the current song's flagged chords (name↔voicing mismatch or invalid
   name) with section·bar·reason. Click a row to jump to the chip and open its editor; a header
   **Next-flagged** action steps through them.
@@ -107,6 +111,11 @@ The right column has four tabs:
   count; batch-edit a chord across all its occurrences, or merge two groups that are the same
   chord misread two ways.
 - **Preview** — renders the song (see below), with in-app export.
+- **JSON** — a [CodeMirror 5](https://codemirror.net/5/) code editor over the song's raw JSON:
+  Tab indents (2-space soft tabs), JSON syntax coloring, and live validation (parse errors show
+  line/col plus a lint gutter marker). **Apply** parse-guards the text and pushes it onto the
+  model (undoable); **Format** pretty-prints and **Reload** re-reads from the in-memory model.
+  CodeMirror is vendored under `qa_static/vendor/codemirror/`.
 
 Header controls: **key** selector (drives Roman-numeral interval analysis, major or minor),
 **♯/♭** spelling toggle, per-song **status** (pending / in progress / done) with an album

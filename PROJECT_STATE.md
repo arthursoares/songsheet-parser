@@ -37,11 +37,19 @@ per-occurrence. Lyrics carry word-continuation dashes (`tris- te- za e`). Schema
 - **QA correction tool v2** (`qa_server.py` + `qa_static/`):
   - Song-list **sidebar** (search, status filter, status badges, click-to-load with dirty-guard,
     current-song highlight); provenance + per-song **note** in the footer.
-  - Tabs **Bars / Review / Dictionary / Preview**. Bars: per-chord edit (name/voicing/lyric),
-    move-between-bars, plus **structural editing** (add/delete bar, split/merge bar, add/delete
-    section, inline section-label rename). Review: worklist of flagged chords + Next-flagged.
-    Dictionary: batch-edit/merge, alphabetical or by count. Preview: live render of unsaved edits
-    + a Source toggle for the generated ChordMark.
+  - Tabs **Bars / Lyrics / Review / Dictionary / Preview / JSON**. Bars: per-chord edit
+    (name/voicing/lyric), move-between-bars, plus **structural editing** (add/delete bar,
+    split/merge bar, add/delete section, inline section-label rename). Review: worklist of flagged
+    chords + Next-flagged. Dictionary: batch-edit/merge, alphabetical or by count. Preview: live
+    render of unsaved edits + a Source toggle for the generated ChordMark.
+  - **JSON** tab: a CodeMirror 5 editor over the raw song JSON (vendored at
+    `qa_static/vendor/codemirror/`) — Tab indent (2-space soft tabs), syntax coloring, live
+    validation with line/col + lint gutter marker; Apply parse-guards + is undoable, plus
+    Format / Reload.
+  - **Lyrics** tab (**prototype**): chords render above their anchored syllables per section; drag a
+    chord token onto a different syllable to re-anchor it (per-bar rebuild, wired into undo / dirty /
+    Save). Documented limits: re-anchor is within a single bar (cross-bar drops no-op), whitespace
+    syllable splitting.
   - Reverse detection (tonal) validated through chord-symbol, key-aware Roman intervals, ♯/♭
     toggle, per-song status + album progress, **undo/redo**, dirty-state guard, keyboard shortcuts
     (⌘S save, Esc, n/p songs, ] next-flagged, Enter apply, ⌘Z/⌘⇧Z undo/redo).
@@ -61,6 +69,15 @@ per-occurrence. Lyrics carry word-continuation dashes (`tris- te- za e`). Schema
 - Continuation-song splits: a song spanning pages can appear as two entries when the title-page name
   differs from the running header (e.g. "Brigas, nunca mais" / "Brigas Nunca Mais"). Assembler matches
   exact normalized titles; fuzzy merge is a future improvement.
+
+### Deferred (QA tool roadmap)
+- **MusicXML export** (alongside PDF/PNG/HTML/.chordmark/ChordPro).
+- **Full transpose** of a song, including voicings.
+- **Corpus-wide chord rename** (the Dictionary batch-edit is per-song today).
+- **Lyrics tab**: cross-bar re-anchor + intra-word (syllable-level) splitting (currently within-bar,
+  whitespace-only — see prototype limits above).
+- **Section reorder** in the UI.
+- **favicon** (one 404 on load; cosmetic).
 
 ## Stale docs
 

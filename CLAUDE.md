@@ -43,8 +43,9 @@ python scripts/validate_extraction.py "data/<artist>/pdf/Album.pdf" --workdir /t
 #   Migrates old 6-char voicings → comma form; this is what the QA tool reads/writes.
 python scripts/materialize_songs.py --workdir /tmp/ssv --out data/<artist>/songs [--only "<pdf stem>"]
 
-# QA correction tool: review songs beside scans; song-list sidebar + Bars / Review / Dictionary /
-#   Preview tabs; structural edit, undo/redo, per-song note, live preview, in-app exports.
+# QA correction tool: review songs beside scans; song-list sidebar + Bars / Lyrics / Review /
+#   Dictionary / Preview / JSON tabs; structural edit, undo/redo, per-song note, live preview,
+#   in-app exports.
 python scripts/qa_server.py --songs data/<artist>/songs [--port 8000]   # open localhost:8000
 
 # Seed lyric word-continuation dashes into existing songs (LLM, idempotent).
@@ -61,11 +62,16 @@ Single page end-to-end: render a PNG, run stage 2 then stage 3.
   dirty-state guard, keyboard shortcuts, structural edits, live preview, in-app export wiring);
   `chord_naming.js` = detect (tonal) + validate (chord-symbol) + intervals; `chord_dictionary.js`
   = group/batch-edit/merge; `fretboard.js` = dual-mode voicing editor; `diagram.js` = SVG chord
-  thumbnail; `vendor/` = bundled tonal + chord-symbol.
-- **Tabs:** Bars / Review / Dictionary / Preview. Bars also does structural editing
-  (add/delete bar, split/merge bar, add/delete section, inline section-label rename). Review is a
-  worklist of flagged chords (name↔voicing mismatch or invalid name). Preview has a **Source**
-  toggle (shows the generated `.chordmark` beside the render) and the export buttons.
+  thumbnail; `vendor/` = bundled tonal + chord-symbol, plus `vendor/codemirror/` (vendored
+  CodeMirror 5) backing the **JSON** tab's code editor.
+- **Six tabs:** Bars / Lyrics / Review / Dictionary / Preview / JSON. Bars also does structural
+  editing (add/delete bar, split/merge bar, add/delete section, inline section-label rename).
+  Review is a worklist of flagged chords (name↔voicing mismatch or invalid name). Preview has a
+  **Source** toggle (shows the generated `.chordmark` beside the render) and the export buttons.
+  **JSON** is a CodeMirror 5 editor over the raw song JSON (Tab indent / syntax coloring / live
+  lint with line·col + gutter marker; Apply parse-guards + is undoable, Format / Reload).
+  **Lyrics** is a **prototype**: chords render above their anchored syllables; drag a chord token
+  onto a syllable to re-anchor (per-bar chord↔syllable rebuild, within a single bar only).
 - **Keyboard:** ⌘S/Ctrl+S save, Esc close editor, `n`/`p` prev/next song, `]` next-flagged, Enter
   applies in the chord editor, ⌘Z/⌘⇧Z (Ctrl+Y) undo/redo.
 - `qa_server.py` (stdlib HTTP), exact routes in `handle()`:
