@@ -24,7 +24,7 @@ Scripts are `argparse` CLIs under `scripts/`. Run with the project venv: `./.ven
 Tests: `./.venv/bin/python -m pytest` (schema + render + CLI).
 
 ```bash
-# Stage 1 — PDF to PNG pages (page-001.png, ...). Needs poppler.
+# Stage 1 — PDF to PNG pages (page-001.png, ...). Uses PyMuPDF (no poppler needed).
 python scripts/extract_pages.py songbook.pdf --output data/<artist>/png/ [--dpi 200]
 
 # Stage 2 — PNG to JSON via vision model. Default provider is codex (OpenAI gpt-5.5).
@@ -98,7 +98,7 @@ Single page end-to-end: render a PNG, run stage 2 then stage 3.
 
 ```bash
 python3 -m venv .venv && ./.venv/bin/pip install -r requirements.txt
-brew install poppler                      # for extract_pages.py
+# extract_pages.py renders PDFs via PyMuPDF (pymupdf) — no poppler needed.
 codex login                               # creates ~/.codex/auth.json (for default provider)
 ```
 
