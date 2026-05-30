@@ -1,6 +1,7 @@
 # Core
 openai>=2.0          # vision via Codex/ChatGPT subscription (default provider) and --provider openai
-pdf2image            # extract_pages.py — also needs system poppler (brew install poppler)
+pymupdf              # extract_pages.py — PDF -> PNG (no poppler needed)
+pdf2image            # optional; no longer used by extract_pages.py
 pillow               # image handling
 jsonschema>=4.0        # validate songsheet JSON against schema
 pytest>=8.0            # test runner

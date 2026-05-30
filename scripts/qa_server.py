@@ -14,6 +14,8 @@ import json
 import re
 from pathlib import Path
 
+import threading
+
 import jsonschema  # imported at startup so a save never fails on a lazy import
 
 SCRIPTS = Path(__file__).resolve().parent
@@ -87,37 +89,44 @@ def _chrome():
     return mac if Path(mac).exists() else None
 
 
+# Serialize headless-Chrome conversions: the server is a ThreadingHTTPServer,
+# so concurrent exports would otherwise collide and 500 under burst.
+_CHROME_LOCK = threading.Lock()
+
+
 def _chrome_convert(html: str, fmt: str):
     """Render an HTML string to PDF or PNG bytes via headless Chrome.
 
     fmt is "pdf" or "png". Returns the bytes, or raises RuntimeError if Chrome is
-    missing or the conversion fails / times out.
+    missing or the conversion fails / times out. Conversions are serialized
+    (one Chrome process at a time) so concurrent exports don't collide.
     """
     import subprocess
     import tempfile
 
-    chrome = _chrome()
-    if not chrome:
-        raise RuntimeError("Chrome not found")
+    with _CHROME_LOCK:
+        chrome = _chrome()
+        if not chrome:
+            raise RuntimeError("Chrome not found")
 
-    with tempfile.TemporaryDirectory() as tmp:
-        in_html = Path(tmp) / "in.html"
-        in_html.write_text(html, encoding="utf-8")
-        if fmt == "pdf":
-            out = Path(tmp) / "out.pdf"
-            cmd = [chrome, "--headless", "--disable-gpu", "--no-pdf-header-footer",
-                   f"--print-to-pdf={out}", str(in_html)]
-        else:
-            out = Path(tmp) / "out.png"
-            cmd = [chrome, "--headless", "--disable-gpu", f"--screenshot={out}",
-                   "--window-size=1100,1600", str(in_html)]
-        try:
-            r = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
-        except subprocess.TimeoutExpired as e:
-            raise RuntimeError("Chrome conversion timed out") from e
-        if not out.exists():
-            raise RuntimeError(f"Chrome conversion failed: {r.stderr or r.stdout}")
-        return out.read_bytes()
+        with tempfile.TemporaryDirectory() as tmp:
+            in_html = Path(tmp) / "in.html"
+            in_html.write_text(html, encoding="utf-8")
+            if fmt == "pdf":
+                out = Path(tmp) / "out.pdf"
+                cmd = [chrome, "--headless", "--disable-gpu", "--no-pdf-header-footer",
+                       f"--print-to-pdf={out}", str(in_html)]
+            else:
+                out = Path(tmp) / "out.png"
+                cmd = [chrome, "--headless", "--disable-gpu", f"--screenshot={out}",
+                       "--window-size=1100,1600", str(in_html)]
+            try:
+                r = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+            except subprocess.TimeoutExpired as e:
+                raise RuntimeError("Chrome conversion timed out") from e
+            if not out.exists():
+                raise RuntimeError(f"Chrome conversion failed: {r.stderr or r.stdout}")
+            return out.read_bytes()
 
 
 def _attach(stem: str, ext: str):

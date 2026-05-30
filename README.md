@@ -51,7 +51,7 @@ codex login          # default vision provider uses your ChatGPT/Codex subscript
 Run scripts with the project venv (`./.venv/bin/python`).
 
 ```bash
-# 1. Extract pages from a PDF (needs poppler, or pymupdf)
+# 1. Extract pages from a PDF (uses PyMuPDF; no poppler needed)
 python scripts/extract_pages.py songbook.pdf --output data/<artist>/png/
 
 # 2. Parse pages to chord-anchored JSON (default provider: codex / OpenAI gpt-5.5)
