@@ -303,7 +303,12 @@ function showView(which) {
 // Reflects last-saved state (a cache-bust param forces refresh after Save).
 function renderPreview() {
   const frame = document.getElementById("previewFrame");
-  frame.src = `/api/render/${state.album}/${state.file}?t=${state._previewToken || 0}`;
+  const style = document.getElementById("pvStyle").value;
+  const dict = document.getElementById("pvDict").value;
+  const inline = document.getElementById("pvInline").checked ? "1" : "0";
+  const t = state._previewToken || 0;
+  frame.src = `/api/render/${state.album}/${state.file}`
+    + `?style=${style}&dict=${dict}&inline=${inline}&t=${t}`;
 }
 
 function renderDict() {
