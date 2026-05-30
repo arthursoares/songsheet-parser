@@ -56,6 +56,10 @@ async function init() {
   document.getElementById("tabBars").onclick = () => showView("bars");
   document.getElementById("tabDict").onclick = () => showView("dict");
   document.getElementById("tabPreview").onclick = () => showView("preview");
+  ["pvStyle", "pvDict", "pvInline"].forEach((id) =>
+    document.getElementById(id).addEventListener("change", () => {
+      if (document.getElementById("preview").style.display !== "none") renderPreview();
+    }));
 
   // global flat/sharp spelling toggle — re-renders bars (and editor if open)
   const spellBtn = document.getElementById("spellToggle");

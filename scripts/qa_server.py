@@ -38,6 +38,13 @@ def _json(status, obj):
     return status, "application/json", json.dumps(obj, ensure_ascii=False).encode()
 
 
+def _query_params(path):
+    """Parse the query string of a raw path into a flat dict (last value wins)."""
+    from urllib.parse import urlparse, parse_qs
+    q = urlparse(path).query
+    return {k: v[-1] for k, v in parse_qs(q).items()}
+
+
 def _song_status(path: Path):
     """Read document.status from a song JSON; default 'pending'. Never raises."""
     try:
@@ -60,6 +67,7 @@ def list_albums(root: Path):
 
 def handle(method: str, path: str, body: bytes, root: Path):
     """Pure router. Returns (status:int, content_type:str, body:bytes)."""
+    orig_path = path
     path = path.split("?", 1)[0]  # drop query string (e.g. cache-bust ?t=)
     parts = [p for p in path.split("/") if p != ""]
 
@@ -87,6 +95,13 @@ def handle(method: str, path: str, body: bytes, root: Path):
             return _json(400, {"error": "bad path"})
         if not target.exists():
             return _json(404, {"error": "not found"})
+        params = _query_params(orig_path)
+        if params.get("style") == "target":
+            return render_target_html(
+                target,
+                dictionary=params.get("dict", "per_voicing"),
+                inline=params.get("inline") == "1",
+            )
         return render_song_html(target)
 
     # /api/page/{album}/{file}/{n}  -> pages/<file-stem>-p<n>.png
@@ -141,6 +156,21 @@ def _html_error(msg):
             f"<body style='font:14px sans-serif;color:#b00;padding:20px'>"
             f"ChordMark preview unavailable:<br><pre>{msg}</pre></body>")
     return 200, "text/html", body.encode()
+
+
+def render_target_html(song_path: Path, dictionary="per_voicing", inline=False):
+    """Render a saved song to the target lead-sheet HTML (pure Python, no fork)."""
+    import render_target
+
+    try:
+        doc = json.loads(song_path.read_text())
+        songs = doc.get("songs", [])
+        if not songs:
+            return _html_error("no songs in document")
+        html = render_target.render_song(songs[0], dictionary=dictionary, inline_diagrams=inline)
+        return 200, "text/html", html.encode()
+    except Exception as e:  # noqa: BLE001
+        return _html_error(f"target render failed: {e}")
 
 
 def render_song_html(song_path: Path):
