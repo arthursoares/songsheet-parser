@@ -67,3 +67,31 @@ def test_dictionary_per_name_collapses_to_most_common():
     assert len(entries) == 1
     assert entries[0]["chord"] == "Dm7"
     assert entries[0]["voicing"] == "x,5,7,5,6,x"
+
+
+def test_render_song_full_page():
+    song = {
+        "title": "Chega de Saudade",
+        "composers": ["Tom Jobim", "Vinicius de Moraes"],
+        "sections": [{"label": None, "bars": [
+            [{"chord": "Dm7", "voicing": "x,5,7,5,6,x", "text": "Vai"}],
+            [{"chord": "%", "text": "mi- nha"}],
+        ]}],
+    }
+    out = rt.render_song(song)
+    assert out.startswith("<!doctype html>")
+    assert "Chega de Saudade" in out
+    assert "Tom Jobim" in out
+    assert 'class="dict"' in out
+    assert 'class="body"' in out
+    assert "<svg" in out
+    assert "mi-" in out
+
+
+def test_render_song_inline_diagrams_toggle():
+    song = {"title": "T", "sections": [{"label": None, "bars": [
+        [{"chord": "Dm7", "voicing": "x,5,7,5,6,x", "text": "a"}],
+    ]}]}
+    no_inline = rt.render_song(song, inline_diagrams=False)
+    with_inline = rt.render_song(song, inline_diagrams=True)
+    assert with_inline.count("<svg") > no_inline.count("<svg")

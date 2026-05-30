@@ -162,3 +162,76 @@ def dictionary_entries(sections, mode="per_voicing"):
         return result
 
     return [counts[key] for key in order]
+
+
+import chordmark_render  # reuse phrase-grouping  # noqa: E402
+
+
+_CSS = """
+@page { size: A4; margin: 1.4cm; } * { box-sizing: border-box; }
+body { margin:0; background:#f0f0f1; color:#111;
+  font-family: Georgia, "Times New Roman", serif; }
+.page { max-width: 820px; margin: 1.5rem auto; background:#fff;
+  padding: 2.4rem 2.6rem 3rem; box-shadow: 0 1px 6px rgba(0,0,0,.12); }
+h1 { text-align:center; font-size: 2.4rem; font-weight:700; margin:0 0 .15rem; }
+.composer { text-align:center; font-variant: small-caps; letter-spacing:1px;
+  margin:0 0 1.3rem; font-size:.95rem; }
+.dict { display:flex; flex-wrap:wrap; gap:.7rem 1rem; justify-content:center;
+  padding:0 0 1.1rem; margin-bottom:1.3rem; border-bottom:1px solid #ddd; }
+.dia { text-align:center; width:58px; }
+.dn { font-weight:700; font-size:.82rem; margin-bottom:1px; white-space:nowrap; }
+.diag { width:58px; height:auto; display:block; }
+.diag .fl,.diag .sl { stroke:#333; stroke-width:.8; }
+.diag .nut { stroke:#222; stroke-width:2.6; }
+.diag .barre { stroke:#111; stroke-width:4.4; stroke-linecap:round; }
+.diag .dot { fill:#111; }
+.diag .mk { font:6.5px Georgia,serif; fill:#111; }
+.diag .pos { font:italic 7.5px Georgia,serif; fill:#111; }
+.seclabel { font-weight:700; text-decoration:underline; margin:.6rem 0 .4rem; }
+.body { columns: 2; column-gap: 2.4rem; font-size: 1.02rem; line-height: 1.15; }
+.line { break-inside: avoid; margin: 0 0 1.05rem; }
+.slot { display:inline-flex; flex-direction:column; vertical-align:bottom;
+  padding-right:.8em; }
+.slot .ch { height:1.3em; white-space:nowrap; } .slot .cn { font-weight:700; }
+.slot .ly { white-space:pre; }
+.slot .idia { display:block; }
+.slot .idia svg { width:42px; height:auto; }
+"""
+
+
+def _dictionary_html(sections, mode):
+    parts = []
+    for e in dictionary_entries(sections, mode):
+        parts.append(f'<div class="dia"><div class="dn">{_html.escape(nice_name(e["chord"]))}</div>'
+                     f'{diagram(e["voicing"])}</div>')
+    return '<div class="dict">' + "".join(parts) + "</div>"
+
+
+def _body_html(sections, inline_diagrams):
+    lines = []
+    for sec in sections or []:
+        label = sec.get("label")
+        if label:
+            lines.append(f'<div class="seclabel">{_html.escape(label)}</div>')
+        for group in chordmark_render._group_bars(sec.get("bars", [])):
+            slots = []
+            for bar in group:
+                slots.append(render_bar_html(bar, inline_diagrams=inline_diagrams))
+            lines.append('<div class="line">' + "".join(slots) + "</div>")
+    return '<div class="body">' + "".join(lines) + "</div>"
+
+
+def render_song(song, dictionary="per_voicing", inline_diagrams=False):
+    """Render a song dict to a full standalone target-look HTML page."""
+    sections = song.get("sections", [])
+    title = _html.escape(song.get("title") or "")
+    composer = _html.escape(", ".join(song.get("composers") or []))
+    return (
+        "<!doctype html><html><head><meta charset=\"utf-8\">"
+        f"<title>{title}</title><style>{_CSS}</style></head>"
+        '<body><div class="page">'
+        f"<h1>{title}</h1><div class=\"composer\">{composer}</div>"
+        f"{_dictionary_html(sections, dictionary)}"
+        f"{_body_html(sections, inline_diagrams)}"
+        "</div></body></html>"
+    )
