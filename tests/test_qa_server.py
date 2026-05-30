@@ -114,3 +114,13 @@ def test_serves_static_js(tmp_path, monkeypatch):
     status, ctype, body = S.handle("GET", "/app.js", b"", root)
     assert status == 200
     assert "javascript" in ctype
+
+
+def test_render_target_style(tmp_path):
+    root = _corpus(tmp_path)
+    status, ctype, body = S.handle(
+        "GET", "/api/render/1-album/01-song-one.json?style=target", b"", root)
+    assert status == 200
+    assert ctype == "text/html"
+    assert b"<!doctype html>" in body
+    assert b"Song One" in body
