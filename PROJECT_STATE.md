@@ -1,79 +1,60 @@
 # Songsheet Parser — Project State
 
-**Last updated:** 2026-02-04 23:43
+**Last updated:** 2026-05-30
 
-## What This Is
+## What this is
 
-A pipeline to digitize Brazilian songbook chord charts (PDF → JSON → ChordMark format). Built for Arthur's João Gilberto harmonic analysis project.
+A pipeline to digitize Brazilian songbook chord charts (PDF → JSON → ChordMark / lead sheet),
+built for Arthur's João Gilberto harmonic-analysis project.
 
-**Repos:**
-- Pipeline: https://github.com/arthursoares/songsheet-parser (public)
-- ChordMark fork: https://github.com/arthursoares/chord-mark (Arthur's fork with chord diagram rendering)
+- Pipeline repo: https://github.com/arthursoares/songsheet-parser
+- ChordMark fork: https://github.com/arthursoares/chord-mark (sibling repo at `../chordmark/chord-mark`;
+  adds inline chord-diagram rendering + comma-form inline voicings)
 
 ## Pipeline
 
 ```
-PDF → extract_pages.py → PNGs
-PNGs → parse_songsheet.py → JSON (via Gemini Flash vision)
-JSON → add_positions.py → JSON with chord-syllable alignment (via Gemini Flash)
-JSON → json_to_chordmark.py → .chordmark files with `chord` voicing directives + `_` position markers
+PDF → extract_pages → PNG → parse_songsheet → JSON → [QA correction] → render
+                            (OpenAI gpt-5.5 via Codex)   (browser)       (ChordMark or target lead sheet)
 ```
 
-## Current State
+## Data model (current)
 
-### ✅ Done
-- Full pipeline working end-to-end
-- 32 João Gilberto sample pages parsed → 10 merged songs
-- `chord` directive syntax (not `#chord`) — matches Arthur's ChordMark fork parser
-- Beat count compliance: dots = beat duration, proportional distribution, sub-beat `[A B]` grouping
-- Two-stage hybrid chord-lyric alignment: focused per-bar vision queries for `_` position markers
-- Tested on sample-11 + sample-13 (Não vou pra casa) — 100% success rate
+Chord-anchored: `document → songs → sections → bars`, where **a bar is an ordered array of
+`{chord, voicing?, text?}` entries**. Entry order is the chord↔lyric anchor (no `at_syllable`).
+`%` = measure-repeat (held chord). Voicing = 6 comma-separated frets `x,5,7,5,6,x` (0–24),
+per-occurrence. Lyrics carry word-continuation dashes (`tris- te- za e`). Schema:
+`schemas/songsheet.schema.json`. Full design: `docs/superpowers/specs/2026-05-28-songsheet-data-model-design.md`.
 
-### 🔄 In Progress
-- Arthur reviewing JSON chord fingerings (vision model gets fret positions wrong — defaults to open position)
-- Only 2 of 32 samples have position markers so far (need to run `add_positions.py` on all)
+## State
 
-### 🔧 Known Issues
-- 14 invalid chord names from vision model (`Bm7/Fe`→`Bm7/F#`, `Fdim?`→`Fdim7`, etc.) — needs manual correction in JSON
-- Chord fingerings often incorrect (vision model misses fret position markers on diagrams)
-- Some bars have more chords than beats → handled with sub-beat grouping but may need review
+### Done
+- Vision parsing on **OpenAI gpt-5.5** via the ChatGPT/Codex subscription (`codex_client.py`).
+- Full corpus parsed: **15 PDFs / 662 pages / ~195 songs** (validation run complete; report at
+  `/tmp/ssv/full-report.json`). Materialized per-song under `data/joao-gilberto/songs/<album>/`
+  (git-ignored — copyrighted scans + personal-use song data).
+- Comma fret-number voicing format (fixes up-the-neck chords); migration built into materialize.
+- **QA correction tool** (`qa_server.py` + `qa_static/`): Bars/Dictionary/Preview tabs, per-chord
+  edit (name/voicing/lyric), move-between-bars, chord dictionary (batch-edit/merge, alphabetical or
+  by count), reverse detection (tonal) validated through chord-symbol, key-aware Roman intervals,
+  ♯/♭ toggle, per-song status + album progress.
+- **Two render styles:** `render_chordmark.py` (→ ChordMark via the fork) and `render_target.py`
+  (pure-Python polished lead sheet). Round-trip to the fork verified end-to-end.
+- Lyric hyphenation: parse prompt preserves dashes; `migrate_hyphenation.py` LLM-seeds existing songs.
+- Test suite: 59 passing (pytest). JS verified via `node --check` + Node smoke harnesses.
 
-## Key Files
+### In progress / next
+- **Hyphenation seeded for only 1 song** so far (Chega de Saudade). Run
+  `migrate_hyphenation.py data/joao-gilberto/songs/` to do the rest (~190 LLM calls).
+- Per-chord accuracy: voicings/fingerings from vision are often wrong — the QA tool is the fix;
+  most of the corpus is unreviewed.
+- Continuation-song splits: a song spanning pages can appear as two entries when the title-page name
+  differs from the running header (e.g. "Brigas, nunca mais" / "Brigas Nunca Mais"). Assembler matches
+  exact normalized titles; fuzzy merge is a future improvement.
+- No in-app export button — export via the `/api/render` URL (⌘P → PDF) or headless-Chrome PNG.
 
-- `scripts/extract_pages.py` — PDF → PNG
-- `scripts/parse_songsheet.py` — PNG → JSON (Gemini Flash default)
-- `scripts/add_positions.py` — Adds chord-syllable alignment via focused vision queries
-- `scripts/json_to_chordmark.py` — JSON → ChordMark with voicings + position markers
-- `schemas/songsheet.schema.json` — JSON schema
-- `docs/chord-naming.md` — Chord naming bridge (fingering → notes → chord-symbol)
-- `data/joao-gilberto/json/` — Parsed JSON (32 pages)
-- `data/joao-gilberto/chordmark/` — Converted ChordMark (10 songs)
+## Stale docs
 
-## Source Images
-
-⚠️ NOT in repo (copyright). Located at: `/root/clawd/output/songsheets/sample-{01..32}.png`
-
-## Key Decisions
-
-- **Gemini Flash** as default: 16x faster, 10x cheaper than GPT-4o
-- **JSON as intermediate layer** for human review/correction before ChordMark conversion
-- **Fingering as source of truth** — chord names derived from fingerings
-- **`chord` directive** (no `#` prefix) matches Arthur's ChordMark fork parser
-- **Two-stage hybrid** for alignment: reliable bar parsing + focused per-bar position queries
-
-## Arthur's ChordMark Fork
-
-At `/root/clawd/projects/chord-mark/` — adds:
-- `chord Cmaj7 x32000` directive for voicing definitions
-- Inline `Cmaj7[x35453]` syntax
-- SVG chord diagram renderer (dictionary + inline modes)
-- Built with yarn, 1376 tests pass
-
-## Next Steps
-
-1. Run `add_positions.py` on all 32 samples
-2. Arthur reviews/corrects chord fingerings in JSON files
-3. Re-run `json_to_chordmark.py` after corrections
-4. Test rendered output with Arthur's chord-mark fork
-5. Implement chord name validation (fingering → notes → chord-symbol library)
-6. Process additional songbooks
+`ARCHITECTURE.md`, `TWO_STAGE_HYBRID_IMPLEMENTATION.md`, `EXAMPLES.md`, `QUICKSTART.md`, and
+`docs/pipeline.md` describe the **old** model and two-stage approach — superseded by this file,
+`README.md`, `CLAUDE.md`, and the specs under `docs/superpowers/specs/`.

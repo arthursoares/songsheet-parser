@@ -81,12 +81,57 @@ python scripts/materialize_songs.py --workdir /tmp/ssv --out data/<artist>/songs
 python scripts/qa_server.py --songs data/<artist>/songs
 ```
 
-In the browser: pick an album + song; the scan shows on the left, editable chord chips on the
-right. Click a chord to fix its **name**, **voicing** (clickable fretboard *or* type
-`x,5,7,5,6,x`), and **lyric**. Reverse chord detection ([tonal.js](https://github.com/tonaljs/tonal))
-suggests names, validated through ChordMark's parser
-([chord-symbol](https://github.com/no-chris/chord-symbol)); a badge flags name↔voicing
-mismatches. **Save** writes schema-validated JSON back to disk.
+In the browser, pick an album + song; the scan shows on the left and three tabs on the right:
+
+- **Bars** — chord chips in reading order, each showing name / voicing / a small chord-diagram
+  thumbnail / notes / intervals. Click a chip to edit its **name**, **voicing** (clickable
+  fretboard *or* type `x,5,7,5,6,x`), and **lyric**; **← →** move a chord to the adjacent bar.
+  Reverse chord detection ([tonal.js](https://github.com/tonaljs/tonal)) suggests names,
+  validated through ChordMark's parser ([chord-symbol](https://github.com/no-chris/chord-symbol));
+  a red dot flags name↔voicing mismatches.
+- **Dictionary** — the song's distinct chords grouped by (name + voicing), alphabetical or by
+  count; batch-edit a chord across all its occurrences, or merge two groups that are the same
+  chord misread two ways.
+- **Preview** — renders the song two ways (see below).
+
+Header controls: **key** selector (drives Roman-numeral interval analysis, major or minor),
+**♯/♭** spelling toggle, per-song **status** (pending / in progress / done) with an album
+progress count. **Save** writes schema-validated JSON back to disk.
+
+### Preview & export
+
+The **Preview** tab renders the *saved* song (re-renders on Save) in either of two styles, via
+`GET /api/render/<album>/<file>?style=<fork|target>`:
+
+- **fork** — through Arthur's ChordMark fork (inline diagrams, ChordMark layout); needs Node +
+  the fork repo at `../chordmark/chord-mark`.
+- **target** — a polished lead sheet (centered title, alphabetical diagram dictionary, two-column
+  chord-over-syllable body, Roman fret positions, barres, `°` for diminished). Pure Python, no
+  fork needed. Extra params: `dict=per_voicing|per_name`, `inline=0|1`.
+
+**Exporting a render** (no in-app button yet — use the browser):
+
+```bash
+# open the render URL directly, then ⌘P → Save as PDF (target CSS is A4-ready):
+open "http://localhost:8000/api/render/<album>/<file>?style=target"
+
+# or screenshot to PNG headlessly:
+"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless \
+  --screenshot=song.png --window-size=900,1300 \
+  "http://localhost:8000/api/render/<album>/<file>?style=target"
+```
+
+`scripts/render_chordmark.js` renders a `.chordmark` file to standalone HTML via the fork if you
+want that path outside the server.
+
+### Lyric hyphenation
+
+Lyrics carry word-continuation dashes (`tris- te- za e`) for proper lead-sheet rendering. New
+parses preserve the dashes the songbook prints; seed existing songs with:
+
+```bash
+python scripts/migrate_hyphenation.py data/<artist>/songs/   # LLM-seeded, idempotent
+```
 
 ## Voicing format
 
