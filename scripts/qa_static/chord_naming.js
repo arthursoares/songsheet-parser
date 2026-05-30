@@ -98,21 +98,6 @@
     return { tonic, mode: m[2] ? "minor" : "major" };
   }
 
-  // For a voicing + key (e.g. "C" or "Dm"), return the per-note degrees in playing
-  // order, deduped to match pcNotes. Empty if no usable key or no notes.
-  function intervalsInKey(voicing, key) {
-    const parsed = parseKey(key);
-    if (!parsed) return [];
-    const seen = new Set(), out = [];
-    voicingToNotes(voicing).forEach((n) => {
-      const pc = n.replace(/[0-9]/g, "");
-      if (seen.has(pc)) return;
-      seen.add(pc);
-      out.push(degree(parsed.tonic, n, parsed.mode));
-    });
-    return out;
-  }
-
   // Per-string scale degrees, "x" for muted. Aligns 1:1 with the voicing.
   function perStringInKey(voicing, key) {
     const parsed = parseKey(key);
@@ -139,27 +124,6 @@
   };
   // Within the basic triad/7th range some semitones read better as the lower form.
   const _CHORD_INTERVAL_BASIC = { 1: "b2", 2: "2", 5: "4", 8: "#5", 9: "6" };
-
-  // Per-note intervals of a voicing relative to the CHORD's own root (from its
-  // name), e.g. Dm9/A -> ["1","b3","5","b7","9"] regardless of the A in the bass.
-  // Returns [] if the name doesn't parse to a root. `upper` true uses 9/11/13 labels.
-  function chordIntervals(voicing, chordName, upper = true) {
-    if (!chordName || chordName === "%") return [];
-    const parsed = _parseChordmark(chordName);
-    const root = parsed && parsed.normalized && parsed.normalized.rootNote;
-    if (!root) return [];
-    const T = window.Tonal;
-    const map = upper ? _CHORD_INTERVAL : { ..._CHORD_INTERVAL, ..._CHORD_INTERVAL_BASIC };
-    const seen = new Set(), out = [];
-    voicingToNotes(voicing).forEach((n) => {
-      const semis = ((T.Note.chroma(n) - T.Note.chroma(root)) % 12 + 12) % 12;
-      const label = map[semis];
-      if (seen.has(label)) return;
-      seen.add(label);
-      out.push(label);
-    });
-    return out;
-  }
 
   // Per-string chord intervals, "x" for muted. Aligns 1:1 with the voicing.
   function perStringChordIntervals(voicing, chordName, upper = true) {
@@ -228,9 +192,8 @@
   }
 
   window.ChordNaming = {
-    voicingToNotes, pcNotes, suggestNames, validateName, nameMatchesVoicing,
-    setSpelling, getSpelling, spell, degree, intervalsInKey, parseKey,
-    chordIntervals, setKeyTonic, getKeyTonic,
+    pcNotes, suggestNames, validateName, nameMatchesVoicing,
+    setSpelling, getSpelling, parseKey, setKeyTonic, getKeyTonic,
     perStringNotes, perStringInKey, perStringChordIntervals,
   };
 })();
