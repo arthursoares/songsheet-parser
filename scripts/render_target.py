@@ -256,17 +256,78 @@ def _body_html(sections, inline_diagrams, bars_per_line=4):
     return '<div class="body">' + "".join(lines) + "</div>"
 
 
-def render_song(song, dictionary="per_voicing", inline_diagrams=False, bars_per_line=4):
-    """Render a song dict to a full standalone target-look HTML page."""
+def _song_inner_html(song, dictionary="per_voicing", inline_diagrams=False, bars_per_line=4):
+    """The per-song body markup (title + composer + dictionary + body), no <style>.
+
+    Shared by render_song (standalone page) and render_songbook (one doc, many songs)
+    so both produce identical inner markup.
+    """
     sections = song.get("sections", [])
     title = _html.escape(song.get("title") or "")
     composer = _html.escape(", ".join(song.get("composers") or []))
     return (
-        "<!doctype html><html><head><meta charset=\"utf-8\">"
-        f"<title>{title}</title><style>{_CSS}</style></head>"
-        '<body><div class="page">'
         f"<h1>{title}</h1><div class=\"composer\">{composer}</div>"
         f"{_dictionary_html(sections, dictionary)}"
         f"{_body_html(sections, inline_diagrams, bars_per_line)}"
+    )
+
+
+def render_song(song, dictionary="per_voicing", inline_diagrams=False, bars_per_line=4):
+    """Render a song dict to a full standalone target-look HTML page."""
+    title = _html.escape(song.get("title") or "")
+    inner = _song_inner_html(song, dictionary=dictionary,
+                             inline_diagrams=inline_diagrams, bars_per_line=bars_per_line)
+    return (
+        "<!doctype html><html><head><meta charset=\"utf-8\">"
+        f"<title>{title}</title><style>{_CSS}</style></head>"
+        '<body><div class="page">'
+        f"{inner}"
         "</div></body></html>"
+    )
+
+
+# Extra CSS only the songbook needs: a page break before every song after the first,
+# and a simple table-of-contents at the top.
+_SONGBOOK_CSS = """
+.song { break-before: page; background:#fff; max-width:820px; margin:1.5rem auto;
+  padding:2.4rem 2.6rem 3rem; box-shadow:0 1px 6px rgba(0,0,0,.12); }
+.song:first-of-type { break-before: auto; }
+.toc { max-width:820px; margin:1.5rem auto; background:#fff;
+  padding:2rem 2.6rem; box-shadow:0 1px 6px rgba(0,0,0,.12); }
+.toc h1 { margin-bottom:1rem; }
+.toc ol { font-family:Georgia,serif; font-size:1rem; line-height:1.6; }
+"""
+
+
+def render_songbook(songs, title="", dictionary="per_voicing",
+                    inline_diagrams=False, bars_per_line=4):
+    """Render many song dicts into ONE standalone HTML document.
+
+    One shared <style> block; an optional title + table-of-contents at the top;
+    each song as a <section class="song"> (its own title/dictionary/body). A page
+    break is inserted before every song after the first (.song{break-before:page}).
+    """
+    head_title = _html.escape(title or "Songbook")
+    toc_items = "".join(
+        f"<li>{_html.escape(s.get('title') or '')}</li>" for s in songs
+    )
+    toc = ""
+    if songs:
+        heading = f"<h1>{_html.escape(title)}</h1>" if title else ""
+        toc = f'<div class="toc">{heading}<ol>{toc_items}</ol></div>'
+
+    sections_html = "".join(
+        '<section class="song">'
+        + _song_inner_html(s, dictionary=dictionary,
+                           inline_diagrams=inline_diagrams, bars_per_line=bars_per_line)
+        + "</section>"
+        for s in songs
+    )
+    return (
+        "<!doctype html><html><head><meta charset=\"utf-8\">"
+        f"<title>{head_title}</title><style>{_CSS}{_SONGBOOK_CSS}</style></head>"
+        "<body>"
+        f"{toc}"
+        f"{sections_html}"
+        "</body></html>"
     )

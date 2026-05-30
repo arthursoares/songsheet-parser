@@ -59,6 +59,21 @@ def test_stray_key_on_song_is_rejected():
         jsonschema.validate(doc, schema)
 
 
+def test_song_note_string_is_valid():
+    schema = load_schema()
+    doc = json.loads(FIXTURE.read_text())
+    doc["songs"][0]["note"] = "remember to check bar 4 voicing"
+    jsonschema.validate(doc, schema)  # must not raise
+
+
+def test_song_note_non_string_is_rejected():
+    schema = load_schema()
+    doc = json.loads(FIXTURE.read_text())
+    doc["songs"][0]["note"] = 42  # not a string
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(doc, schema)
+
+
 def test_document_status_enum():
     schema = load_schema()
     doc = json.loads(FIXTURE.read_text())

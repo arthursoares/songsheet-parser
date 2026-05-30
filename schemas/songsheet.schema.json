@@ -65,6 +65,7 @@
           "composers": { "type": "array", "items": { "type": "string" } },
           "pages": { "type": "array", "items": { "type": "integer" } },
           "key": { "type": ["string", "null"] },
+          "note": { "type": "string", "description": "Free-form per-song reviewer note" },
           "chords": {
             "type": "object",
             "description": "Optional, parser-generated index: name -> distinct voicings seen",

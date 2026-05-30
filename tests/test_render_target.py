@@ -118,6 +118,20 @@ def test_render_song_inline_diagrams_toggle():
     assert with_inline.count("<svg") > no_inline.count("<svg")
 
 
+def test_render_songbook_one_doc_many_songs():
+    songA = {"title": "Song A", "sections": [{"label": None, "bars": [
+        [{"chord": "Dm7", "voicing": "x,5,7,5,6,x", "text": "a"}],
+    ]}]}
+    songB = {"title": "Song B", "sections": [{"label": None, "bars": [
+        [{"chord": "G7", "voicing": "3,5,3,4,3,3", "text": "b"}],
+    ]}]}
+    out = rt.render_songbook([songA, songB], title="Album")
+    assert out.count("<style>") == 1            # exactly one style block
+    assert "Song A" in out and "Song B" in out  # both titles present
+    assert "break-before: page" in out          # page break between songs
+    assert out.count('class="song"') == 2       # each song is its own section
+
+
 def test_dictionary_is_alphabetical():
     sections = [{"label": None, "bars": [
         [{"chord": "Gm7", "voicing": "3,x,3,3,3,x"}],

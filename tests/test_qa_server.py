@@ -145,6 +145,84 @@ def test_chordmark_rejects_path_traversal(tmp_path):
     assert status == 400
 
 
+def test_export_chordmark(tmp_path):
+    root = _corpus(tmp_path)
+    result = S.handle(
+        "GET", "/api/export/1-album/01-song-one.json?fmt=chordmark", b"", root)
+    status, ctype, body = result[0], result[1], result[2]
+    headers = result[3]
+    assert status == 200
+    assert ctype.startswith("text/plain")
+    assert b"Dm7" in body
+    assert ".chordmark" in headers["Content-Disposition"]
+    assert "attachment" in headers["Content-Disposition"]
+
+
+def test_export_chordpro(tmp_path):
+    root = _corpus(tmp_path)
+    result = S.handle(
+        "GET", "/api/export/1-album/01-song-one.json?fmt=chordpro", b"", root)
+    status, ctype, body = result[0], result[1], result[2]
+    headers = result[3]
+    assert status == 200
+    assert ctype.startswith("text/plain")
+    assert b"{title:" in body
+    assert b"[Dm7]" in body
+    assert ".chordpro" in headers["Content-Disposition"]
+    assert "attachment" in headers["Content-Disposition"]
+
+
+def test_render_doc_target(tmp_path):
+    root = _corpus(tmp_path)
+    doc = json.loads((root / "1-album" / "01-song-one.json").read_text())
+    status, ctype, body = S.handle(
+        "POST", "/api/render-doc?style=target&bars=4", json.dumps(doc).encode(), root)
+    assert status == 200
+    assert ctype == "text/html"
+    assert b'class="ln"' in body
+
+
+def test_render_doc_bad_json_400(tmp_path):
+    root = _corpus(tmp_path)
+    status, _, _ = S.handle("POST", "/api/render-doc?style=target", b"{not json", root)
+    assert status == 400
+
+
+def test_chordmark_doc(tmp_path):
+    root = _corpus(tmp_path)
+    doc = json.loads((root / "1-album" / "01-song-one.json").read_text())
+    status, ctype, body = S.handle(
+        "POST", "/api/chordmark-doc", json.dumps(doc).encode(), root)
+    assert status == 200
+    assert ctype.startswith("text/plain")
+    assert b"Dm7" in body
+
+
+def test_chordmark_doc_bad_json_400(tmp_path):
+    root = _corpus(tmp_path)
+    status, _, _ = S.handle("POST", "/api/chordmark-doc", b"{not json", root)
+    assert status == 400
+
+
+def test_export_html(tmp_path):
+    root = _corpus(tmp_path)
+    result = S.handle(
+        "GET", "/api/export/1-album/01-song-one.json?fmt=html&style=target", b"", root)
+    status, ctype, body = result[0], result[1], result[2]
+    headers = result[3]
+    assert status == 200
+    assert ctype == "text/html"
+    assert b"<!doctype html>" in body
+    assert ".html" in headers["Content-Disposition"]
+    assert "attachment" in headers["Content-Disposition"]
+
+
+def test_export_rejects_path_traversal(tmp_path):
+    root = _corpus(tmp_path)
+    status, _, _ = S.handle("GET", "/api/export/../x.json?fmt=html", b"", root)
+    assert status == 400
+
+
 def test_render_target_style(tmp_path):
     root = _corpus(tmp_path)
     status, ctype, body = S.handle(
