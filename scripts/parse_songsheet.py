@@ -69,9 +69,11 @@ CRITICAL RULES:
    ("%" = measure repeat: keep playing the previous chord.)
 
 4. LYRICS — "text" is the syllables sung from that chord's onset until the next
-   chord. Dashes in the source are SPACING ONLY: strip them and join syllables
-   with single spaces (e.g. printed "mi - nha" becomes "mi nha"). Omit "text"
-   for instrumental bars with no lyrics.
+   chord. PRESERVE word-continuation dashes: the source prints them as spacing
+   (e.g. "Vai mi - nha"). A syllable that CONTINUES its word ends with a trailing
+   hyphen; the LAST syllable of a word has none. Example: printed
+   "tris - te - za e" -> "tris- te- za e" (tristeza is one word, "e" is the next).
+   Separate complete words with a single space. Omit "text" for instrumental bars.
 
 5. Leave "chords" as an empty object {} — it is generated later, not by you.
 

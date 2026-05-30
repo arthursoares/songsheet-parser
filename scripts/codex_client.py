@@ -221,6 +221,31 @@ def codex_vision_json(
     return json.loads(_strip_json(text))
 
 
+def complete_text(
+    prompt: str,
+    model: str = DEFAULT_MODEL,
+    system: str = "You are a careful assistant.",
+    client: Optional[openai.OpenAI] = None,
+) -> str:
+    """Send a text-only prompt to the Codex backend and return the text reply.
+
+    Streams internally (the backend requires it), mirroring codex_vision_text but
+    with no image part.
+    """
+    client = client or make_client()
+    chunks: list[str] = []
+    for event in client.responses.create(
+        model=model,
+        input=[{"role": "user", "content": prompt}],
+        instructions=system,
+        store=False,
+        stream=True,
+    ):
+        if getattr(event, "type", None) == "response.output_text.delta":
+            chunks.append(event.delta)
+    return "".join(chunks)
+
+
 if __name__ == "__main__":
     # Smoke test: confirm credentials work with a trivial text round-trip.
     import sys
