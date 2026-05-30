@@ -46,6 +46,7 @@ function rerenderAll() {
   renderProvenance();
   renderBars();
   renderSongList();
+  if (state.activeView === "lyrics") renderLyrics();
   if (state.activeView === "review") renderReview();
   if (state.activeView === "dict") renderDict();
   if (state.activeView === "preview") renderPreview();
@@ -215,9 +216,14 @@ async function init() {
     }));
 
   $("tabBars").addEventListener("click", () => showView("bars"));
+  $("tabLyrics").addEventListener("click", () => showView("lyrics"));
   $("tabReview").addEventListener("click", () => showView("review"));
   $("tabDict").addEventListener("click", () => showView("dict"));
   $("tabPreview").addEventListener("click", () => showView("preview"));
+  $("tabJson").addEventListener("click", () => showView("json"));
+  $("jsonApply").addEventListener("click", jsonApply);
+  $("jsonReload").addEventListener("click", jsonReload);
+  $("jsonFormat").addEventListener("click", jsonFormat);
   $("cmCopy").addEventListener("click", copyChordmark);
   ["pvStyle", "pvDict", "pvInline", "pvBars"].forEach((id) =>
     $(id).addEventListener("change", () => {
@@ -271,7 +277,9 @@ async function init() {
 // except ⌘S/Ctrl+S (Save) and Esc (close editor), which work everywhere.
 function onKeydown(ev) {
   const el = ev.target;
-  const typing = el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT");
+  const inCM = el && el.closest && el.closest(".CodeMirror");
+  const typing = !!inCM ||
+    (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT"));
 
   // ⌘S / Ctrl+S → Save (always)
   if ((ev.metaKey || ev.ctrlKey) && (ev.key === "s" || ev.key === "S")) {
@@ -726,21 +734,415 @@ async function save() {
   } else { status.textContent = "✗ " + res.error; status.style.color = "var(--bad)"; }
 }
 
+// ---- Lyrics view (PROTOTYPE) ----
+// A lyrics-first layout: each chord sits ABOVE the first syllable of the text
+// fragment it anchors to. Chords are draggable; syllables are drop targets.
+// Dropping a chord onto a syllable RE-ANCHORS it to that syllable.
+//
+// KNOWN LIMITATION (prototype): re-anchoring is scoped to WITHIN A SINGLE BAR.
+// On drop we treat the bar as (syllables[] = concatenated entry texts) plus a
+// (chord -> syllable-index) map, move the dragged chord to the target syllable,
+// then rebuild the bar's entries so each chord owns the run of syllables from
+// its index up to the next chord's index. Voicings are preserved per chord.
+// Cross-bar drops are detected and no-op gracefully.
+
+// Tokenize an entry's text into syllable/word tokens (split on whitespace).
+function lySyllables(text) {
+  if (!text) return [];
+  return String(text).split(/\s+/).filter((s) => s.length);
+}
+
+// Build a flat model of one bar for re-anchoring:
+//   syllables: [{text}], chords: [{chord, voicing, idx}] where idx is the
+//   syllable index the chord anchors to. Instrumental entries (no text) anchor
+//   to the syllable index at their position (a synthetic empty-run boundary).
+function lyBarModel(bar) {
+  const syllables = [];
+  const chords = [];
+  bar.forEach((e) => {
+    const syls = lySyllables(e.text);
+    const idx = syllables.length;
+    chords.push({ chord: e.chord, voicing: e.voicing, idx });
+    syls.forEach((s) => syllables.push({ text: s }));
+  });
+  return { syllables, chords };
+}
+
+// Rebuild a bar's entry array from a {syllables, chords} model after a move.
+// Each chord owns syllables [idx, nextChord.idx); text is the run joined by
+// spaces (omitted when empty). Chords are kept in ascending idx order; ties
+// keep their existing relative order (stable).
+function lyRebuildBar(model) {
+  const chords = model.chords
+    .map((c, i) => ({ ...c, _o: i }))
+    .sort((a, b) => a.idx - b.idx || a._o - b._o);
+  return chords.map((c, i) => {
+    const next = i + 1 < chords.length ? chords[i + 1].idx : model.syllables.length;
+    const run = model.syllables.slice(c.idx, Math.max(c.idx, next))
+      .map((s) => s.text).join(" ");
+    const entry = { chord: c.chord };
+    if (c.voicing) entry.voicing = c.voicing;
+    if (run) entry.text = run;
+    return entry;
+  });
+}
+
+// Perform the re-anchor: move chord at chordPos within the bar to target
+// syllable index, rebuild entries, mutate state.doc.
+function lyReanchor(si, bi, chordPos, targetSylIdx) {
+  const bar = song().sections[si].bars[bi];
+  const model = lyBarModel(bar);
+  if (chordPos < 0 || chordPos >= model.chords.length) return;
+  const clamped = Math.max(0, Math.min(targetSylIdx, model.syllables.length));
+  if (model.chords[chordPos].idx === clamped) return; // no change
+  pushUndo();
+  model.chords[chordPos].idx = clamped;
+  song().sections[si].bars[bi] = lyRebuildBar(model);
+  markDirty();
+  renderLyrics();
+}
+
+// Currently-dragged chord descriptor (set on dragstart, read on drop).
+let lyDrag = null;
+
+function renderLyrics() {
+  const root = $("lyrics");
+  if (!root) return;
+  if (!state.doc) { root.innerHTML = `<div class="empty">No song loaded.</div>`; return; }
+  root.innerHTML = "";
+  const hint = document.createElement("div");
+  hint.className = "ly-hint";
+  hint.textContent = "Drag a chord onto a syllable to re-anchor it (within its bar). ⌘Z undoes.";
+  root.appendChild(hint);
+
+  song().sections.forEach((sec, si) => {
+    const secEl = document.createElement("div");
+    secEl.className = "ly-section";
+    const lab = document.createElement("div");
+    lab.className = "ly-seclabel";
+    lab.textContent = sec.label || `Section ${si + 1}`;
+    secEl.appendChild(lab);
+
+    const line = document.createElement("div");
+    line.className = "ly-line";
+    const bars = sec.bars || [];
+    if (!bars.length) {
+      const e = document.createElement("span");
+      e.className = "ly-text empty";
+      e.textContent = "(empty section)";
+      line.appendChild(e);
+    }
+    bars.forEach((bar, bi) => {
+      if (bi > 0) {
+        const sep = document.createElement("span");
+        sep.className = "ly-barsep";
+        sep.textContent = "|";
+        line.appendChild(sep);
+      }
+      line.appendChild(renderLyBar(si, bi, bar));
+    });
+    secEl.appendChild(line);
+    root.appendChild(secEl);
+  });
+}
+
+// Render one bar as a sequence of syllable columns, each optionally topped by
+// the chord(s) anchored to its first syllable. chordPos is the chord's position
+// within the bar (its index in the bar's entry array), used by re-anchor.
+function renderLyBar(si, bi, bar) {
+  const wrap = document.createElement("span");
+  wrap.className = "ly-bar";
+
+  // Map each entry to {chord, voicing, syls, chordPos}. The chord shows over the
+  // first syllable; remaining syllables render as bare columns under no chord.
+  let anySyl = false;
+  bar.forEach((e, chordPos) => {
+    const syls = lySyllables(e.text);
+    if (syls.length) {
+      anySyl = true;
+      syls.forEach((syl, k) => {
+        wrap.appendChild(makeSyl(si, bi, syl,
+          k === 0 ? { chord: e.chord, voicing: e.voicing, chordPos } : null,
+          // drop target syllable index within the bar's flat syllable list:
+          sylIndexInBar(bar, chordPos, k)));
+      });
+    } else {
+      // instrumental / textless entry — standalone chord token, droppable too
+      wrap.appendChild(makeSyl(si, bi, "",
+        { chord: e.chord, voicing: e.voicing, chordPos, inst: true },
+        sylIndexInBar(bar, chordPos, 0)));
+    }
+  });
+  if (!anySyl && !bar.length) {
+    const empty = document.createElement("span");
+    empty.className = "ly-text empty";
+    empty.textContent = "·";
+    wrap.appendChild(empty);
+  }
+  return wrap;
+}
+
+// Flat syllable index (within the bar) of the k-th syllable of entry chordPos.
+function sylIndexInBar(bar, chordPos, k) {
+  let idx = 0;
+  for (let i = 0; i < chordPos; i++) idx += lySyllables(bar[i].text).length;
+  return idx + k;
+}
+
+// Build a syllable column. `chord` (or null) renders a draggable token above;
+// the column itself is a drop target carrying its flat syllable index.
+function makeSyl(si, bi, sylText, chord, sylIdx) {
+  const col = document.createElement("span");
+  col.className = "ly-syl";
+
+  if (chord) {
+    const tok = document.createElement("span");
+    const isPct = chord.chord === "%";
+    tok.className = "ly-chord" + (isPct ? " pct" : "") + (chord.inst ? " inst" : "");
+    tok.textContent = chord.chord;
+    if (chord.voicing) tok.title = chord.voicing;
+    tok.draggable = true;
+    tok.addEventListener("dragstart", (ev) => {
+      lyDrag = { si, bi, chordPos: chord.chordPos };
+      tok.classList.add("dragging");
+      if (ev.dataTransfer) {
+        ev.dataTransfer.effectAllowed = "move";
+        ev.dataTransfer.setData("text/plain", chord.chord);
+      }
+    });
+    tok.addEventListener("dragend", () => {
+      tok.classList.remove("dragging");
+      lyDrag = null;
+    });
+    col.appendChild(tok);
+  } else {
+    const spacer = document.createElement("span");
+    spacer.className = "ly-chordrow-spacer";
+    col.appendChild(spacer);
+  }
+
+  const txt = document.createElement("span");
+  if (chord && chord.inst) {
+    txt.className = "ly-text ly-inst";
+    txt.textContent = "—";
+  } else {
+    txt.className = "ly-text";
+    txt.textContent = sylText || "·";
+  }
+  col.appendChild(txt);
+
+  // Drop target: re-anchor the dragged chord onto this syllable (same bar only).
+  col.addEventListener("dragover", (ev) => {
+    if (!lyDrag) return;
+    ev.preventDefault();
+    if (ev.dataTransfer) ev.dataTransfer.dropEffect =
+      (lyDrag.si === si && lyDrag.bi === bi) ? "move" : "none";
+    col.classList.add("drop-ok");
+  });
+  col.addEventListener("dragleave", () => col.classList.remove("drop-ok"));
+  col.addEventListener("drop", (ev) => {
+    ev.preventDefault();
+    col.classList.remove("drop-ok");
+    if (!lyDrag) return;
+    const d = lyDrag;
+    lyDrag = null;
+    if (d.si !== si || d.bi !== bi) return; // cross-bar: no-op (prototype scope)
+    lyReanchor(si, bi, d.chordPos, sylIdx);
+  });
+
+  return col;
+}
+
 // ---- Dictionary view ----
 
 function showView(which) {
   state.activeView = which;
   $("bars").classList.toggle("hidden", which !== "bars");
+  $("lyrics").classList.toggle("hidden", which !== "lyrics");
   $("review").classList.toggle("hidden", which !== "review");
   $("dict").classList.toggle("hidden", which !== "dict");
   $("preview").classList.toggle("hidden", which !== "preview");
+  $("json").classList.toggle("hidden", which !== "json");
   $("tabBars").classList.toggle("active", which === "bars");
+  $("tabLyrics").classList.toggle("active", which === "lyrics");
   $("tabReview").classList.toggle("active", which === "review");
   $("tabDict").classList.toggle("active", which === "dict");
   $("tabPreview").classList.toggle("active", which === "preview");
+  $("tabJson").classList.toggle("active", which === "json");
+  if (which === "lyrics") renderLyrics();
   if (which === "review") renderReview();
   if (which === "dict") renderDict();
   if (which === "preview") renderPreview();
+  if (which === "json") renderJson();
+}
+
+// ---- Raw JSON editor tab (CodeMirror 5) ----
+// A CodeMirror instance backs the JSON tab: 2-space soft tabs, syntax coloring,
+// and a custom live JSON linter (gutter markers + inline squiggle) that runs as
+// you type. The existing Apply-time shape guard is unchanged. We mirror the
+// editor's text into the hidden #jsonSource textarea so any legacy reader still
+// works, but jsonGet()/jsonSet() are the canonical accessors.
+let jsonCM = null;
+
+// Derive a {line, ch} CodeMirror position from a JSON.parse error message.
+// V8 reports "... at position N", Firefox reports "line L column C".
+function jsonErrPos(cm, msg) {
+  let m = /line (\d+) column (\d+)/i.exec(msg);
+  if (m) return { line: Math.max(0, +m[1] - 1), ch: Math.max(0, +m[2] - 1) };
+  m = /position (\d+)/i.exec(msg);
+  if (m) return cm.posFromIndex(+m[1]);
+  return { line: 0, ch: 0 };
+}
+
+// Custom CM lint helper: parse the text; on failure return one error annotation
+// at the derived position (covering to end-of-line so it's visible).
+function jsonLinter(text) {
+  if (!text.trim()) return [];
+  try { JSON.parse(text); return []; }
+  catch (e) {
+    const msg = String(e.message || e);
+    const cm = jsonCM;
+    const from = cm ? jsonErrPos(cm, msg) : { line: 0, ch: 0 };
+    const to = cm
+      ? { line: from.line, ch: (cm.getLine(from.line) || "").length }
+      : { line: from.line, ch: from.ch + 1 };
+    return [{ from, to, message: msg, severity: "error" }];
+  }
+}
+
+// Lazily build the CodeMirror instance over #jsonEditor.
+function ensureJsonCM() {
+  if (jsonCM || typeof CodeMirror === "undefined") return jsonCM;
+  CodeMirror.registerHelper("lint", "json", jsonLinter);
+  jsonCM = CodeMirror($("jsonEditor"), {
+    value: "",
+    mode: { name: "javascript", json: true },
+    theme: "material-darker",
+    lineNumbers: true,
+    tabSize: 2,
+    indentUnit: 2,
+    indentWithTabs: false,
+    smartIndent: true,
+    matchBrackets: true,
+    autoCloseBrackets: true,
+    styleActiveLine: false,
+    lint: { getAnnotations: jsonLinter, async: false, lintOnChange: true, delay: 250 },
+    gutters: ["CodeMirror-lint-markers", "CodeMirror-linenumbers"],
+    extraKeys: {
+      // 2-space soft tab; indent a multi-line selection.
+      Tab(cm) {
+        if (cm.somethingSelected()) cm.indentSelection("add");
+        else cm.replaceSelection("  ", "end");
+      },
+      "Shift-Tab"(cm) { cm.indentSelection("subtract"); },
+      // ⌘S / Ctrl+S → Save (let our global handler not be needed inside CM).
+      "Cmd-S"(cm) { save(); },
+      "Ctrl-S"(cm) { save(); },
+    },
+  });
+  // Live validity feedback as the user types (debounced ~250ms), in addition to
+  // the gutter lint markers. Mirror text into the hidden textarea.
+  let t = null;
+  jsonCM.on("change", () => {
+    $("jsonSource").value = jsonCM.getValue();
+    if (t) clearTimeout(t);
+    t = setTimeout(jsonValidateLive, 250);
+  });
+  return jsonCM;
+}
+
+// Canonical text accessors (CM if present, else the textarea fallback).
+function jsonGet() { return jsonCM ? jsonCM.getValue() : $("jsonSource").value; }
+function jsonSet(text) {
+  if (jsonCM) jsonCM.setValue(text);
+  $("jsonSource").value = text;
+}
+
+// Debounced validity readout shown in #jsonMsg while typing.
+function jsonValidateLive() {
+  const text = jsonGet();
+  if (!text.trim()) { jsonMsg("", ""); return; }
+  try {
+    JSON.parse(text);
+    jsonMsg("valid ✓", "ok");
+  } catch (e) {
+    const msg = String(e.message || e);
+    const pos = jsonCM ? jsonErrPos(jsonCM, msg) : { line: 0, ch: 0 };
+    jsonMsg(`invalid — ${msg} (line ${pos.line + 1}, col ${pos.ch + 1})`, "err");
+  }
+}
+
+// Populate the editor from the CURRENT in-memory document so it reflects
+// unsaved edits made in other tabs. Refresh CM (it mis-measures while hidden).
+function renderJson() {
+  ensureJsonCM();
+  if (!state.doc) { jsonSet(""); jsonMsg("", ""); if (jsonCM) jsonCM.refresh(); return; }
+  jsonSet(JSON.stringify(state.doc, null, 2));
+  jsonMsg("", "");
+  if (jsonCM) setTimeout(() => jsonCM.refresh(), 0);
+}
+
+function jsonMsg(text, cls) {
+  const el = $("jsonMsg");
+  el.textContent = text;
+  el.className = cls || "muted";
+}
+
+// Reload: repopulate from state.doc, discarding editor edits.
+function jsonReload() {
+  if (!state.doc) { jsonSet(""); jsonMsg("", ""); return; }
+  jsonSet(JSON.stringify(state.doc, null, 2));
+  jsonMsg("", "");
+}
+
+// Format: pretty-print the editor text if it parses; otherwise show the error
+// and leave the text untouched.
+function jsonFormat() {
+  let parsed;
+  try {
+    parsed = JSON.parse(jsonGet());
+  } catch (e) {
+    jsonMsg(String(e.message || e), "err");
+    return;
+  }
+  jsonSet(JSON.stringify(parsed, null, 2));
+  jsonMsg("formatted ✓", "ok");
+}
+
+// Apply: parse + shape-guard, then swap state.doc and re-render. If re-render
+// throws (structurally bad doc), restore the pre-apply snapshot so the app
+// can't be left broken. Does NOT save — Save persists + schema-validates.
+function jsonApply() {
+  if (!state.doc) return;
+  let parsed;
+  try {
+    parsed = JSON.parse(jsonGet());
+  } catch (e) {
+    jsonMsg(String(e.message || e), "err");
+    return;
+  }
+  const shapeOk = parsed && parsed.document && Array.isArray(parsed.songs)
+    && parsed.songs[0] && Array.isArray(parsed.songs[0].sections);
+  if (!shapeOk) {
+    jsonMsg("Bad shape: need { document, songs: [ { sections: [...] } ] }", "err");
+    return;
+  }
+  pushUndo();
+  state.doc = parsed;
+  state.sel = null;
+  $("editor").classList.remove("open");
+  markDirty();
+  try {
+    rerenderAll();
+  } catch (e) {
+    // Re-render failed on the new doc — roll back to the snapshot we just pushed.
+    state.doc = undoStack.pop();
+    state.sel = null;
+    try { rerenderAll(); } catch (e2) { /* best-effort recovery */ }
+    jsonMsg("Could not apply: " + String(e.message || e), "err");
+    return;
+  }
+  jsonMsg("applied ✓ — Save to persist", "ok");
 }
 
 // Review tab: worklist of every flagged chord in the current song. Click an

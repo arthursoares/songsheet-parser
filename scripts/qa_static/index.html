@@ -3,6 +3,9 @@
 <head>
 <meta charset="utf-8">
 <title>Songsheet QA</title>
+<link rel="stylesheet" href="vendor/codemirror/codemirror.min.css">
+<link rel="stylesheet" href="vendor/codemirror/material-darker.min.css">
+<link rel="stylesheet" href="vendor/codemirror/lint.min.css">
 <style>
   :root{
     --bg:#0f1115; --bg-deep:#0c0e12; --panel:#171a21; --panel-2:#1e222b;
@@ -121,6 +124,11 @@
   .cmsplit{display:flex;gap:8px;height:calc(100vh - 140px)}
   #cmSource{width:42%;height:100%;box-sizing:border-box;background:var(--bg-deep);color:#cfe3d8;border:1px solid var(--border);border-radius:8px;padding:10px;font:12px/1.55 ui-monospace,monospace;resize:none;white-space:pre;tab-size:2}
   #cmSource.hidden{display:none}
+  #json{display:flex;flex-direction:column;height:calc(100vh - 100px)}
+  #json .row{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+  #jsonMsg.err{color:var(--bad)}
+  #jsonMsg.ok{color:var(--ok)}
+  #jsonSource{flex:1;width:100%;box-sizing:border-box;background:var(--bg-deep);color:#cfe3d8;border:1px solid var(--border);border-radius:8px;padding:10px;font:12px/1.55 ui-monospace,monospace;resize:none;white-space:pre;tab-size:2;overflow:auto}
   #previewFrame{flex:1;height:100%;border:1px solid var(--border);border-radius:8px;background:var(--paper)}
   .drow{border:1px solid var(--border);border-radius:8px;padding:8px;margin-bottom:8px;background:var(--panel)}
   .drow.sel{border-color:var(--accent)}
@@ -147,6 +155,41 @@
   .ed-actions{display:flex;gap:8px;margin-top:16px}
   .ed-actions button{flex:1;border-radius:6px;padding:9px;border:1px solid var(--border);background:var(--panel);color:var(--text);cursor:pointer}
   .ed-actions .apply{background:var(--accent);color:var(--accent-ink);border:0;font-weight:600}
+  /* JSON tab — CodeMirror editor (dark, palette-matched) */
+  #jsonEditor{flex:1;min-height:0;border:1px solid var(--border);border-radius:8px;overflow:hidden}
+  #jsonEditor .CodeMirror{height:100%;font:12px/1.55 ui-monospace,monospace;background:var(--bg-deep);color:#cfe3d8}
+  #jsonEditor .CodeMirror-gutters{background:var(--panel);border-right:1px solid var(--border)}
+  #jsonEditor .CodeMirror-linenumber{color:var(--muted)}
+  #jsonEditor .CodeMirror-cursor{border-left:1px solid var(--text)}
+  #jsonEditor .CodeMirror-selected{background:var(--sel)}
+  #jsonEditor .cm-string{color:#9ece6a}
+  #jsonEditor .cm-number{color:#e0af68}
+  #jsonEditor .cm-atom{color:#bb9af7}
+  #jsonEditor .cm-property,#jsonEditor .cm-string.cm-property{color:#7aa2f7}
+  #jsonEditor .cm-punctuation,#jsonEditor .cm-bracket{color:var(--muted)}
+  #jsonEditor .CodeMirror-lint-marker-error{cursor:pointer}
+  #jsonEditor .CodeMirror-lint-mark-error{text-decoration:wavy underline var(--bad)}
+  #jsonEditor .CodeMirror-activeline-background{background:#1a1f29}
+  /* Lyrics tab — chords-over-syllables, drag to re-anchor */
+  #lyrics{height:calc(100vh - 100px);overflow:auto;padding-bottom:40px}
+  .ly-hint{color:var(--muted);font-size:12px;margin-bottom:12px}
+  .ly-section{margin-bottom:22px}
+  .ly-seclabel{color:var(--muted);text-transform:uppercase;font-size:11px;letter-spacing:.08em;margin:0 0 10px}
+  .ly-line{display:flex;flex-wrap:wrap;align-items:flex-end;gap:2px;line-height:2.6}
+  .ly-bar{display:flex;flex-wrap:wrap;align-items:flex-end;gap:2px}
+  .ly-barsep{color:var(--border-2);font-size:18px;align-self:flex-end;margin:0 4px;user-select:none}
+  /* a syllable column: chord token stacked above the syllable text */
+  .ly-syl{position:relative;display:inline-flex;flex-direction:column;align-items:flex-start;padding:0 2px;border-radius:5px;min-height:2.4em;justify-content:flex-end}
+  .ly-syl.drop-ok{background:var(--sel);outline:1px dashed var(--accent)}
+  .ly-chord{align-self:flex-start;font-weight:700;font-size:13px;color:var(--accent);background:var(--chip);border:1px solid var(--border);border-radius:6px;padding:0 6px;margin-bottom:2px;cursor:grab;user-select:none;line-height:1.5}
+  .ly-chord.pct{color:var(--muted);opacity:.55;font-weight:500}
+  .ly-chord:hover{border-color:var(--accent)}
+  .ly-chord.dragging{opacity:.4}
+  .ly-chord.inst{cursor:grab}
+  .ly-chordrow-spacer{height:1.5em}
+  .ly-text{font-size:15px;white-space:pre}
+  .ly-text.empty{color:var(--muted)}
+  .ly-inst{font-style:italic;color:var(--muted)}
 </style>
 </head>
 <body>
@@ -193,11 +236,14 @@
   <div class="col right">
     <div class="viewtabs">
       <button id="tabBars" class="tab active">Bars</button>
+      <button id="tabLyrics" class="tab">Lyrics</button>
       <button id="tabReview" class="tab">Review</button>
       <button id="tabDict" class="tab">Dictionary</button>
       <button id="tabPreview" class="tab">Preview</button>
+      <button id="tabJson" class="tab">JSON</button>
     </div>
     <div id="bars"></div>
+    <div id="lyrics" class="hidden"></div>
     <div id="review" class="hidden"></div>
     <div id="dict" class="hidden"></div>
     <div id="preview" class="hidden">
@@ -233,11 +279,26 @@
         <iframe id="previewFrame"></iframe>
       </div>
     </div>
+    <div id="json" class="hidden">
+      <div class="row">
+        <button id="jsonApply" class="btn-primary">Apply to model</button>
+        <button id="jsonReload" class="tab">Reload from model</button>
+        <button id="jsonFormat" class="tab">Format</button>
+        <span id="jsonMsg" class="muted"></span>
+      </div>
+      <div id="jsonEditor"></div>
+      <textarea id="jsonSource" spellcheck="false" class="hidden"></textarea>
+    </div>
   </div>
 </div>
 <aside class="editor" id="editor"></aside>
 <script src="vendor/tonal.bundle.js"></script>
 <script src="vendor/chord-symbol.bundle.js"></script>
+<script src="vendor/codemirror/codemirror.min.js"></script>
+<script src="vendor/codemirror/javascript.min.js"></script>
+<script src="vendor/codemirror/lint.min.js"></script>
+<script src="vendor/codemirror/matchbrackets.min.js"></script>
+<script src="vendor/codemirror/closebrackets.min.js"></script>
 <script src="chord_naming.js"></script>
 <script src="fretboard.js"></script>
 <script src="diagram.js"></script>
