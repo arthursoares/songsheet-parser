@@ -95,3 +95,14 @@ def test_render_song_inline_diagrams_toggle():
     no_inline = rt.render_song(song, inline_diagrams=False)
     with_inline = rt.render_song(song, inline_diagrams=True)
     assert with_inline.count("<svg") > no_inline.count("<svg")
+
+
+def test_dictionary_is_alphabetical():
+    sections = [{"label": None, "bars": [
+        [{"chord": "Gm7", "voicing": "3,x,3,3,3,x"}],
+        [{"chord": "A7", "voicing": "x,0,2,0,2,0"}],
+        [{"chord": "Bdim7", "voicing": "x,2,3,1,3,x"}],
+        [{"chord": "Am7", "voicing": "x,0,2,0,1,0"}],
+    ]}]
+    names = [e["chord"] for e in rt.dictionary_entries(sections, mode="per_name")]
+    assert names == ["A7", "Am7", "Bdim7", "Gm7"]

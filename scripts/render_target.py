@@ -126,10 +126,18 @@ def _iter_entries(sections):
                 yield entry
 
 
-def dictionary_entries(sections, mode="per_voicing"):
-    """Distinct chord diagrams for the dictionary.
+def _dict_sort_key(entry):
+    """Alphabetical sort key for a dictionary entry: by chord name, then voicing.
 
-    per_voicing: one entry per distinct (chord, voicing), most-frequent first.
+    Case-insensitive on the name so e.g. A, Am, A7 group naturally.
+    """
+    return (entry["chord"].lower(), entry.get("voicing") or "")
+
+
+def dictionary_entries(sections, mode="per_voicing"):
+    """Distinct chord diagrams for the dictionary, alphabetically ordered.
+
+    per_voicing: one entry per distinct (chord, voicing).
     per_name:    one entry per chord name, using its most-common voicing.
     Entries without a voicing, and '%' held bars, are excluded.
     """
@@ -153,15 +161,9 @@ def dictionary_entries(sections, mode="per_voicing"):
             cur = best.get(e["chord"])
             if cur is None or e["count"] > cur["count"]:
                 best[e["chord"]] = e
-        seen, result = set(), []
-        for key in order:
-            name = counts[key]["chord"]
-            if name not in seen:
-                seen.add(name)
-                result.append(best[name])
-        return result
+        return sorted(best.values(), key=_dict_sort_key)
 
-    return [counts[key] for key in order]
+    return sorted(counts.values(), key=_dict_sort_key)
 
 
 import chordmark_render  # reuse phrase-grouping  # noqa: E402
