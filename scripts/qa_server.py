@@ -14,6 +14,8 @@ import json
 import re
 from pathlib import Path
 
+import jsonschema  # imported at startup so a save never fails on a lazy import
+
 SCRIPTS = Path(__file__).resolve().parent
 ROOT = SCRIPTS.parent
 SCHEMA_PATH = ROOT / "schemas" / "songsheet.schema.json"
@@ -133,8 +135,6 @@ def handle(method: str, path: str, body: bytes, root: Path):
 
 
 def save_song(target: Path, body: bytes):
-    import jsonschema
-
     try:
         doc = json.loads(body)
     except json.JSONDecodeError as e:
