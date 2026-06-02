@@ -149,6 +149,10 @@ to review each song beside its scan and fix name/voicing/lyric; reverse chord de
 validated through chord-symbol (the fork's parser), and saves are schema-checked. The song corpus and
 page images are git-ignored (copyright / personal-use song data).
 
+**Next major direction — harmonic analysis** (not yet implemented): a planned pure `scripts/harmony.py`
+engine, a `Harmony` tab in the QA tool, and corpus-insight reports. See
+`docs/superpowers/plans/2026-06-02-harmonic-analysis.md`.
+
 ## Conventions that bite
 
 - **`chord` directive, not `#chord`.** ChordMark output uses bare `chord <Name> <voicing>` dictionary

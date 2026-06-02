@@ -8,6 +8,9 @@ data/*/songs/*/pages/
 # Per-song corpus JSON is personal-use song data (kept local, like the scans).
 data/*/songs/
 
+# Throwaway prototypes / experiments (embed copyrighted song data — never commit)
+experiments/
+
 # Python
 __pycache__/
 *.pyc

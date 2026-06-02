@@ -72,6 +72,9 @@ per-occurrence. Lyrics carry word-continuation dashes (`tris- te- za e`). Schema
 - Multi-format extraction (pluggable format profiles) — planned; two samples analyzed (Lumiar/Caetano
   scanned songbook ≈ current pipeline; Rousseau digital chord-grid arrangement, lyric-less). See
   `docs/superpowers/plans/2026-05-30-multi-format-extraction.md`.
+- Harmonic analysis & visualization (engine + Harmony tab + corpus insights) — planned; experiments
+  validated (notes-first quality, cadence-based key, device/tonicization detection, interactive
+  harmony×lyrics + audio prototype). See `docs/superpowers/plans/2026-06-02-harmonic-analysis.md`.
 
 ### Deferred (QA tool roadmap)
 - **MusicXML export** (alongside PDF/PNG/HTML/.chordmark/ChordPro).
