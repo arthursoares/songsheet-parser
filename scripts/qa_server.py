@@ -230,6 +230,28 @@ def handle(method: str, path: str, body: bytes, root: Path):
             return _json(500, {"error": f"chordmark build failed: {e}"})
         return 200, "text/plain; charset=utf-8", text.encode()
 
+    # /api/harmony/{album}/{file}  -> harmonic analysis of a saved song
+    if parts[:2] == ["api", "harmony"] and len(parts) == 4 and method == "GET":
+        album, fname = parts[2], parts[3]
+        target = _safe_under(root, album, fname)
+        if target is None:
+            return _json(400, {"error": "bad path"})
+        if not target.exists():
+            return _json(404, {"error": "not found"})
+        try:
+            doc = json.loads(target.read_text())
+        except Exception as e:  # noqa: BLE001
+            return _json(500, {"error": f"bad song file: {e}"})
+        return harmony_doc(doc)
+
+    # /api/harmony-doc  -> harmonic analysis of a POSTed (unsaved) document
+    #   Live analysis of in-memory edits, same contract as /api/render-doc.
+    if path == "/api/harmony-doc" and method == "POST":
+        doc, err = _load_doc(body)
+        if err is not None:
+            return err
+        return harmony_doc(doc)
+
     # /api/render/{album}/{file}  -> ChordMark HTML rendered via the fork
     if parts[:2] == ["api", "render"] and len(parts) == 4 and method == "GET":
         album, fname = parts[2], parts[3]
@@ -421,6 +443,24 @@ def _render_album_songbook_html(album_dir: Path, album: str, params):
         return html, None
     except Exception as e:  # noqa: BLE001
         return None, _html_error(f"songbook render failed: {e}")
+
+
+def harmony_doc(doc):
+    """Harmonic analysis of a document dict, as a JSON response 3-tuple.
+
+    Analyzes songs[0] only, matching render_target_doc's multi-song behavior
+    (the corpus is one song per file; callers wanting another song slice the
+    doc before POSTing).
+    """
+    import harmony
+
+    songs = doc.get("songs", [])
+    if not songs:
+        return _json(400, {"error": "no songs in document"})
+    try:
+        return _json(200, harmony.analyze_song(songs[0]))
+    except Exception as e:  # noqa: BLE001
+        return _json(500, {"error": f"harmony analysis failed: {e}"})
 
 
 def _build_chordmark_doc(doc, bars_per_line=4) -> str:

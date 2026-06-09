@@ -231,3 +231,72 @@ def test_render_target_style(tmp_path):
     assert ctype == "text/html"
     assert b"<!doctype html>" in body
     assert b"Song One" in body
+
+
+# ---------------------------------------------------------------------------
+# /api/harmony — harmonic analysis (Phase B)
+# ---------------------------------------------------------------------------
+
+def test_harmony_get(tmp_path):
+    root = _corpus(tmp_path)
+    status, ctype, body = S.handle(
+        "GET", "/api/harmony/1-album/01-song-one.json", b"", root)
+    assert status == 200
+    assert ctype == "application/json"
+    data = json.loads(body)
+    assert set(data) == {"key", "events", "devices", "summary"}
+    assert data["events"][0]["symbol"] == "Dm7"
+    assert data["events"][0]["confidence"] in ("high", "medium", "low")
+
+
+def test_harmony_get_missing_404(tmp_path):
+    root = _corpus(tmp_path)
+    status, _, _ = S.handle("GET", "/api/harmony/1-album/nope.json", b"", root)
+    assert status == 404
+
+
+def test_harmony_rejects_path_traversal(tmp_path):
+    root = _corpus(tmp_path)
+    status, _, _ = S.handle("GET", "/api/harmony/../x.json", b"", root)
+    assert status == 400
+
+
+def test_harmony_doc_post(tmp_path):
+    root = _corpus(tmp_path)
+    doc = {"document": {"title": "t"},
+           "songs": [{"title": "s", "key": "C", "sections": [
+               {"label": None, "bars": [
+                   [{"chord": "Dm7"}], [{"chord": "G7"}], [{"chord": "Cmaj7"}]]}]}]}
+    status, ctype, body = S.handle(
+        "POST", "/api/harmony-doc", json.dumps(doc).encode(), root)
+    assert status == 200
+    data = json.loads(body)
+    assert data["key"]["tonic_name"] == "C" and data["key"]["how"] == "stored"
+    assert any(d["type"] == "ii-V-I" for d in data["devices"])
+
+
+def test_harmony_doc_bad_json_400(tmp_path):
+    root = _corpus(tmp_path)
+    status, _, _ = S.handle("POST", "/api/harmony-doc", b"{nope", root)
+    assert status == 400
+
+
+def test_harmony_doc_no_songs_400(tmp_path):
+    root = _corpus(tmp_path)
+    status, _, _ = S.handle(
+        "POST", "/api/harmony-doc", b'{"document": {"title": "t"}, "songs": []}', root)
+    assert status == 400
+
+
+def test_harmony_doc_analyzes_first_song_only(tmp_path):
+    root = _corpus(tmp_path)
+    doc = {"document": {"title": "t"},
+           "songs": [
+               {"title": "first", "sections": [
+                   {"label": None, "bars": [[{"chord": "C"}]]}]},
+               {"title": "second", "sections": [
+                   {"label": None, "bars": [[{"chord": "D"}], [{"chord": "E"}]]}]}]}
+    status, _, body = S.handle(
+        "POST", "/api/harmony-doc", json.dumps(doc).encode(), root)
+    assert status == 200
+    assert json.loads(body)["summary"]["events"] == 1  # songs[0] only
