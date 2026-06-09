@@ -248,6 +248,12 @@ async function init() {
     if (state.sel) openEditor(state.sel.si, state.sel.bi, state.sel.ei);
   });
 
+  // layout toggles (focus mode): hide the PDF-scan pane and/or the song list.
+  // Persisted in localStorage; `\` toggles the scan pane from the keyboard.
+  $("scanToggle").addEventListener("click", () => toggleLayoutPane("pages"));
+  $("songsToggle").addEventListener("click", () => toggleLayoutPane("songs"));
+  applyLayoutToggles();
+
   window.addEventListener("beforeunload", (e) => {
     if (state.dirty) { e.preventDefault(); e.returnValue = ""; }
   });
@@ -273,6 +279,25 @@ async function init() {
 
   fillSongs();
   loadSong();
+}
+
+// ---- layout focus mode ----
+// Hide the PDF-scan pane / song list to give the working pane the full width
+// (the three-pane layout gets cramped once lanes + panel are on screen).
+function applyLayoutToggles() {
+  const noPages = localStorage.getItem("qaHidePages") === "1";
+  const noSongs = localStorage.getItem("qaHideSongs") === "1";
+  const layout = document.querySelector(".layout");
+  layout.classList.toggle("no-pages", noPages);
+  layout.classList.toggle("no-songs", noSongs);
+  $("scanToggle").classList.toggle("active", !noPages);
+  $("songsToggle").classList.toggle("active", !noSongs);
+}
+
+function toggleLayoutPane(which) {
+  const key = which === "pages" ? "qaHidePages" : "qaHideSongs";
+  localStorage.setItem(key, localStorage.getItem(key) === "1" ? "0" : "1");
+  applyLayoutToggles();
 }
 
 // Global keyboard shortcuts. We ignore most keys while typing in a field,
@@ -307,6 +332,7 @@ function onKeydown(ev) {
   }
   if (typing || ev.metaKey || ev.ctrlKey || ev.altKey) return;
 
+  if (ev.key === "\\") { ev.preventDefault(); toggleLayoutPane("pages"); return; }
   if (ev.key === "n") { ev.preventDefault(); stepSong(+1); }
   else if (ev.key === "p") { ev.preventDefault(); stepSong(-1); }
   else if (ev.key === "]") { ev.preventDefault(); nextFlagged(); }

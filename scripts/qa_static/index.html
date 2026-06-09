@@ -27,6 +27,12 @@
   header select{background:var(--panel-2);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:5px}
   header .spacer{flex:1}
   .layout{display:grid;grid-template-columns:230px 1fr 1fr;height:calc(100vh - 49px)}
+  /* focus mode: hide the PDF-scan pane and/or the song list */
+  .layout.no-pages{grid-template-columns:230px 1fr}
+  .layout.no-pages .col.left{display:none}
+  .layout.no-songs{grid-template-columns:1fr 1fr}
+  .layout.no-songs .col.songs{display:none}
+  .layout.no-pages.no-songs{grid-template-columns:1fr}
   .col{overflow:auto;padding:14px}
   .col.left{border-right:1px solid var(--border);background:var(--bg-deep)}
   /* Songs sidebar */
@@ -272,10 +278,12 @@
     <option value="done">✓ done</option>
   </select>
   <span id="flagCount" class="muted"></span>
+  <button id="songsToggle" class="tab" title="show/hide the song list (focus mode)">☰ songs</button>
+  <button id="scanToggle" class="tab" title="show/hide the PDF scan pane (\)">⊞ scan</button>
   <button id="spellToggle" title="toggle note spelling" style="background:var(--panel-2);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:7px 14px;font-weight:600;cursor:pointer">♯ sharp</button>
   <span class="spacer"></span>
   <span id="saveStatus" class="muted"></span>
-  <span class="kbdhint" id="kbdHint" title="Keyboard shortcuts:&#10;⌘S / Ctrl+S — Save&#10;⌘Z / Ctrl+Z — Undo&#10;⌘⇧Z / Ctrl+Y — Redo&#10;Esc — close editor&#10;n / p — next / previous song&#10;] — next flagged chord&#10;Enter (in name field) — Apply">?</span>
+  <span class="kbdhint" id="kbdHint" title="Keyboard shortcuts:&#10;⌘S / Ctrl+S — Save&#10;⌘Z / Ctrl+Z — Undo&#10;⌘⇧Z / Ctrl+Y — Redo&#10;Esc — close editor&#10;n / p — next / previous song&#10;] — next flagged chord&#10;\ — toggle PDF scan pane&#10;Enter (in name field) — Apply">?</span>
   <button id="saveBtn" class="btn-primary">Save song</button>
 </header>
 <div class="layout">
