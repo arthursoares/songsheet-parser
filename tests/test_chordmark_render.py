@@ -140,3 +140,67 @@ def test_leading_percent_is_resolved_to_real_chord():
         assert not line.startswith("%"), f"chord line starts with %: {line!r}"
     # the resolved chord (Dm7 with its voicing) appears on the continued line
     assert "Dm7[x,5,7,5,6,x]" in out
+
+
+def test_render_song_emits_composer_and_key_declarations():
+    song = {
+        "title": "Chega de Saudade",
+        "composers": ["T. Jobim", "Vinicius de Moraes"],
+        "key": "Dm",
+        "chords": {},
+        "sections": [{"label": None, "bars": [[{"chord": "Dm7", "text": "Vai"}]]}],
+    }
+    out = cm.render_song(song)
+    lines = out.splitlines()
+    assert lines[0] == "composer T. Jobim, Vinicius de Moraes"
+    assert lines[1] == "key Dm"
+    assert lines[2] == ""  # blank line before the body
+
+
+def test_render_song_skips_invalid_key_and_empty_composers():
+    song = {
+        "title": "X",
+        "composers": [],
+        "key": "F#69",  # a misparsed chord, not a key
+        "chords": {},
+        "sections": [{"label": None, "bars": [[{"chord": "A"}]]}],
+    }
+    out = cm.render_song(song)
+    assert "composer" not in out
+    assert "key" not in out
+    assert out.startswith("A")
+
+
+def test_render_song_drops_empty_bars():
+    song = {
+        "title": "X",
+        "chords": {},
+        "sections": [
+            {"label": None, "bars": [[], [{"chord": "Dm7", "text": "Vai"}], []]}
+        ],
+    }
+    out = cm.render_song(song)
+    assert out == "Dm7\n_Vai\n"
+
+
+def test_normalize_chord_name_brazilian_tension_stacks():
+    cases = {
+        "E13,9": "E13",
+        "E13.9/D": "E13/D",
+        "A9,13": "A13",
+        "A13,♭9": "A13-9",
+        "E13,-9": "E13-9",
+        "A13,4": "A13sus4",
+        "C#4/9": "C#9sus4",
+        "Em4/79": "Em9sus4",
+        "A9/4": "A9sus4",
+        "A7/4/9": "A9sus4",
+        "G7/4": "G7sus4",
+        "F#m7-9": "F#m7b9",
+        "Bm7-9/F#": "Bm7b9/F#",
+        # the original rules still apply
+        "C7/9": "C9",
+        "C6/9": "C69",
+    }
+    for raw, expected in cases.items():
+        assert cm.normalize_chord_name(raw) == expected, raw

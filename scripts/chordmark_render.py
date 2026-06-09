@@ -25,6 +25,17 @@ def normalize_chord_name(name):
         return name
     out = re.sub(r"7/(9|11|13)", r"\1", name)   # C7/9 -> C9, Cm7/9 -> Cm9
     out = re.sub(r"6/9", "69", out)             # C6/9 -> C69
+    # Comma (or OCR-dot) tension stacks: the 13 already implies the 9.
+    out = re.sub(r"13[,.](♭9|b9|-9)", "13-9", out)  # E13,♭9 -> E13-9
+    out = re.sub(r"13[,.]9", "13", out)             # E13,9  -> E13
+    out = re.sub(r"9[,.]13", "13", out)             # A9,13  -> A13
+    out = re.sub(r"13[,.]4", "13sus4", out)         # A13,4  -> A13sus4
+    # Slash-4 means sus4 in this songbook (a bass note is always a letter,
+    # so a digit after '/' is never a real bass).
+    out = re.sub(r"7/4/9|4/79|9/4|4/9", "9sus4", out)  # C#4/9, A9/4 -> ...9sus4
+    out = re.sub(r"7/4", "7sus4", out)                 # G7/4 -> G7sus4
+    # chord-symbol accepts -9 on dominants but wants b9 on minor sevenths.
+    out = re.sub(r"m7-9", "m7b9", out)              # F#m7-9 -> F#m7b9
     return out
 
 
@@ -115,6 +126,25 @@ def _render_chord_definitions(chords_index):
 
 MAX_BARS_PER_LINE = 4
 
+# ChordMark `key` declarations accept a plain (minor) key only; corpus key
+# fields sometimes hold misparsed chord names ("F#69"), which we must not emit.
+KEY_RE = re.compile(r"^[A-G](#|b)?m?$")
+
+
+def _render_metadata(song):
+    """Emit `composer`/`key` declaration lines for the studio's page header."""
+    lines = []
+    composers = song.get("composers") or []
+    if isinstance(composers, str):
+        composers = [composers]
+    composers = [c for c in composers if c]
+    if composers:
+        lines.append("composer " + ", ".join(composers))
+    key = song.get("key")
+    if key and KEY_RE.match(key):
+        lines.append(f"key {key}")
+    return lines
+
 
 def _bar_has_lyric(bar):
     return any(e.get("text") for e in bar)
@@ -174,6 +204,11 @@ def render_song(song, bars_per_line=MAX_BARS_PER_LINE):
     """
     lines = []
 
+    metadata = _render_metadata(song)
+    if metadata:
+        lines.extend(metadata)
+        lines.append("")
+
     definitions = _render_chord_definitions(song.get("chords"))
     if definitions:
         lines.extend(definitions)
@@ -184,7 +219,11 @@ def render_song(song, bars_per_line=MAX_BARS_PER_LINE):
         label = section.get("label")
         if label:
             lines.append("#" + label)
-        for group in _group_bars(section.get("bars", []), bars_per_line):
+        # The vision parse sometimes leaves fully empty bars (no chord, no
+        # text), mostly leading pickup bars; ChordMark has no empty-bar token,
+        # so drop them rather than emit an unparseable line.
+        bars = [bar for bar in section.get("bars", []) if bar]
+        for group in _group_bars(bars, bars_per_line):
             group = _resolve_leading_percent(group, last_real)
             lines.append(" ".join(render_chord_line(bar) for bar in group))
             lyric_parts = [render_lyric_line(bar) for bar in group]
