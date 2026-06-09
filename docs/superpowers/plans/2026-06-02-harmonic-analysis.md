@@ -51,10 +51,10 @@
 ## Phase C — Harmony tab (frontend; port the prototype). Re-sequenced per review.
 The validated prototype (git-ignored, `experiments/harmonic-analysis/desde-viz.html`) is the UX target.
 - [x] **C1 base:** new `Harmony` tab; measures + chord cells + colour-coded Roman + lyrics from `/api/harmony` (holds as ties).
-- [ ] **C2 lanes:** continuous **tension contour** (SVG) + **bass lane** + **tonicization ribbon**.
-- [ ] **C3 devices+spotlight:** device brackets w/ **pedagogical tooltips**; **spotlight** chips (functions + device types) dim non-matching.
-- [ ] **C4 panel+confidence:** rich click panel (chord **diagram** from voicing + Roman/function + "why" + notes + devices + **confidence/discrepancy**); **confidence shading** on cells (consumes A7's confidence).
-- [ ] **C7 edit loop (BEFORE D1 — see below):** click a low-confidence/discrepancy chord → jump to the chord editor; **confirm/override the inferred key inline** (mutates the in-memory doc; persists via existing `POST /api/song`/`save_song`) → Roman numerals re-derive live. This is how the corpus gets confirmed keys.
+- [x] **C2 lanes:** continuous **tension contour** (SVG) + **bass lane** + **tonicization ribbon**.
+- [x] **C3 devices+spotlight:** device brackets w/ **pedagogical tooltips**; **spotlight** chips (functions + device types) dim non-matching.
+- [x] **C4 panel+confidence:** rich click panel (chord **diagram** from voicing + Roman/function + "why" + notes + devices + **confidence/discrepancy**); **confidence shading** on cells (consumes A7's confidence).
+- [x] **C7 edit loop (BEFORE D1 — see below):** click a low-confidence/discrepancy chord → jump to the chord editor; **confirm/override the inferred key inline** (mutates the in-memory doc; persists via existing `POST /api/song`/`save_song`) → Roman numerals re-derive live. This is how the corpus gets confirmed keys.
 - [ ] **C5 audio (DEFERRED until A/B/C1–C4 + C7 stable):** Web Audio playback, beat-accurate durations, continuously gliding playhead, sidebar-follows. (Logic already proven in the prototype — port it.)
 - [ ] **C6 circle-of-fifths (DEFERRED with C5):** current-root highlight + fading trace.
 

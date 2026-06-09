@@ -68,9 +68,13 @@ Single page end-to-end: render a PNG, run stage 2 then stage 3.
 - **Seven tabs:** Bars / Lyrics / Review / Dictionary / Harmony / Preview / JSON. Bars also does
   structural editing (add/delete bar, split/merge bar, add/delete section, inline section-label
   rename). Review is a worklist of flagged chords (name↔voicing mismatch or invalid name).
-  **Harmony** shows the live (unsaved) doc's harmonic analysis: function-colored chord cells with
-  Roman numerals, lyrics, `%` holds as ties, low-confidence/discrepancy markers, key + device
-  summary header (engine: `scripts/harmony.py`). Preview has a
+  **Harmony** shows the live (unsaved) doc's harmonic analysis (engine: `scripts/harmony.py`):
+  function-colored chord cells with Roman numerals + lyrics (`%` holds as ties, confidence
+  shading), tension/bass/tonicization lanes, device brackets with pedagogical tooltips,
+  spotlight chips (functions + devices dim non-matching), a rich click panel (diagram, why,
+  confidence/discrepancy, Edit-chord jump into the Bars editor — double-click does the same),
+  and an inline key-confirm bar (stores the inferred key on the song via the normal
+  undo/dirty/save path; Romans re-derive live). Preview has a
   **Source** toggle (shows the generated `.chordmark` beside the render) and the export buttons.
   **JSON** is a CodeMirror 5 editor over the raw song JSON (Tab indent / syntax coloring / live
   lint with line·col + gutter marker; Apply parse-guards + is undoable, Format / Reload).
@@ -160,11 +164,11 @@ normalization, voicing→pitch decoding, **notes-first** quality with an ambigui
 reconciliation + per-event confidence/discrepancy, cadence-based key with stored-key precedence,
 Roman numerals, function classification, device detectors — ii–V(–I), secondary dominants,
 tritone subs, chromatic-bass runs, maj7 tonics) feeds `GET /api/harmony` / `POST /api/harmony-doc`
-and the QA tool's **Harmony** tab (base view done). Symbol quality is derived by converting the
+and the QA tool's **Harmony** tab (C1–C4 + the C7 key-confirm edit loop done). Symbol quality is derived by converting the
 printed quality text to an interval set and running it through the same `quality_from_pitches`
 as the voicing path, so both paths share one naming vocabulary (incl. Brazilian forms: `7+5`,
-`7-9`, `13,9`, `479`, trailing `7+`/`7M` = maj7). Remaining: tab lanes/devices/panel/edit-loop
-(C2–C7), corpus report (D), prediction (E) — checkboxes in
+`7-9`, `13,9`, `479`, trailing `7+`/`7M` = maj7). Remaining: audio playback + circle-of-fifths
+(C5/C6, deferred by design), corpus report (D), prediction (E) — checkboxes in
 `docs/superpowers/plans/2026-06-02-harmonic-analysis.md`.
 
 ## Conventions that bite
