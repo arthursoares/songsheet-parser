@@ -448,17 +448,28 @@ function hmBuildBrackets() {
       for (const o of lanes) {
         if (o.y === y && !(x1 < o.x0 || x0 > o.x1)) lane = Math.max(lane, o.lane + 1);
       }
+      // the 44px row gap fits 3 lanes; anything deeper folds back onto lane 2
+      // (its label is dropped below so the pile-up stays legible)
+      const overflow = lane > 2;
+      if (overflow) lane = 2;
       lanes.push({ x0, x1, y, lane });
       const div = document.createElement("div");
       div.className = "hm-bracket";
       div.style.left = x0 + "px";
       div.style.width = Math.max(14, x1 - x0) + "px";
-      div.style.top = (y - 14 - lane * 15) + "px";
+      // lane 0 sits 13px above the cells, each extra lane climbs 12px;
+      // the label straddles the bracket's top edge
+      div.style.top = (y - 13 - lane * 12) + "px";
       const col = hmCss(HM_DEV_COLORS[d.type]);
       div.style.borderColor = col;
       div.dataset.devkey = d.type;
-      const label = d.target ? `${d.type.replace(/_/g, " ")} → ${d.target}`
-        : d.type.replace(/_/g, " ");
+      // compact labels — the full name lives in the hover tooltip
+      const label = {
+        "ii-V-I": `ii–V–I→${d.target || ""}`,
+        secondary_dominant: `V7/${d.target || "x"}`,
+        tritone_sub: `tritone→${d.target || ""}`,
+        chromatic_bass_run: "chrom bass",
+      }[d.type] || d.type;
       div.innerHTML = `<span class="hm-blab" style="color:${col}">${esc(label)}</span>`;
       const span = `${events[Math.min(...d.event_idxs)].symbol}…` +
         `${events[Math.max(...d.event_idxs)].symbol}`;
@@ -466,6 +477,12 @@ function hmBuildBrackets() {
       div.addEventListener("mousemove", (ev) => hmShowTip(ev, expl));
       div.addEventListener("mouseleave", hmHideTip);
       layer.appendChild(div);
+      // a label wider than its bracket would spill into the neighbours —
+      // drop the text (the tooltip still names the device)
+      const blab = div.firstChild;
+      if (overflow || blab.offsetWidth > Math.max(14, x1 - x0) + 16) {
+        blab.style.display = "none";
+      }
     }
     hmApplySpotlight();
   });
@@ -780,6 +797,15 @@ async function renderHarmony() {
       '<div class="muted" style="text-align:center;margin-top:40px">' +
       "click a chord — double-click (or Edit) jumps to the editor</div>";
     hmBuildBrackets();
+    // brackets are absolutely positioned from cell rects, so any late reflow
+    // (font metrics settling, scrollbar appearing) leaves them stale — rebuild
+    // once fonts are ready and again after the layout has settled
+    const mine = hmAnalysis;
+    const rebuild = () => {
+      if (state.activeView === "harmony" && hmAnalysis === mine) hmBuildBrackets();
+    };
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(rebuild);
+    setTimeout(rebuild, 400);
   } catch (e) {
     head.textContent = "analysis failed: " + e;
   }

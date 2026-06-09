@@ -205,7 +205,7 @@
   .hm-lane-title{color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.07em;padding:0 14px;margin:6px 0 2px}
   .hm-lanes svg{display:block;width:100%}
   .hm-main{display:grid;grid-template-columns:1fr 270px;gap:12px;align-items:start}
-  #hmScoreWrap{position:relative;padding-top:18px}
+  #hmScoreWrap{position:relative;padding-top:48px}
   #hmPanel{position:sticky;top:0;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:12px;min-height:120px}
   .hm-bigsym{font-size:26px;font-weight:700}
   .hm-rompanel{font-size:15px;margin:2px 0 6px}
@@ -221,12 +221,14 @@
   .hm-conf.medium{background:rgba(154,163,178,.12);border:1px solid var(--border)}
   .hm-conf.low{background:rgba(240,136,62,.14);border:1px solid var(--fn-dominant)}
   .hm-bracket{position:absolute;border:1.6px solid;border-bottom:none;border-radius:5px 5px 0 0;height:11px;cursor:help;pointer-events:auto}
-  .hm-blab{position:absolute;top:-13px;left:50%;transform:translateX(-50%);font-size:9px;white-space:nowrap;padding:0 3px;background:var(--bg);border-radius:3px}
+  .hm-blab{position:absolute;top:-7px;left:50%;transform:translateX(-50%);font-size:9px;line-height:1.2;white-space:nowrap;padding:0 3px;background:var(--bg);border-radius:3px}
   #hmTip{position:fixed;z-index:50;max-width:280px;background:var(--bg-deep);border:1px solid var(--border);border-radius:8px;padding:9px 11px;font-size:12px;color:var(--text);box-shadow:0 8px 24px rgba(0,0,0,.5);pointer-events:none;opacity:0;transition:opacity .1s}
   .hm-dim{opacity:.13}
   .hm-section{margin-bottom:16px}
-  .hm-seclabel{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px}
-  .hm-bars{display:flex;flex-wrap:wrap;gap:6px 4px;align-items:stretch}
+  .hm-seclabel{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:32px}
+  /* the 44px row gap is the home of the device brackets between systems
+     (sized for 3 stacked bracket lanes: chained ii-V-I cadences share cells) */
+  .hm-bars{display:flex;flex-wrap:wrap;gap:44px 4px;align-items:stretch}
   .hm-bar{display:flex;align-items:stretch;gap:3px;padding:0 4px;border-left:2px solid var(--border)}
   .hm-bar:last-child{border-right:2px solid var(--border)}
   .hm-cell{position:relative;min-width:54px;padding:5px 7px 6px;border-radius:7px;border:1px solid transparent;background:var(--panel-2);display:flex;flex-direction:column;justify-content:flex-start}
