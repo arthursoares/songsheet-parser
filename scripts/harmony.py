@@ -917,6 +917,20 @@ def _tonicization_spans(functions, moves, tonic_pc):
 # A7 — assemble
 # ---------------------------------------------------------------------------
 
+# Tension level by harmonic function (drives the Harmony tab's contour lane;
+# values validated in the prototype). '%' holds share their move's function,
+# so they carry the struck chord's tension automatically.
+TENSION = {
+    "tonic": 0.0,
+    "subdominant": 1.0,
+    "dominant": 2.0,
+    "secondary_dominant": 3.0,
+    "secondary_ii": 2.6,
+    "passing": 2.4,
+    "chromatic": 2.7,
+    "unknown": 1.5,
+}
+
 def analyze_song(song, beats_per_bar=DEFAULT_BEATS):
     """Full analysis of one song dict → annotated stream (A7).
 
@@ -969,6 +983,7 @@ def analyze_song(song, beats_per_bar=DEFAULT_BEATS):
             "section": ev["section"],
             "section_label": ev["section_label"],
             "bar": ev["bar"],
+            "bar_in_section": ev["bar_in_section"],
             "pos": ev["pos"],
             "beats": ev["beats"],
             "symbol": ev["symbol"],
@@ -987,6 +1002,7 @@ def analyze_song(song, beats_per_bar=DEFAULT_BEATS):
             "func_label": fn["label"],
             "why": fn["why"],
             "devices": devices_of_move.get(m_i, []),
+            "tension": TENSION.get(fn["function"], 1.5),
             "tonic_target": DEFAULT_PC_NAMES[target_pc] if target_pc is not None else None,
             "confidence": confidence_level(penalties),
             "discrepancy": c["discrepancy"],

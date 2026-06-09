@@ -457,10 +457,11 @@ class TestAnalyzeSong:
         result = analyze_song(self._fixture_song())
         assert set(result) == {"key", "events", "devices", "summary"}
         ev = result["events"][0]
-        for field in ("idx", "section", "bar", "beats", "symbol", "chord", "root",
+        for field in ("idx", "section", "bar", "bar_in_section", "beats", "symbol",
+                      "chord", "root",
                       "bass", "bass_physical", "quality", "quality_source", "notes",
                       "midis", "roman", "function", "func_label", "why", "devices",
-                      "tonic_target", "confidence", "discrepancy", "text"):
+                      "tension", "tonic_target", "confidence", "discrepancy", "text"):
             assert field in ev, field
         assert result["summary"]["events"] == len(result["events"])
         assert all(e["confidence"] in ("high", "medium", "low")
@@ -490,6 +491,20 @@ class TestAnalyzeSong:
         assert e1["is_percent"]
         assert e1["quality"] == e0["quality"] == "m7"
         assert e1["roman"] == e0["roman"]
+
+    def test_tension_levels_and_hold_carry(self):
+        song = _song([{"label": None, "bars": [
+            [{"chord": "Cmaj7"}],
+            [{"chord": "%"}],          # hold carries the tonic's tension
+            [{"chord": "Dm7"}],
+            [{"chord": "G7"}],
+            [{"chord": "Cmaj7"}],
+        ]}])
+        evs = analyze_song(song)["events"]
+        assert evs[0]["tension"] == 0.0       # tonic
+        assert evs[1]["tension"] == 0.0       # % hold shares the move
+        assert evs[2]["tension"] == 1.0       # subdominant
+        assert evs[3]["tension"] == 2.0       # dominant
 
     def test_tonicization_span(self):
         song = _song([{"label": None, "bars": _bars(
