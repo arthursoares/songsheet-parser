@@ -73,8 +73,11 @@ Single page end-to-end: render a PNG, run stage 2 then stage 3.
   shading), tension/bass/tonicization lanes, device brackets with pedagogical tooltips,
   spotlight chips (functions + devices dim non-matching), a rich click panel (diagram, why,
   confidence/discrepancy, Edit-chord jump into the Bars editor — double-click does the same),
-  and an inline key-confirm bar (stores the inferred key on the song via the normal
-  undo/dirty/save path; Romans re-derive live). Preview has a
+  an inline key-confirm bar (stores the inferred key on the song via the normal
+  undo/dirty/save path; Romans re-derive live), and a Web Audio **player** (▶ + tempo slider:
+  real voicings, beat-accurate, gliding playhead over the lanes, panel follows; stops on tab
+  switch). Header has **layout focus toggles** (☰ songs / ⊞ scan, `\` key) that collapse the
+  song list and/or PDF-scan pane when the three-pane layout gets cramped. Preview has a
   **Source** toggle (shows the generated `.chordmark` beside the render) and the export buttons.
   **JSON** is a CodeMirror 5 editor over the raw song JSON (Tab indent / syntax coloring / live
   lint with line·col + gutter marker; Apply parse-guards + is undoable, Format / Reload).
@@ -167,8 +170,8 @@ tritone subs, chromatic-bass runs, maj7 tonics) feeds `GET /api/harmony` / `POST
 and the QA tool's **Harmony** tab (C1–C4 + the C7 key-confirm edit loop done). Symbol quality is derived by converting the
 printed quality text to an interval set and running it through the same `quality_from_pitches`
 as the voicing path, so both paths share one naming vocabulary (incl. Brazilian forms: `7+5`,
-`7-9`, `13,9`, `479`, trailing `7+`/`7M` = maj7). Remaining: audio playback + circle-of-fifths
-(C5/C6, deferred by design), corpus report (D), prediction (E) — checkboxes in
+`7-9`, `13,9`, `479`, trailing `7+`/`7M` = maj7). Remaining: circle-of-fifths (C6),
+corpus report (D), prediction (E) — checkboxes in
 `docs/superpowers/plans/2026-06-02-harmonic-analysis.md`.
 
 ## Conventions that bite
