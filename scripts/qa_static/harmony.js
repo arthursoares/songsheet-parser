@@ -746,6 +746,101 @@ function hmStopPlayback() {
   if (cs) cs.innerHTML = "";
 }
 
+// ---- exports of the live (unsaved) analysis ----
+function hmExportStem() {
+  const f = state.file || "song";
+  return f.replace(/\.json$/, "") + "-harmony";
+}
+
+function hmExportFlash(msg) {
+  const s = document.getElementById("hmExportMsg");
+  s.textContent = msg;
+  if (msg) setTimeout(() => { if (s.textContent === msg) s.textContent = ""; }, 2500);
+}
+
+function hmDownloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+}
+
+function hmCsvCell(v) {
+  if (v == null) return "";
+  const s = Array.isArray(v) ? v.join("; ") : String(v);
+  return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+
+function hmAnalysisCsv(analysis) {
+  const cols = ["idx", "section", "section_label", "bar", "pos", "beats",
+    "symbol", "chord", "root", "bass", "bass_physical", "quality",
+    "quality_source", "roman", "function", "func_label", "devices", "tension",
+    "tonic_target", "confidence", "discrepancy", "text", "voicing", "notes",
+    "why"];
+  const lines = [cols.join(",")];
+  for (const e of analysis.events) {
+    lines.push(cols.map((c) => hmCsvCell(e[c])).join(","));
+  }
+  return lines.join("\n") + "\n";
+}
+
+// Standalone HTML snapshot of the current Harmony view: harvests the hm-*
+// rules + theme variables from the live stylesheet and freezes the score at
+// its current width (the brackets are absolutely positioned from cell rects,
+// so the layout must not reflow in the export).
+function hmSnapshotHtml() {
+  let css = "";
+  for (const sheet of document.styleSheets) {
+    let rules;
+    try { rules = sheet.cssRules; } catch (_) { continue; }
+    for (const r of rules) {
+      const sel = r.selectorText || "";
+      if (sel === ":root" || sel.includes(".hm-") || sel.includes("#hm") ||
+          sel.includes(".muted")) {
+        css += r.cssText + "\n";
+      }
+    }
+  }
+  const title = (song().title || "song") + " — harmonic analysis";
+  const width = document.getElementById("hmScoreWrap").offsetWidth;
+  const parts = ["hmHead", "hmLegend"];
+  let body = "";
+  for (const id of parts) body += document.getElementById(id).outerHTML;
+  body += document.querySelector("#harmony .hm-lanes").outerHTML;
+  body += document.getElementById("hmScoreWrap").outerHTML;
+  return "<!doctype html><html><head><meta charset=\"utf-8\">" +
+    `<title>${esc(title)}</title><style>${css}` +
+    "body{background:#0f1115;color:#e6e8ee;margin:0;padding:20px;" +
+    "font:14px/1.4 -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}" +
+    "h1{font-size:18px;margin:0 0 10px}" +
+    `.hm-wrap{width:${width}px}` +
+    "#hmCursorSvg{display:none}" +
+    `</style></head><body><h1>${esc(title)}</h1>` +
+    `<div class="hm-wrap">${body}</div></body></html>`;
+}
+
+async function hmExportPdf() {
+  hmExportFlash("converting…");
+  try {
+    const res = await fetch(`/api/convert?fmt=pdf&name=${encodeURIComponent(hmExportStem())}`, {
+      method: "POST",
+      headers: { "Content-Type": "text/html" },
+      body: hmSnapshotHtml(),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      hmExportFlash("export failed: " + (err.error || res.status));
+      return;
+    }
+    hmDownloadBlob(await res.blob(), hmExportStem() + ".pdf");
+    hmExportFlash("Exported ✓");
+  } catch (e) {
+    hmExportFlash("export failed: " + e);
+  }
+}
+
 let hmToolbarWired = false;
 function hmWireToolbar() {
   if (hmToolbarWired) return;
@@ -756,6 +851,26 @@ function hmWireToolbar() {
   tempo.oninput = () => {
     document.getElementById("hmTempoVal").textContent = tempo.value;
   };
+  const guard = (fn) => () => {
+    if (!hmAnalysis) { hmExportFlash("nothing analyzed yet"); return; }
+    fn();
+  };
+  document.getElementById("hmExportJson").onclick = guard(() => {
+    hmDownloadBlob(new Blob([JSON.stringify(hmAnalysis, null, 2)],
+      { type: "application/json" }), hmExportStem() + ".json");
+    hmExportFlash("Exported ✓");
+  });
+  document.getElementById("hmExportCsv").onclick = guard(() => {
+    hmDownloadBlob(new Blob([hmAnalysisCsv(hmAnalysis)],
+      { type: "text/csv" }), hmExportStem() + ".csv");
+    hmExportFlash("Exported ✓");
+  });
+  document.getElementById("hmExportHtml").onclick = guard(() => {
+    hmDownloadBlob(new Blob([hmSnapshotHtml()],
+      { type: "text/html" }), hmExportStem() + ".html");
+    hmExportFlash("Exported ✓");
+  });
+  document.getElementById("hmExportPdf").onclick = guard(hmExportPdf);
 }
 
 // ---- entry point, called by showView("harmony") ----
