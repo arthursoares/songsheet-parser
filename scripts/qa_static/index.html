@@ -17,6 +17,7 @@
     /* Harmony tab function colors (ported from the harmonic-analysis prototype) */
     --fn-tonic:#3fb950; --fn-subdominant:#6ea8fe; --fn-dominant:#f0883e;
     --fn-secondary:#9d8df1; --fn-passing:#5bb3a6; --fn-chromatic:#8a93a3;
+    --fn-chrombass:#c8a26b;
   }
   body{margin:0;font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:var(--text)}
   .muted{color:var(--muted);font-size:12px}
@@ -173,12 +174,42 @@
   #jsonEditor .CodeMirror-lint-marker-error{cursor:pointer}
   #jsonEditor .CodeMirror-lint-mark-error{text-decoration:wavy underline var(--bad)}
   #jsonEditor .CodeMirror-activeline-background{background:#1a1f29}
-  /* Harmony tab — measures of function-colored chord cells */
+  /* Harmony tab — measures of function-colored chord cells + lanes + panel */
   #harmony{height:calc(100vh - 100px);overflow:auto;padding-bottom:40px}
   .hm-head{color:var(--muted);font-size:12px;margin-bottom:8px;line-height:1.6}
+  .hm-keybar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
+  .hm-keybar:empty{display:none}
+  .hm-keybar select{background:var(--panel-2);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:5px}
+  .hm-keywarn{color:var(--fn-dominant);font-size:12px}
   .hm-legend{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:12px}
-  .hm-chip{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:20px;border:1px solid var(--border);background:var(--panel-2);font-size:12px;color:var(--text);user-select:none}
+  .hm-chip{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:20px;border:1px solid var(--border);background:var(--panel-2);font-size:12px;color:var(--text);user-select:none;cursor:pointer}
+  .hm-chip.dev{border-style:dashed}
+  .hm-chip.active{outline:2px solid var(--accent);outline-offset:1px}
+  .hm-sep{width:1px;background:var(--border);margin:0 4px;align-self:stretch}
   .hm-dot{width:9px;height:9px;border-radius:50%}
+  .hm-lanes{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:8px 0 4px;margin-bottom:14px}
+  .hm-lane-title{color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.07em;padding:0 14px;margin:6px 0 2px}
+  .hm-lanes svg{display:block;width:100%}
+  .hm-main{display:grid;grid-template-columns:1fr 270px;gap:12px;align-items:start}
+  #hmScoreWrap{position:relative;padding-top:18px}
+  #hmPanel{position:sticky;top:0;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:12px;min-height:120px}
+  .hm-bigsym{font-size:26px;font-weight:700}
+  .hm-rompanel{font-size:15px;margin:2px 0 6px}
+  .hm-whybox{background:var(--panel-2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:12px;margin:8px 0}
+  .hm-diagram{display:flex;justify-content:center;margin:8px 0 4px}
+  .hm-diagram svg{transform:scale(1.7);transform-origin:top center;margin-bottom:34px}
+  .hm-kv{display:flex;gap:8px;font-size:12px;margin:3px 0}
+  .hm-kv .k{color:var(--muted);min-width:64px}
+  .hm-tags{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
+  .hm-tag{font-size:10.5px;padding:2px 7px;border-radius:12px;border:1px solid var(--border);background:var(--panel-2)}
+  .hm-conf{margin-top:10px;padding:8px 10px;border-radius:8px;font-size:12px}
+  .hm-conf.high{background:rgba(63,185,80,.12);border:1px solid rgba(63,185,80,.4)}
+  .hm-conf.medium{background:rgba(154,163,178,.12);border:1px solid var(--border)}
+  .hm-conf.low{background:rgba(240,136,62,.14);border:1px solid var(--fn-dominant)}
+  .hm-bracket{position:absolute;border:1.6px solid;border-bottom:none;border-radius:5px 5px 0 0;height:11px;cursor:help;pointer-events:auto}
+  .hm-blab{position:absolute;top:-13px;left:50%;transform:translateX(-50%);font-size:9px;white-space:nowrap;padding:0 3px;background:var(--bg);border-radius:3px}
+  #hmTip{position:fixed;z-index:50;max-width:280px;background:var(--bg-deep);border:1px solid var(--border);border-radius:8px;padding:9px 11px;font-size:12px;color:var(--text);box-shadow:0 8px 24px rgba(0,0,0,.5);pointer-events:none;opacity:0;transition:opacity .1s}
+  .hm-dim{opacity:.13}
   .hm-section{margin-bottom:16px}
   .hm-seclabel{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px}
   .hm-bars{display:flex;flex-wrap:wrap;gap:6px 4px;align-items:stretch}
@@ -191,8 +222,10 @@
   .hm-lyr{font-size:10px;color:var(--muted);margin-top:3px;white-space:nowrap;max-width:160px;overflow:hidden;text-overflow:ellipsis}
   .hm-cell.held{min-width:30px;opacity:.85;background:repeating-linear-gradient(90deg,var(--panel-2),var(--panel-2) 6px,#20242e 6px,#20242e 12px)}
   .hm-cell.held .hm-sym{color:var(--muted);font-style:italic}
-  .hm-cell.lowconf{border:1px dashed var(--fn-dominant);opacity:.9}
+  .hm-cell.lowconf{border:1px dashed var(--fn-dominant);opacity:.8}
   .hm-cell.lowconf::after{content:"?";position:absolute;top:2px;right:5px;color:var(--fn-dominant);font-size:10px;font-weight:700}
+  .hm-cell.medconf{opacity:.88;border:1px dotted var(--border-2)}
+  .hm-cell.selected{box-shadow:0 0 0 2px var(--accent) inset}
   .hm-fnbar{height:3px;border-radius:2px;margin-top:5px}
   /* Lyrics tab — chords-over-syllables, drag to re-anchor */
   #lyrics{height:calc(100vh - 100px);overflow:auto;padding-bottom:40px}
@@ -273,8 +306,24 @@
     <div id="dict" class="hidden"></div>
     <div id="harmony" class="hidden">
       <div id="hmHead" class="hm-head"></div>
+      <div id="hmKeybar" class="hm-keybar"></div>
       <div id="hmLegend"></div>
-      <div id="hmScore"></div>
+      <div class="hm-lanes">
+        <div class="hm-lane-title">Tension contour (tonic → altered)</div>
+        <svg id="hmTensionSvg" viewBox="0 0 1000 90" preserveAspectRatio="none" height="90"></svg>
+        <div class="hm-lane-title">Bass line (chromatic descents read as staircases)</div>
+        <svg id="hmBassSvg" viewBox="0 0 1000 70" preserveAspectRatio="none" height="70"></svg>
+        <div class="hm-lane-title">Tonicization ribbon (local key region)</div>
+        <svg id="hmRibbonSvg" viewBox="0 0 1000 26" preserveAspectRatio="none" height="26"></svg>
+      </div>
+      <div class="hm-main">
+        <div id="hmScoreWrap">
+          <div id="hmBrackets"></div>
+          <div id="hmScore"></div>
+        </div>
+        <div id="hmPanel"></div>
+      </div>
+      <div id="hmTip"></div>
     </div>
     <div id="preview" class="hidden">
       <div class="pvctl">

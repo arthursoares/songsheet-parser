@@ -49,6 +49,7 @@ function rerenderAll() {
   if (state.activeView === "lyrics") renderLyrics();
   if (state.activeView === "review") renderReview();
   if (state.activeView === "dict") renderDict();
+  if (state.activeView === "harmony") renderHarmony();
   if (state.activeView === "preview") renderPreview();
 }
 
