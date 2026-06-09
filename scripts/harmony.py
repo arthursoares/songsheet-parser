@@ -294,10 +294,12 @@ def _symbol_to_intervals(qtext):
     t = t.replace("+9", "#9").replace("-9", "b9")
     t = t.replace("+11", "#11").replace("-13", "b13")
     t = t.replace("♯", "#").replace("♭", "b")
-    # Brazilian major-seventh spellings: a trailing '7+' (any '+' not part of
-    # an altered tension, consumed above) and '7M' both mean maj7
+    # Brazilian major-seventh spellings: trailing '7+' (any '+' not part of an
+    # altered tension, consumed above), '7M', 'M7', and 'mM7' all mean maj7
     t = re.sub(r"7\+", "maj7", t)
     t = re.sub(r"7M", "maj7", t)
+    t = re.sub(r"^mM(?=\d|/)", "mmaj", t)   # DmM7(b5) — minor with a capital-M maj7
+    t = re.sub(r"M(?=7|9|11|13)", "maj", t)  # DM7, AM7(b5)
 
     iv = None
     if t.startswith("mmaj") or t.startswith("mMaj") or t.startswith("m(maj"):
@@ -326,8 +328,12 @@ def _symbol_to_intervals(qtext):
     minorish = 3 in iv
     susish = 5 in iv and 3 not in iv and 4 not in iv
     seen_seventh = 11 in iv or 9 in iv  # maj/dim prefixes already imply one
-    for tok in re.findall(r"#5|b5|#9|b9|#11|b13|13|11|9|7|6|4|5", t):
-        if tok == "7":
+    for tok in re.findall(r"sus4?|#5|b5|#9|b9|#11|b13|13|11|9|7|6|4|5", t):
+        if tok.startswith("sus"):
+            iv.discard(3)
+            iv.discard(4)
+            iv.add(5)
+        elif tok == "7":
             iv.add(10)
             seen_seventh = True
         elif tok == "6":

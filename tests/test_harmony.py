@@ -168,6 +168,11 @@ class TestParseSymbol:
         ("Cmaj7", "C", "maj7", None),
         ("C7+", "C", "maj7", None),   # Brazilian: trailing 7+ = maj7
         ("C7M", "C", "maj7", None),
+        ("CM7", "C", "maj7", None),   # capital M = maj
+        ("DM7/F#", "D", "maj7", "F#"),
+        ("AM7(b5)", "A", "maj7♭5", None),
+        ("DmM7(b5)", "D", "mMaj7♭5", None),
+        ("B7sus", "B", "7sus4", None),  # 'sus' without the 4
         ("Cmaj9", "C", "maj9", None),
         ("C7", "C", "7", None),
         ("C6", "C", "6", None),
