@@ -1,6 +1,6 @@
 # Songsheet Parser — Project State
 
-**Last updated:** 2026-05-30
+**Last updated:** 2026-06-09
 
 ## What this is
 
@@ -59,7 +59,26 @@ per-occurrence. Lyrics carry word-continuation dashes (`tris- te- za e`). Schema
   (pure-Python lead sheet + `render_songbook`), and `chordpro_render.py` (→ ChordPro). Round-trip
   to the fork verified end-to-end.
 - Lyric hyphenation: parse prompt preserves dashes; `migrate_hyphenation.py` LLM-seeds existing songs.
-- Test suite: 89 passing (pytest). JS verified via `node --check` + Node smoke harnesses.
+- **Harmonic analysis (2026-06-09):** pure engine `scripts/harmony.py` — event normalization with
+  `%` carry + beat distribution, voicing→pitch decoding, **notes-first chord quality** with an
+  ambiguity path (symbol text converted to an interval set and named by the same function, so
+  both paths share one vocabulary incl. Brazilian forms `7-9`/`m7/9`/`13,9`/`479`/trailing
+  `7+`=maj7), cadence-based key with stored-key precedence (Krumhansl as cross-check only),
+  spelled Roman numerals, context-aware function classification, device detectors (ii–V–I,
+  secondary dominants, tritone subs, chromatic-bass runs, maj7 tonics, tonicization spans), and
+  per-event **confidence/discrepancy**. Whole corpus (~24.7k events) analyzes in ~0.8 s.
+- **Harmony tab** (`qa_static/harmony.js` + `GET /api/harmony` / `POST /api/harmony-doc`):
+  function-colored cells with Roman numerals + lyrics, tension/bass/tonicization lanes, device
+  brackets with pedagogical tooltips (in a dedicated 44px band so nothing overlaps), spotlight
+  chips, rich click panel (diagram / why / confidence) with **Edit chord →** jump into the Bars
+  editor, inline **key-confirm bar** (stores the inferred key, undoable; Romans re-derive live),
+  **Web Audio player** (beat-accurate voicings, gliding playhead, panel follows), and **exports**
+  of the live analysis as JSON / CSV / standalone HTML / PDF (`POST /api/convert`).
+- **Layout focus mode:** header toggles (☰ songs / ⊞ scan, `\` key, persisted) collapse the song
+  list and/or scan pane.
+- ChordMark output carries `composer`/`key` metadata directives; `json_to_chordmark.py` walks
+  directories recursively, mirroring the per-album corpus layout.
+- Test suite: 227 passing (pytest). JS verified via `node --check` + Playwright smoke.
 
 ### In progress / next
 - **Hyphenation seeded for only 1 song** so far (Chega de Saudade). Run
@@ -72,9 +91,12 @@ per-occurrence. Lyrics carry word-continuation dashes (`tris- te- za e`). Schema
 - Multi-format extraction (pluggable format profiles) — planned; two samples analyzed (Lumiar/Caetano
   scanned songbook ≈ current pipeline; Rousseau digital chord-grid arrangement, lyric-less). See
   `docs/superpowers/plans/2026-05-30-multi-format-extraction.md`.
-- Harmonic analysis & visualization (engine + Harmony tab + corpus insights) — planned; experiments
-  validated (notes-first quality, cadence-based key, device/tonicization detection, interactive
-  harmony×lyrics + audio prototype). See `docs/superpowers/plans/2026-06-02-harmonic-analysis.md`.
+- **Harmonic analysis next step: D1 corpus report** (`harmony_report.py` — device quantification
+  over all songs, functional stats over confirmed-key songs, key-suggestions worklist). Gate:
+  only **7/185 songs have stored keys**; the cadence estimator is high-confidence on 135 of the
+  178 missing (low on 43) — a batch key-seeder plus the Harmony tab's Confirm-key pass closes it.
+  Then C6 circle-of-fifths (deferred polish), D2 harmony×lyrics insights, E prediction. See
+  `docs/superpowers/plans/2026-06-02-harmonic-analysis.md` (15/22 checkboxes done).
 
 ### Deferred (QA tool roadmap)
 - **MusicXML export** (alongside PDF/PNG/HTML/.chordmark/ChordPro).
@@ -85,8 +107,11 @@ per-occurrence. Lyrics carry word-continuation dashes (`tris- te- za e`). Schema
 - **Section reorder** in the UI.
 - **favicon** (one 404 on load; cosmetic).
 
-## Stale docs
+## Documentation map
 
-`ARCHITECTURE.md`, `TWO_STAGE_HYBRID_IMPLEMENTATION.md`, `EXAMPLES.md`, `QUICKSTART.md`, and
-`docs/pipeline.md` describe the **old** model and two-stage approach — superseded by this file,
-`README.md`, `CLAUDE.md`, and the specs under `docs/superpowers/specs/`.
+Current docs: `README.md` (user-facing overview), `CLAUDE.md` (working reference: model, tool
+internals, routes, conventions), this file (state snapshot), and `docs/superpowers/` (design
+specs + implementation plans with live checkboxes). The February-era docs that described the
+old pre-chord-anchored model (`ARCHITECTURE.md`, `QUICKSTART.md`, `EXAMPLES.md`,
+`TWO_STAGE_HYBRID_IMPLEMENTATION.md`, `docs/pipeline.md`, `docs/chord-naming.md`) were deleted
+on 2026-06-09.

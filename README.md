@@ -16,15 +16,18 @@ you review each song beside its scan and correct it before converting.
 ## Structure
 
 ```
-├── scripts/        # Processing pipeline
-├── schemas/        # JSON validation schemas  
-├── docs/           # Documentation
-├── data/
-│   └── {artist}/   # Per-artist organized
-│       ├── json/       # Intermediate parsed data
-│       └── chordmark/  # Final output files
-└── analysis/       # Artist-specific analysis (future)
+├── scripts/        # Processing pipeline + QA server + pure render/analysis modules
+│   └── qa_static/  # Browser QA tool (pure JS, no build step)
+├── schemas/        # JSON validation schemas
+├── docs/
+│   └── superpowers/  # Design specs + implementation plans (current)
+├── tests/          # pytest suite
+└── data/
     └── {artist}/
+        ├── pdf/ png/   # Source scans (git-ignored, copyright)
+        ├── json/       # Intermediate parsed documents
+        ├── songs/      # Per-song QA corpus + page images (git-ignored)
+        └── chordmark/  # Converted .chordmark output
 ```
 
 ## Supported Output
@@ -45,6 +48,12 @@ python3 -m venv .venv && ./.venv/bin/pip install -r requirements.txt
 codex login          # default vision provider uses your ChatGPT/Codex subscription
 ./.venv/bin/python -m pytest    # run the test suite
 ```
+
+Optional, for the ChordMark-fork render style: clone
+[arthursoares/chord-mark](https://github.com/arthursoares/chord-mark) (adds inline chord
+diagrams + comma-form voicings to upstream ChordMark) as a sibling at `../chordmark/chord-mark`
+and have Node installed. PDF/PNG exports need Google Chrome / Chromium on `PATH` (or at the
+standard macOS location).
 
 ## Usage
 
@@ -91,7 +100,7 @@ status filter (All / Pending / In progress / Done). Click a song to load it (gua
 unsaved-changes confirm); the current song is highlighted. The sidebar footer shows the song's
 **provenance** (source page numbers) and a free-text **per-song note** that persists with the song.
 
-The right column has six tabs:
+The right column has seven tabs:
 
 - **Bars** — chord chips in reading order, each showing name / voicing / a small chord-diagram
   thumbnail / notes / intervals. Click a chip to edit its **name**, **voicing** (clickable
@@ -110,6 +119,8 @@ The right column has six tabs:
 - **Dictionary** — the song's distinct chords grouped by (name + voicing), alphabetical or by
   count; batch-edit a chord across all its occurrences, or merge two groups that are the same
   chord misread two ways.
+- **Harmony** — live harmonic analysis of the current edits (see the Harmonic analysis
+  section below).
 - **Preview** — renders the song (see below), with in-app export.
 - **JSON** — a [CodeMirror 5](https://codemirror.net/5/) code editor over the song's raw JSON:
   Tab indents (2-space soft tabs), JSON syntax coloring, and live validation (parse errors show
@@ -119,11 +130,14 @@ The right column has six tabs:
 
 Header controls: **key** selector (drives Roman-numeral interval analysis, major or minor),
 **♯/♭** spelling toggle, per-song **status** (pending / in progress / done) with an album
-progress count. **Save** writes schema-validated JSON back to disk. Edits support **undo/redo**,
-and a dirty-state guard warns before navigating away or switching songs with unsaved edits.
+progress count, and **layout focus toggles** (**☰ songs** / **⊞ scan**) that collapse the song
+list and/or the scanned-pages pane when you want the full width for one tab. **Save** writes
+schema-validated JSON back to disk. Edits support **undo/redo**, and a dirty-state guard warns
+before navigating away or switching songs with unsaved edits.
 
 **Keyboard shortcuts:** ⌘S/Ctrl+S save · Esc close editor · `n`/`p` next/previous song ·
-`]` next-flagged chord · Enter applies in the chord editor · ⌘Z/Ctrl+Z undo · ⌘⇧Z/Ctrl+Y redo.
+`]` next-flagged chord · `\` toggle the scan pane · Enter applies in the chord editor ·
+⌘Z/Ctrl+Z undo · ⌘⇧Z/Ctrl+Y redo.
 
 ### Preview & export
 
@@ -146,6 +160,39 @@ be on `PATH`, or installed at the standard macOS location); a download shows an 
 
 `scripts/render_chordmark.js` renders a `.chordmark` file to standalone HTML via the fork if you
 want that path outside the server.
+
+### Harmonic analysis (Harmony tab)
+
+The project's original purpose: a pure analysis engine, `scripts/harmony.py` (no I/O, fully
+unit-tested), turns a song into an annotated harmonic stream. Per chord event it derives:
+
+- **Quality, notes-first** — decoded from the voicing's actual pitches, so alterations survive
+  (`A7+5` → `7♯5`); when the notes are under-determined (no 3rd, rootless) it says `ambiguous`
+  and falls back to the printed symbol rather than guessing. Symbol text is converted to an
+  interval set and run through the *same* naming function, so the two paths share one vocabulary
+  (including Brazilian forms: `7-9`, `m7/9`, `13,9`, `69`, `479`, trailing `7+`/`7M` = maj7).
+- **Key** — the stored key when present, else a cadence-based estimate (the pitch most targeted
+  by V→I / ii–V–I resolutions; Krumhansl correlation only as a cross-check, since it favors the
+  relative minor on bossa).
+- **Roman numeral + harmonic function** (tonic / subdominant / dominant / secondary / passing /
+  chromatic) with the rule that fired as a human-readable "why".
+- **Devices** — ii–V(–I), secondary dominants (only on a real down-a-fifth resolution), tritone
+  substitutions, chromatic descending-bass runs, maj7 tonics, and tonicization spans.
+- **Confidence** per event (notes↔symbol disagreements surface as flagged discrepancies — which
+  also catches real extraction errors worth fixing).
+
+The **Harmony** tab renders this live for the current (unsaved) edits: function-colored chord
+cells with Roman numerals and lyrics, tension/bass/tonicization lanes, device brackets with
+explanatory tooltips, spotlight chips that dim everything but one function or device, and a
+click panel (chord diagram, why, confidence) with an **Edit chord →** jump straight into the
+Bars editor. An inline bar proposes the estimated key (**Confirm key** stores it on the song,
+undoably). A **player** (▶ + tempo) plays the actual voicings beat-accurately with a gliding
+playhead. **Export** buttons download the analysis as **JSON**, **CSV** (one row per chord
+event), a standalone **HTML** snapshot of the view, or **PDF**.
+
+Server endpoints: `GET /api/harmony/<album>/<file>`, `POST /api/harmony-doc` (in-memory doc),
+`POST /api/convert?fmt=pdf|png` (HTML → file). Roadmap (corpus-wide reports, prediction):
+`docs/superpowers/plans/2026-06-02-harmonic-analysis.md`.
 
 ### Lyric hyphenation
 

@@ -207,6 +207,6 @@ corpus report (D), prediction (E) — checkboxes in
 (`additionalProperties: false`), top-level is open (`_meta` provenance is added there).
 `tests/test_schema.py` + `tests/fixtures/chega-page1.json` exercise it.
 
-Data lives per-artist under `data/<artist>/{pdf,json,chordmark}/` (only `joao-gilberto` exists).
-Note: `ARCHITECTURE.md`, `TWO_STAGE_HYBRID_IMPLEMENTATION.md`, `EXAMPLES.md`, and `QUICKSTART.md`
-describe the **old** model and are stale — the spec above supersedes them.
+Data lives per-artist under `data/<artist>/{pdf,png,json,songs,chordmark}/` (only `joao-gilberto`
+exists). Docs: `README.md` (user-facing), `PROJECT_STATE.md` (state snapshot), this file, and
+`docs/superpowers/` specs + plans — the old February docs were deleted 2026-06-09.
