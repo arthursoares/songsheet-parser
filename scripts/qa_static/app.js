@@ -958,6 +958,8 @@ function makeSyl(si, bi, sylText, chord, sylIdx) {
 // ---- Dictionary view ----
 
 function showView(which) {
+  if (state.activeView === "harmony" && which !== "harmony" &&
+      typeof hmStopPlayback === "function") hmStopPlayback();
   state.activeView = which;
   $("bars").classList.toggle("hidden", which !== "bars");
   $("lyrics").classList.toggle("hidden", which !== "lyrics");

@@ -523,8 +523,228 @@ function hmPanel(e) {
   document.getElementById("hmEditBtn").onclick = () => hmEditChord(e);
 }
 
+// ---- C5: audio playback (ported from the validated prototype) ----
+// Timing is driven off AudioContext.currentTime in a rAF loop, so the gliding
+// playhead and the chord advance can't drift apart; setTimeout is never used
+// for boundaries. Pause freezes the glide and silences ringing notes; resume
+// re-anchors the in-progress segment.
+let hmActx = null, hmMaster = null;
+let hmPlaying = false, hmCurIdx = -1, hmRaf = null;
+let hmActiveVoices = [];
+let hmLastMidis = null;       // held/% and voicing-less events carry the last real chord
+let hmSegStart = 0, hmSegDur = 0, hmSegX0 = 0, hmSegX1 = 0;
+let hmPausedAt = null;
+let hmXsCache = [];
+const HM_RIGHT_EDGE = 1000 - 12;  // matches hmXs() pad
+
+function hmEnsureAudio() {
+  if (!hmActx) {
+    hmActx = new (window.AudioContext || window.webkitAudioContext)();
+    hmMaster = hmActx.createGain();
+    hmMaster.gain.value = 0.15;
+    hmMaster.connect(hmActx.destination);
+  }
+  if (hmActx.state === "suspended") return hmActx.resume();
+  return Promise.resolve();
+}
+
+function hmMidiToFreq(m) { return 440 * Math.pow(2, (m - 69) / 12); }
+
+function hmPlayChord(midis, dur) {
+  if (!midis || !midis.length) return;
+  const now = hmActx.currentTime;
+  midis.forEach((m) => {
+    const o = hmActx.createOscillator();
+    o.type = "triangle";
+    o.frequency.value = hmMidiToFreq(m);
+    const g = hmActx.createGain();
+    g.gain.value = 0;
+    o.connect(g);
+    g.connect(hmMaster);
+    const atk = 0.015, rel = Math.min(0.25, dur * 0.5);
+    g.gain.setValueAtTime(0, now);
+    g.gain.linearRampToValueAtTime(0.9 / Math.sqrt(midis.length), now + atk);
+    g.gain.setValueAtTime(0.9 / Math.sqrt(midis.length), now + Math.max(atk, dur - rel));
+    g.gain.linearRampToValueAtTime(0.0001, now + dur);
+    o.start(now);
+    o.stop(now + dur + 0.05);
+    const voice = { o, g };
+    hmActiveVoices.push(voice);
+    o.onended = () => {
+      const k = hmActiveVoices.indexOf(voice);
+      if (k >= 0) hmActiveVoices.splice(k, 1);
+    };
+  });
+}
+
+function hmSilenceVoices() {
+  const now = hmActx ? hmActx.currentTime : 0;
+  hmActiveVoices.forEach(({ o, g }) => {
+    try {
+      g.gain.cancelScheduledValues(now);
+      g.gain.setValueAtTime(0.0001, now);
+      o.stop(now + 0.02);
+    } catch (_) { /* already stopped */ }
+  });
+  hmActiveVoices = [];
+}
+
+function hmBeatDur() { return 60 / Number(document.getElementById("hmTempo").value); }
+
+// beat-accurate dwell — always finite > 0 so the scheduler never gets NaN/0
+function hmStepDur(e) {
+  let b = e && Number(e.beats);
+  if (!isFinite(b) || b <= 0) b = 1;
+  let bd = hmBeatDur();
+  if (!isFinite(bd) || bd <= 0) bd = 0.5;
+  const d = b * bd;
+  return (isFinite(d) && d > 0) ? d : 0.5;
+}
+
+function hmResolveMidis(e) {
+  if (e && e.midis && e.midis.length) return e.midis;
+  if (hmLastMidis && hmLastMidis.length) return hmLastMidis;
+  return null;
+}
+
+function hmCursorLine() {
+  const cs = document.getElementById("hmCursorSvg");
+  let ln = cs.querySelector("line");
+  if (!ln) {
+    cs.innerHTML = '<line x1="0" y1="0" x2="0" y2="100"/>';
+    ln = cs.querySelector("line");
+  }
+  return ln;
+}
+
+function hmSetCursorX(x) {
+  const ln = hmCursorLine();
+  if (ln && isFinite(x)) {
+    ln.setAttribute("x1", x);
+    ln.setAttribute("x2", x);
+  }
+}
+
+function hmNow() { return hmActx ? hmActx.currentTime : 0; }
+
+// Onset of the chord at hmCurIdx: audio + cell highlight + panel-follow, then
+// set up the glide segment (this cell's x → the next cell's x over its beats).
+function hmOnsetChord() {
+  const e = hmAnalysis.events[hmCurIdx];
+  const d = hmStepDur(e);
+  try {
+    const midis = hmResolveMidis(e);
+    if (midis && midis.length) {
+      hmPlayChord(midis, d);
+      hmLastMidis = midis;
+    }
+    if (hmCurIdx > 0 && hmCellEls[hmCurIdx - 1]) {
+      hmCellEls[hmCurIdx - 1].classList.remove("cur");
+    }
+    if (hmCellEls[hmCurIdx]) {
+      hmCellEls[hmCurIdx].classList.add("cur");
+      hmCellEls[hmCurIdx].scrollIntoView({ block: "nearest", behavior: "smooth" });
+    }
+    hmPanel(e);   // panel follows the playhead
+  } catch (err) {
+    console.warn("harmony onset: skipping event " + hmCurIdx, err);
+  }
+  hmSegDur = d;
+  hmSegStart = hmNow();
+  hmSegX0 = isFinite(hmXsCache[hmCurIdx]) ? hmXsCache[hmCurIdx] : 0;
+  hmSegX1 = (hmCurIdx + 1 < hmAnalysis.events.length && isFinite(hmXsCache[hmCurIdx + 1]))
+    ? hmXsCache[hmCurIdx + 1] : HM_RIGHT_EDGE;
+  hmSetCursorX(hmSegX0);
+}
+
+function hmFrame() {
+  if (!hmPlaying) return;
+  let prog = hmSegDur > 0 ? (hmNow() - hmSegStart) / hmSegDur : 1;
+  if (prog >= 1) {
+    while (prog >= 1 && hmPlaying) {
+      hmCurIdx++;
+      if (hmCurIdx >= hmAnalysis.events.length) {
+        hmSetCursorX(HM_RIGHT_EDGE);
+        hmStopPlayback();
+        return;
+      }
+      hmOnsetChord();
+      prog = hmSegDur > 0 ? (hmNow() - hmSegStart) / hmSegDur : 1;
+    }
+  } else {
+    hmSetCursorX(hmSegX0 + (hmSegX1 - hmSegX0) * Math.max(0, Math.min(1, prog)));
+  }
+  hmRaf = requestAnimationFrame(hmFrame);
+}
+
+async function hmPlay() {
+  if (!hmAnalysis || !hmAnalysis.events.length) return;
+  await hmEnsureAudio();
+  if (hmPlaying) return;
+  const btn = document.getElementById("hmPlayBtn");
+  btn.textContent = "⏸";
+  btn.classList.add("playing");
+  document.getElementById("hmAudioState").textContent = "audio: " + hmActx.state;
+  if (hmPausedAt != null) {
+    // resume: re-anchor the in-progress segment where it froze
+    hmPlaying = true;
+    hmSegStart = hmNow() - hmPausedAt;
+    hmPausedAt = null;
+    hmRaf = requestAnimationFrame(hmFrame);
+    return;
+  }
+  if (hmCurIdx >= hmAnalysis.events.length - 1) hmCurIdx = -1;
+  hmPlaying = true;
+  hmCurIdx++;
+  hmOnsetChord();
+  hmRaf = requestAnimationFrame(hmFrame);
+}
+
+// pause keeps the playhead + highlight in place; resume continues from here
+function hmPause() {
+  if (!hmPlaying) return;
+  hmPausedAt = Math.max(0, Math.min(hmSegDur, hmNow() - hmSegStart));
+  hmPlaying = false;
+  const btn = document.getElementById("hmPlayBtn");
+  btn.textContent = "▶";
+  btn.classList.remove("playing");
+  if (hmRaf) cancelAnimationFrame(hmRaf);
+  hmRaf = null;
+  hmSilenceVoices();
+}
+
+// full reset (also called when leaving the tab or re-rendering)
+function hmStopPlayback() {
+  hmPlaying = false;
+  hmPausedAt = null;
+  const btn = document.getElementById("hmPlayBtn");
+  if (btn) { btn.textContent = "▶"; btn.classList.remove("playing"); }
+  if (hmRaf) cancelAnimationFrame(hmRaf);
+  hmRaf = null;
+  if (hmActx) hmSilenceVoices();
+  if (hmCurIdx >= 0 && hmCellEls[hmCurIdx]) hmCellEls[hmCurIdx].classList.remove("cur");
+  hmCurIdx = -1;
+  hmLastMidis = null;
+  const cs = document.getElementById("hmCursorSvg");
+  if (cs) cs.innerHTML = "";
+}
+
+let hmToolbarWired = false;
+function hmWireToolbar() {
+  if (hmToolbarWired) return;
+  hmToolbarWired = true;
+  document.getElementById("hmPlayBtn").onclick =
+    () => (hmPlaying ? hmPause() : hmPlay());
+  const tempo = document.getElementById("hmTempo");
+  tempo.oninput = () => {
+    document.getElementById("hmTempoVal").textContent = tempo.value;
+  };
+}
+
 // ---- entry point, called by showView("harmony") ----
 async function renderHarmony() {
+  hmStopPlayback();   // a re-render rebuilds the cells the player points at
+  hmWireToolbar();
   const head = document.getElementById("hmHead");
   if (!state.doc) {
     head.textContent = "no song loaded";
@@ -549,7 +769,7 @@ async function renderHarmony() {
     const legend = document.getElementById("hmLegend");
     legend.innerHTML = "";
     legend.appendChild(hmLegend());
-    const xs = hmXs(hmAnalysis.events.length);
+    const xs = hmXsCache = hmXs(hmAnalysis.events.length);
     hmBuildTension(hmAnalysis.events, xs);
     hmBuildBass(hmAnalysis.events, xs);
     hmBuildRibbon(hmAnalysis, xs);
