@@ -252,6 +252,29 @@ def handle(method: str, path: str, body: bytes, root: Path):
             return err
         return harmony_doc(doc)
 
+    # /api/convert?fmt=pdf|png&name=<stem>  -> body is an HTML document, returns
+    #   it converted by headless Chrome as a downloadable attachment. Used by the
+    #   Harmony tab's PDF export (the snapshot HTML is built client-side so it
+    #   reflects unsaved edits).
+    if path == "/api/convert" and method == "POST":
+        params = _query_params(orig_path)
+        fmt = params.get("fmt", "pdf")
+        if fmt not in ("pdf", "png"):
+            return _json(400, {"error": f"unsupported fmt {fmt!r}"})
+        try:
+            html = body.decode("utf-8")
+        except UnicodeDecodeError:
+            return _json(400, {"error": "body must be utf-8 HTML"})
+        if not html.strip():
+            return _json(400, {"error": "empty body"})
+        try:
+            data = _chrome_convert(html, fmt)
+        except RuntimeError as e:
+            return _json(500, {"error": str(e)})
+        stem = re.sub(r"[^A-Za-z0-9._-]+", "-", params.get("name", "export")) or "export"
+        ctype = "application/pdf" if fmt == "pdf" else "image/png"
+        return 200, ctype, data, _attach(stem, fmt)
+
     # /api/render/{album}/{file}  -> ChordMark HTML rendered via the fork
     if parts[:2] == ["api", "render"] and len(parts) == 4 and method == "GET":
         album, fname = parts[2], parts[3]

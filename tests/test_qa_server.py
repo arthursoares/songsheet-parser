@@ -300,3 +300,39 @@ def test_harmony_doc_analyzes_first_song_only(tmp_path):
         "POST", "/api/harmony-doc", json.dumps(doc).encode(), root)
     assert status == 200
     assert json.loads(body)["summary"]["events"] == 1  # songs[0] only
+
+
+# ---------------------------------------------------------------------------
+# /api/convert — HTML body -> PDF/PNG via headless Chrome (Harmony exports)
+# ---------------------------------------------------------------------------
+
+def test_convert_pdf(tmp_path, monkeypatch):
+    root = _corpus(tmp_path)
+    monkeypatch.setattr(S, "_chrome_convert", lambda html, fmt: b"%PDF-fake")
+    result = S.handle("POST", "/api/convert?fmt=pdf&name=my song", b"<html>x</html>", root)
+    status, ctype, body, headers = result
+    assert status == 200
+    assert ctype == "application/pdf"
+    assert body == b"%PDF-fake"
+    assert 'filename="my-song.pdf"' in headers["Content-Disposition"]
+
+
+def test_convert_bad_fmt_400(tmp_path):
+    root = _corpus(tmp_path)
+    status, _, _ = S.handle("POST", "/api/convert?fmt=exe", b"<html>x</html>", root)
+    assert status == 400
+
+
+def test_convert_empty_body_400(tmp_path):
+    root = _corpus(tmp_path)
+    status, _, _ = S.handle("POST", "/api/convert?fmt=pdf", b"", root)
+    assert status == 400
+
+
+def test_convert_chrome_failure_500(tmp_path, monkeypatch):
+    root = _corpus(tmp_path)
+    def boom(html, fmt):
+        raise RuntimeError("Chrome not found")
+    monkeypatch.setattr(S, "_chrome_convert", boom)
+    status, _, _ = S.handle("POST", "/api/convert?fmt=pdf", b"<html>x</html>", root)
+    assert status == 500
