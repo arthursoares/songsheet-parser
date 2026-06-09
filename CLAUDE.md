@@ -76,7 +76,8 @@ Single page end-to-end: render a PNG, run stage 2 then stage 3.
   an inline key-confirm bar (stores the inferred key on the song via the normal
   undo/dirty/save path; Romans re-derive live), and a Web Audio **player** (▶ + tempo slider:
   real voicings, beat-accurate, gliding playhead over the lanes, panel follows; stops on tab
-  switch). Header has **layout focus toggles** (☰ songs / ⊞ scan, `\` key) that collapse the
+  switch), and **export buttons** (JSON / CSV / standalone HTML snapshot / PDF — all of the
+  LIVE analysis incl. unsaved edits). Header has **layout focus toggles** (☰ songs / ⊞ scan, `\` key) that collapse the
   song list and/or PDF-scan pane when the three-pane layout gets cramped. Preview has a
   **Source** toggle (shows the generated `.chordmark` beside the render) and the export buttons.
   **JSON** is a CodeMirror 5 editor over the raw song JSON (Tab indent / syntax coloring / live
@@ -94,6 +95,7 @@ Single page end-to-end: render a PNG, run stage 2 then stage 3.
   - `POST /api/chordmark-doc?bars=` — ChordMark source from a POSTed (unsaved) doc
   - `GET /api/harmony/<album>/<file>` — harmonic analysis (JSON) of a saved song
   - `POST /api/harmony-doc` — analysis of a POSTed (unsaved) doc; analyzes `songs[0]` only
+  - `POST /api/convert?fmt=pdf|png&name=` — body is HTML, returns it Chrome-converted (Harmony exports)
   - `GET /api/export/<album>/<file>?fmt=chordmark|html|pdf|png|chordpro&...` — downloadable file
   - `GET /api/export-album/<album>?fmt=pdf|html&...` — whole-album songbook (one document)
   - `GET /api/page/<album>/<file>/<n>` — page PNG
