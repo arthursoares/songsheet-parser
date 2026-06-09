@@ -219,6 +219,7 @@ async function init() {
   $("tabLyrics").addEventListener("click", () => showView("lyrics"));
   $("tabReview").addEventListener("click", () => showView("review"));
   $("tabDict").addEventListener("click", () => showView("dict"));
+  $("tabHarmony").addEventListener("click", () => showView("harmony"));
   $("tabPreview").addEventListener("click", () => showView("preview"));
   $("tabJson").addEventListener("click", () => showView("json"));
   $("jsonApply").addEventListener("click", jsonApply);
@@ -961,17 +962,20 @@ function showView(which) {
   $("lyrics").classList.toggle("hidden", which !== "lyrics");
   $("review").classList.toggle("hidden", which !== "review");
   $("dict").classList.toggle("hidden", which !== "dict");
+  $("harmony").classList.toggle("hidden", which !== "harmony");
   $("preview").classList.toggle("hidden", which !== "preview");
   $("json").classList.toggle("hidden", which !== "json");
   $("tabBars").classList.toggle("active", which === "bars");
   $("tabLyrics").classList.toggle("active", which === "lyrics");
   $("tabReview").classList.toggle("active", which === "review");
   $("tabDict").classList.toggle("active", which === "dict");
+  $("tabHarmony").classList.toggle("active", which === "harmony");
   $("tabPreview").classList.toggle("active", which === "preview");
   $("tabJson").classList.toggle("active", which === "json");
   if (which === "lyrics") renderLyrics();
   if (which === "review") renderReview();
   if (which === "dict") renderDict();
+  if (which === "harmony") renderHarmony();
   if (which === "preview") renderPreview();
   if (which === "json") renderJson();
 }
