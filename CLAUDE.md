@@ -62,11 +62,15 @@ Single page end-to-end: render a PNG, run stage 2 then stage 3.
   dirty-state guard, keyboard shortcuts, structural edits, live preview, in-app export wiring);
   `chord_naming.js` = detect (tonal) + validate (chord-symbol) + intervals; `chord_dictionary.js`
   = group/batch-edit/merge; `fretboard.js` = dual-mode voicing editor; `diagram.js` = SVG chord
-  thumbnail; `vendor/` = bundled tonal + chord-symbol, plus `vendor/codemirror/` (vendored
+  thumbnail; `harmony.js` = the **Harmony** tab (renders `/api/harmony-doc` output);
+  `vendor/` = bundled tonal + chord-symbol, plus `vendor/codemirror/` (vendored
   CodeMirror 5) backing the **JSON** tab's code editor.
-- **Six tabs:** Bars / Lyrics / Review / Dictionary / Preview / JSON. Bars also does structural
-  editing (add/delete bar, split/merge bar, add/delete section, inline section-label rename).
-  Review is a worklist of flagged chords (name↔voicing mismatch or invalid name). Preview has a
+- **Seven tabs:** Bars / Lyrics / Review / Dictionary / Harmony / Preview / JSON. Bars also does
+  structural editing (add/delete bar, split/merge bar, add/delete section, inline section-label
+  rename). Review is a worklist of flagged chords (name↔voicing mismatch or invalid name).
+  **Harmony** shows the live (unsaved) doc's harmonic analysis: function-colored chord cells with
+  Roman numerals, lyrics, `%` holds as ties, low-confidence/discrepancy markers, key + device
+  summary header (engine: `scripts/harmony.py`). Preview has a
   **Source** toggle (shows the generated `.chordmark` beside the render) and the export buttons.
   **JSON** is a CodeMirror 5 editor over the raw song JSON (Tab indent / syntax coloring / live
   lint with line·col + gutter marker; Apply parse-guards + is undoable, Format / Reload).
@@ -81,6 +85,8 @@ Single page end-to-end: render a PNG, run stage 2 then stage 3.
   - `GET /api/render/<album>/<file>?style=fork|target&dict=&inline=&bars=` — HTML of a saved song
   - `POST /api/render-doc?style=&dict=&inline=&bars=` — render HTML from a POSTed (unsaved) doc
   - `POST /api/chordmark-doc?bars=` — ChordMark source from a POSTed (unsaved) doc
+  - `GET /api/harmony/<album>/<file>` — harmonic analysis (JSON) of a saved song
+  - `POST /api/harmony-doc` — analysis of a POSTed (unsaved) doc; analyzes `songs[0]` only
   - `GET /api/export/<album>/<file>?fmt=chordmark|html|pdf|png|chordpro&...` — downloadable file
   - `GET /api/export-album/<album>?fmt=pdf|html&...` — whole-album songbook (one document)
   - `GET /api/page/<album>/<file>/<n>` — page PNG
@@ -149,8 +155,16 @@ to review each song beside its scan and fix name/voicing/lyric; reverse chord de
 validated through chord-symbol (the fork's parser), and saves are schema-checked. The song corpus and
 page images are git-ignored (copyright / personal-use song data).
 
-**Next major direction — harmonic analysis** (not yet implemented): a planned pure `scripts/harmony.py`
-engine, a `Harmony` tab in the QA tool, and corpus-insight reports. See
+**Harmonic analysis** (in progress): the pure engine `scripts/harmony.py` (no I/O; event
+normalization, voicing→pitch decoding, **notes-first** quality with an ambiguity path, symbol
+reconciliation + per-event confidence/discrepancy, cadence-based key with stored-key precedence,
+Roman numerals, function classification, device detectors — ii–V(–I), secondary dominants,
+tritone subs, chromatic-bass runs, maj7 tonics) feeds `GET /api/harmony` / `POST /api/harmony-doc`
+and the QA tool's **Harmony** tab (base view done). Symbol quality is derived by converting the
+printed quality text to an interval set and running it through the same `quality_from_pitches`
+as the voicing path, so both paths share one naming vocabulary (incl. Brazilian forms: `7+5`,
+`7-9`, `13,9`, `479`, trailing `7+`/`7M` = maj7). Remaining: tab lanes/devices/panel/edit-loop
+(C2–C7), corpus report (D), prediction (E) — checkboxes in
 `docs/superpowers/plans/2026-06-02-harmonic-analysis.md`.
 
 ## Conventions that bite
