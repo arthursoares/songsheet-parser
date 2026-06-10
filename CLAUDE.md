@@ -51,6 +51,12 @@ python scripts/qa_server.py --songs data/<artist>/songs [--port 8000]   # open l
 # Seed lyric word-continuation dashes into existing songs (LLM, idempotent).
 python scripts/migrate_hyphenation.py data/<artist>/songs/ [--dry-run]
 
+# Parser eval: score a fresh parse against the hand-corrected golden songs
+#   (status=done = ground truth; per-field chord/voicing/text/anchor accuracy),
+#   or diff two parses of one song — disagreeing bars are where QA time goes.
+python scripts/eval_extraction.py score --golden data/<artist>/songs --candidate <fresh>/songs
+python scripts/eval_extraction.py diff a.json b.json [--report-json out.json]
+
 # Render a .chordmark to HTML via Arthur's fork (needs ../chordmark/chord-mark + node).
 node scripts/render_chordmark.js in.chordmark out.html [--chordmark-repo PATH]
 ```
