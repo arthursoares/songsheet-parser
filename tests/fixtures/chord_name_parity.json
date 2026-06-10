@@ -1,0 +1,52 @@
+{
+  "_comment": "Shared chord-naming vocabulary pin: pcs are pitch classes relative to the root. 'agreed' must produce identical sets from BOTH harmony.py (_symbol_to_intervals via parse_symbol) and chord-symbol (the QA tool's JS validator). 'divergent' pins each side's CURRENT deliberate behavior so silent drift on either side fails a test. Asserted by tests/test_chord_name_parity.py (Python) and tests/js/chord_naming_parity.test.js (JS).",
+  "agreed": [
+    { "symbol": "C", "pcs": [0, 4, 7] },
+    { "symbol": "Cm", "pcs": [0, 3, 7] },
+    { "symbol": "C7", "pcs": [0, 4, 7, 10] },
+    { "symbol": "Cmaj7", "pcs": [0, 4, 7, 11] },
+    { "symbol": "Cm7", "pcs": [0, 3, 7, 10] },
+    { "symbol": "Cm7b5", "pcs": [0, 3, 6, 10] },
+    { "symbol": "Cdim", "pcs": [0, 3, 6] },
+    { "symbol": "Cdim7", "pcs": [0, 3, 6, 9] },
+    { "symbol": "Caug", "pcs": [0, 4, 8] },
+    { "symbol": "C6", "pcs": [0, 4, 7, 9] },
+    { "symbol": "Cm6", "pcs": [0, 3, 7, 9] },
+    { "symbol": "C9", "pcs": [0, 2, 4, 7, 10] },
+    { "symbol": "C7b9", "pcs": [0, 1, 4, 7, 10] },
+    { "symbol": "C7#9", "pcs": [0, 3, 4, 7, 10] },
+    { "symbol": "C7#5", "pcs": [0, 4, 8, 10] },
+    { "symbol": "C7b5", "pcs": [0, 4, 6, 10] },
+    { "symbol": "Csus4", "pcs": [0, 5, 7] },
+    { "symbol": "C7sus4", "pcs": [0, 5, 7, 10] },
+    { "symbol": "C69", "pcs": [0, 2, 4, 7, 9] },
+    { "symbol": "CmM7", "pcs": [0, 3, 7, 11] },
+    { "symbol": "Cmaj9", "pcs": [0, 2, 4, 7, 11] }
+  ],
+  "divergent": [
+    {
+      "symbol": "Cm9",
+      "python_pcs": [0, 2, 3, 7],
+      "chord_symbol_pcs": [0, 2, 3, 7, 10],
+      "note": "harmony.py treats bare m9 as add9 — the corpus always writes the 7th explicitly (m7/9)"
+    },
+    {
+      "symbol": "C13",
+      "python_pcs": [0, 4, 7, 9, 10],
+      "chord_symbol_pcs": [0, 2, 4, 7, 9, 10],
+      "note": "chord-symbol's 13 implies the 9th; harmony.py's does not (corpus writes 13,9 when both sound)"
+    },
+    {
+      "symbol": "C7b13",
+      "python_pcs": [0, 4, 7, 8, 10],
+      "chord_symbol_pcs": [0, 4, 8, 10],
+      "note": "chord-symbol folds b13 into #5 and drops the natural 5; harmony.py keeps the 5th alongside"
+    },
+    {
+      "symbol": "C11",
+      "python_pcs": [0, 4, 5, 7, 10],
+      "chord_symbol_pcs": [0, 2, 5, 7, 10],
+      "note": "chord-symbol's 11 implies the 9th and omits the 3rd; harmony.py keeps the 3rd, no 9th"
+    }
+  ]
+}

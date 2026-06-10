@@ -321,6 +321,10 @@ def _symbol_to_intervals(qtext):
         if t.startswith("7"):
             iv.add(9)
             t = t[1:]
+    elif t.lower().startswith("aug") or t.startswith("+"):
+        # bare '+' survives normalization only when not part of +5/+9/7+ (handled above)
+        iv = {0, 4, 8}
+        t = re.sub(r"^(aug|\+)", "", t, flags=re.IGNORECASE)
     elif t.startswith("m"):
         iv = {0, 3, 7}
         t = t[1:]
