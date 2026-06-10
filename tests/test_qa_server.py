@@ -78,6 +78,31 @@ def test_save_valid_song_writes(tmp_path):
     assert on_disk["songs"][0]["sections"][0]["bars"][0][0]["chord"] == "Am7"
 
 
+def test_save_stamps_schema_version(tmp_path):
+    root = _corpus(tmp_path)
+    doc = json.loads((root / "1-album" / "01-song-one.json").read_text())
+    assert "schema_version" not in doc  # fixture predates stamping
+    status, _, _ = S.handle(
+        "POST", "/api/song/1-album/01-song-one.json", json.dumps(doc).encode(), root
+    )
+    assert status == 200
+    on_disk = json.loads((root / "1-album" / "01-song-one.json").read_text())
+    assert on_disk["schema_version"] == S.stamp({})["schema_version"]
+
+
+def test_save_rejects_future_schema_version(tmp_path):
+    root = _corpus(tmp_path)
+    doc = json.loads((root / "1-album" / "01-song-one.json").read_text())
+    doc["schema_version"] = 99
+    status, _, body = S.handle(
+        "POST", "/api/song/1-album/01-song-one.json", json.dumps(doc).encode(), root
+    )
+    assert status == 422
+    assert "newer than supported" in json.loads(body)["error"]
+    on_disk = json.loads((root / "1-album" / "01-song-one.json").read_text())
+    assert "schema_version" not in on_disk  # original untouched
+
+
 def test_save_invalid_song_rejected(tmp_path):
     root = _corpus(tmp_path)
     doc = json.loads((root / "1-album" / "01-song-one.json").read_text())

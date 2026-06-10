@@ -16,6 +16,7 @@ import threading
 from pathlib import Path
 
 import jsonschema  # imported at startup so a save never fails on a lazy import
+from songsheet_version import stamp, version_error
 
 SCRIPTS = Path(__file__).resolve().parent
 ROOT = SCRIPTS.parent
@@ -409,6 +410,10 @@ def save_song(target: Path, body: bytes):
     except json.JSONDecodeError as e:
         return _json(400, {"ok": False, "error": f"invalid JSON: {e}"})
 
+    err = version_error(doc)
+    if err:
+        return _json(422, {"ok": False, "error": err})
+
     schema = json.loads(SCHEMA_PATH.read_text())
     try:
         jsonschema.validate(doc, schema)
@@ -416,7 +421,7 @@ def save_song(target: Path, body: bytes):
         loc = list(e.absolute_path)
         return _json(422, {"ok": False, "error": f"{loc}: {e.message}"})
 
-    target.write_text(json.dumps(doc, ensure_ascii=False, indent=2))
+    target.write_text(json.dumps(stamp(doc), ensure_ascii=False, indent=2))
     return _json(200, {"ok": True})
 
 

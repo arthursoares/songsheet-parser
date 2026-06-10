@@ -25,6 +25,7 @@ def test_split_songs_returns_one_doc_per_song():
     }
     docs = M.split_songs(assembled)
     assert [d["filename"] for d in docs] == ["01-song-one.json", "02-song-two.json"]
+    assert all(d["doc"]["schema_version"] == M.stamp({})["schema_version"] for d in docs)
     assert docs[0]["doc"]["document"]["title"] == "Album"
     assert len(docs[0]["doc"]["songs"]) == 1
     assert docs[1]["doc"]["songs"][0]["title"] == "Song Two"

@@ -43,6 +43,11 @@
     }
   },
   "properties": {
+    "schema_version": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Document model version (see scripts/songsheet_version.py); absent = pre-stamping, treated as current"
+    },
     "document": {
       "type": "object",
       "required": ["title"],

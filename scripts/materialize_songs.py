@@ -18,6 +18,8 @@ import shutil
 import unicodedata
 from pathlib import Path
 
+from songsheet_version import stamp
+
 
 def slugify(text: str) -> str:
     nfkd = unicodedata.normalize("NFKD", text or "")
@@ -83,7 +85,7 @@ def split_songs(assembled: dict) -> list[dict]:
     out = []
     for i, song in enumerate(assembled.get("songs", [])):
         _migrate_song_voicings(song)
-        doc = {"document": document, "songs": [song]}
+        doc = stamp({"document": document, "songs": [song]})
         out.append(
             {
                 "filename": song_filename(i, song.get("title") or f"song-{i + 1}"),

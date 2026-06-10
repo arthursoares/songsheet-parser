@@ -74,6 +74,24 @@ def test_song_note_non_string_is_rejected():
         jsonschema.validate(doc, schema)
 
 
+def test_schema_version_integer_is_valid():
+    schema = load_schema()
+    doc = json.loads(FIXTURE.read_text())
+    doc["schema_version"] = 2
+    jsonschema.validate(doc, schema)  # must not raise
+    del doc["schema_version"]
+    jsonschema.validate(doc, schema)  # absent is fine (pre-stamping docs)
+
+
+def test_schema_version_non_integer_is_rejected():
+    schema = load_schema()
+    doc = json.loads(FIXTURE.read_text())
+    for bad in ("2", 0):
+        doc["schema_version"] = bad
+        with pytest.raises(jsonschema.ValidationError):
+            jsonschema.validate(doc, schema)
+
+
 def test_document_status_enum():
     schema = load_schema()
     doc = json.loads(FIXTURE.read_text())
