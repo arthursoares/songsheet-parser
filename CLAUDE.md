@@ -54,8 +54,19 @@ python scripts/migrate_hyphenation.py data/<artist>/songs/ [--dry-run]
 # Parser eval: score a fresh parse against the hand-corrected golden songs
 #   (status=done = ground truth; per-field chord/voicing/text/anchor accuracy),
 #   or diff two parses of one song — disagreeing bars are where QA time goes.
+#   reparse = the whole prompt-improvement loop for one golden song (parse its
+#   page PNGs fresh, cached per page; score + print disagreements).
 python scripts/eval_extraction.py score --golden data/<artist>/songs --candidate <fresh>/songs
 python scripts/eval_extraction.py diff a.json b.json [--report-json out.json]
+python scripts/eval_extraction.py reparse data/<artist>/songs/<album>/<song>.json [--force]
+
+# CV diagram reader — reads chord diagrams DETERMINISTICALLY from the PDFs'
+#   native ~72dpi embedded images (the vision LLM tops out ~40% exact on
+#   voicings; this hits ~82% vs golden / ~97% print-faithful). Geometry:
+#   horizontal grids, bold line = played, dots via vertical ink thickness,
+#   base fret = harmonic fit to the chord name + calibrated 4x5px digit
+#   templates (scripts/diagram_digits.json) as tie-breaker.
+python scripts/diagram_reader.py "data/<artist>/pdf/Album.pdf" --page 1 [--names Am7,D7,...]
 
 # Render a .chordmark to HTML via Arthur's fork (needs ../chordmark/chord-mark + node).
 node scripts/render_chordmark.js in.chordmark out.html [--chordmark-repo PATH]
