@@ -70,7 +70,21 @@ function renderDict() {
       ${civals ? `<span class="dci">${esc(civals)}</span>` : ""}
       ${ivals ? `<span class="div">${esc(ivals)}</span>` : ""}
       <span class="dct">${e.count}×</span>
+      ${e.printed && e.printed !== (e.voicing || "")
+        ? `<button class="dprint" title="set all ${e.count} occurrences to the printed voicing">print ${esc(e.printed)} → ${e.count}×</button>`
+        : ""}
     </div>`;
+    const pb = row.querySelector(".dprint");
+    if (pb) {
+      pb.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        pushUndo();
+        window.ChordDictionary.applyEdit(song(), e.key, { voicing: e.printed });
+        markDirty();
+        renderBars();
+        renderDict();
+      });
+    }
     row.querySelector("[data-sel]").addEventListener("click", (ev) => {
       ev.stopPropagation();
       if (state.dictSel.has(e.key)) state.dictSel.delete(e.key);

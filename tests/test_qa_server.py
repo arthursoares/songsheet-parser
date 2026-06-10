@@ -31,8 +31,52 @@ def test_list_albums(tmp_path):
     assert status == 200
     data = json.loads(body)
     assert data == [
-        {"album": "1-album", "songs": [{"file": "01-song-one.json", "status": "pending"}]}
+        {
+            "album": "1-album",
+            "songs": [
+                {
+                    "file": "01-song-one.json",
+                    "status": "pending",
+                    "print_diffs": 0,
+                    "audited": False,
+                }
+            ],
+        }
     ]
+
+
+def test_list_albums_counts_print_diffs(tmp_path):
+    root = _corpus(tmp_path)
+    p = root / "1-album" / "01-song-one.json"
+    doc = json.loads(p.read_text())
+    e = doc["songs"][0]["sections"][0]["bars"][0][0]
+    e["voicing"] = "x,5,7,5,6,x"
+    e["voicing_printed"] = "x,5,7,5,6,5"  # differs -> 1 diff, audited
+    p.write_text(json.dumps(doc))
+    _, _, body = S.handle("GET", "/api/albums", b"", root)
+    s = json.loads(body)[0]["songs"][0]
+    assert s["print_diffs"] == 1 and s["audited"] is True
+
+
+def test_diagram_crop_without_pdf_dir_404(tmp_path, monkeypatch):
+    root = _corpus(tmp_path)
+    monkeypatch.setattr(S, "PDF_DIR", None)
+    status, _, _ = S.handle(
+        "GET", "/api/diagram-crop/1-album/01-song-one.json?si=0&bi=0&ei=0", b"", root
+    )
+    assert status == 404
+
+
+def test_diagram_crop_requires_coords(tmp_path, monkeypatch):
+    root = _corpus(tmp_path)
+    monkeypatch.setattr(S, "PDF_DIR", tmp_path)  # exists but has no PDFs
+    status, _, _ = S.handle("GET", "/api/diagram-crop/1-album/01-song-one.json", b"", root)
+    assert status == 400
+    status2, _, body = S.handle(
+        "GET", "/api/diagram-crop/1-album/01-song-one.json?si=0&bi=0&ei=0", b"", root
+    )
+    assert status2 == 404  # no matching PDF
+    assert "no PDF" in json.loads(body)["error"]
 
 
 def test_list_albums_reads_status(tmp_path):

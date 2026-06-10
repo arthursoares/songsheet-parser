@@ -48,6 +48,8 @@
   .song-row.sel{background:var(--sel);border-color:var(--accent)}
   .song-row .sg{width:14px;text-align:center;flex:0 0 auto;color:var(--muted)}
   .song-row .snm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .song-row .sdiff{margin-left:auto;flex:0 0 auto;font-size:10px;color:#d29922}
+  .song-row .sdiff.ok{color:var(--ok)}
   .songs-empty{color:var(--muted);font-size:12px;padding:12px 6px}
   /* Songs sidebar footer: provenance + per-song note */
   .songs-foot{margin-top:12px;padding-top:10px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:4px}
@@ -128,6 +130,9 @@
   .fb-notes{color:var(--muted);font:12px ui-monospace,monospace;margin-top:6px}
   .printhint{color:var(--muted);font:12px ui-monospace,monospace;margin-top:6px}
   .printhint button{font-size:11px;margin-left:6px;cursor:pointer}
+  .printcrop{display:block;max-width:230px;margin-top:8px;border:1px solid var(--border);border-radius:5px;background:#fff}
+  .dprint{font-size:11px;margin-left:8px;cursor:pointer;color:#d29922;background:none;border:1px solid var(--border);border-radius:5px;padding:2px 7px}
+  .ly-edit{font-size:15px;font-family:inherit;background:var(--panel);color:inherit;border:1px solid var(--accent);border-radius:4px;padding:0 3px}
   .viewtabs{display:flex;gap:6px;margin-bottom:10px}
   .tab{background:var(--panel-2);color:var(--muted);border:1px solid var(--border);border-radius:6px;padding:5px 12px;cursor:pointer}
   .tab.active{background:var(--sel);color:var(--text);border-color:var(--accent)}

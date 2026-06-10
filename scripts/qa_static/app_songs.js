@@ -45,9 +45,15 @@ function renderSongList() {
   songs.forEach((s) => {
     const row = document.createElement("div");
     row.className = "song-row" + (s.file === state.file ? " sel" : "");
+    // audit badge: print-diff count (review backlog), or ✓ when the CV audit
+    // confirmed every voicing — a "ready to confirm" candidate at a glance
+    const badge = !s.audited ? ""
+      : s.print_diffs ? `<span class="sdiff" title="${s.print_diffs} voicings differ from print">${s.print_diffs}</span>`
+      : `<span class="sdiff ok" title="all voicings match print">✓</span>`;
     row.innerHTML =
       `<span class="sg">${esc(statusGlyph(s.status))}</span>` +
-      `<span class="snm" title="${esc(s.file)}">${esc(prettyFile(s.file))}</span>`;
+      `<span class="snm" title="${esc(s.file)}">${esc(prettyFile(s.file))}</span>` +
+      badge;
     row.addEventListener("click", () => selectSong(s.file));
     list.appendChild(row);
   });

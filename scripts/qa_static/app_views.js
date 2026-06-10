@@ -227,6 +227,16 @@ function jumpToFlag(f) {
   if (sel) sel.scrollIntoView({ block: "center", behavior: "smooth" });
 }
 
+// Jump to the first flag positionally AFTER (si, bi, ei), wrapping to the
+// start — used by "use + next" where the current entry's flag just cleared.
+function nextFlaggedAfter(si, bi, ei) {
+  const flags = state.flags;
+  if (!flags.length) { showView("review"); return; }
+  const next = flags.find((f) =>
+    f.si > si || (f.si === si && (f.bi > bi || (f.bi === bi && f.ei > ei))));
+  jumpToFlag(next || flags[0]);
+}
+
 // Jump to the next flagged chord after the current selection (wrapping).
 function nextFlagged() {
   if (!state.doc) return;

@@ -114,7 +114,7 @@ def pair_song(song, diagrams):
         for cuts in cuts_iter:
             kept = [x for k, x in enumerate(longer) if k not in cuts]
             pair = list(zip(shorter, kept)) if longer_is_diagrams else list(zip(kept, shorter))
-            score = sum(1 for e, (v, _err) in pair if v and e.get("voicing") == v)
+            score = sum(1 for e, d in pair if d[0] and e.get("voicing") == d[0])
             if score > bestscore:
                 bestscore, bestpairs = score, pair
         if bestpairs is not None:
@@ -177,8 +177,8 @@ def read_pdf_page_cached(pdf: Path, page_num: int, cache_dir: Path):
     return out
 
 
-def song_diagram_voicings(song, pdf: Path, cache_dir: Path):
-    """(voicing_or_None, err) per diagram across the song's pages, in order.
+def song_diagram_data(song, pdf: Path, cache_dir: Path):
+    """(voicing_or_None, err, page_num, box) per diagram, in reading order.
 
     Base-fret resolution uses the stored chord names in entry order — the
     names are paired positionally, mirroring pair_song's alignment.
@@ -186,17 +186,36 @@ def song_diagram_voicings(song, pdf: Path, cache_dir: Path):
     with_v, non_pct = voiced_entries(song)
     raw = []
     for page_num in song.get("pages", []):
-        raw.extend(read_pdf_page_cached(pdf, page_num, cache_dir))
+        for box, dec, err in read_pdf_page_cached(pdf, page_num, cache_dir):
+            raw.append((page_num, box, dec, err))
     names_pool = with_v if len(raw) == len(with_v) else non_pct
     out = []
-    for k, (box, dec, err) in enumerate(raw):
+    for k, (page_num, box, dec, err) in enumerate(raw):
         if dec is None:
-            out.append((None, err))
+            out.append((None, err, page_num, box))
             continue
         name = names_pool[k].get("chord") if k < len(names_pool) else None
         v, _base, _scored = resolve_voicing(dec, name)
-        out.append((v, None if v else "base unresolved"))
+        out.append((v, None if v else "base unresolved", page_num, box))
     return out
+
+
+def song_diagram_voicings(song, pdf: Path, cache_dir: Path):
+    """(voicing_or_None, err) per diagram — song_diagram_data without geometry."""
+    return [(v, err) for v, err, _p, _b in song_diagram_data(song, pdf, cache_dir)]
+
+
+def norm_slug(slug: str) -> str:
+    """Album-dir <-> PDF-stem slug normalization (dirs sometimes zero-pad)."""
+    return re.sub(r"^0+(\d)", r"\1", slug)
+
+
+def pdf_for_album(album_dir_name: str, pdf_dir: Path):
+    """The album's source PDF, matched by normalized slug, or None."""
+    for p in pdf_dir.glob("*.pdf"):
+        if norm_slug(album_slug(p.stem)) == norm_slug(album_dir_name):
+            return p
+    return None
 
 
 def main():
@@ -209,16 +228,12 @@ def main():
     ap.add_argument("--cache", type=Path, default=Path("/tmp/cv-cache"))
     args = ap.parse_args()
 
-    def norm(slug):
-        # song dirs sometimes zero-pad the leading album number ("01-chega-…")
-        return re.sub(r"^0+(\d)", r"\1", slug)
-
-    pdf_by_slug = {norm(album_slug(p.stem)): p for p in args.pdfs.glob("*.pdf")}
+    pdf_by_slug = {norm_slug(album_slug(p.stem)): p for p in args.pdfs.glob("*.pdf")}
     rows = []
     for album_dir in sorted(p for p in args.songs.iterdir() if p.is_dir()):
         if args.only and album_dir.name != args.only:
             continue
-        pdf = pdf_by_slug.get(norm(album_dir.name))
+        pdf = pdf_by_slug.get(norm_slug(album_dir.name))
         if pdf is None:
             print(f"!! no PDF found for album {album_dir.name}, skipping")
             continue

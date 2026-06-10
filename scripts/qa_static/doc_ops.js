@@ -142,6 +142,18 @@
     return idx + k;
   }
 
+  // New entry text with token k replaced by newText (trimmed). A space inside
+  // newText SPLITS the token into multiple syllables; empty newText DELETES
+  // the token. Returns null if k is out of range; "" means no tokens remain.
+  function replaceTextToken(text, k, newText) {
+    const toks = lySyllables(text);
+    if (k < 0 || k >= toks.length) return null;
+    const nt = String(newText || "").trim().replace(/\s+/g, " ");
+    if (nt) toks.splice(k, 1, ...nt.split(" "));
+    else toks.splice(k, 1);
+    return toks.join(" ");
+  }
+
   // The bar that results from moving chord chordPos to target syllable index,
   // or null if the move is invalid / a no-op. Does not mutate the input bar.
   function reanchoredBar(bar, chordPos, targetSylIdx) {
@@ -159,6 +171,7 @@
     canMergeBarWithNext, mergeBarWithNext,
     addSectionAfter, deleteSection,
     lySyllables, lyBarModel, lyRebuildBar, sylIndexInBar, reanchoredBar,
+    replaceTextToken,
   };
   if (typeof window !== "undefined") window.DocOps = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;

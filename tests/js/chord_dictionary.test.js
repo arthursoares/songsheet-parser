@@ -33,6 +33,22 @@ test("buildDictionary groups by exact name+voicing, excludes %, sorts by count",
   assert.deepEqual(groups[0].occurrences, [{ si: 0, bi: 0, ei: 0 }, { si: 0, bi: 1, ei: 0 }]);
 });
 
+test("buildDictionary exposes the printed voicing when uniform across a group", () => {
+  const song = makeSong();
+  song.sections[0].bars[0][0].voicing_printed = "x,5,7,5,6,5";
+  song.sections[0].bars[1][0].voicing_printed = "x,5,7,5,6,5";
+  const groups = Dict.buildDictionary(song);
+  const dm7 = groups.find((g) => g.key === Dict.entryKey("Dm7", "x,5,7,5,6,x"));
+  assert.equal(dm7.printed, "x,5,7,5,6,5");
+  // mixed printed values -> no uniform suggestion
+  song.sections[0].bars[1][0].voicing_printed = "x,5,7,5,6,x";
+  const dm7b = Dict.buildDictionary(song).find((g) => g.key === dm7.key);
+  assert.equal(dm7b.printed, null);
+  // groups never audited expose null
+  const g7 = groups.find((g) => g.chord === "G7");
+  assert.equal(g7.printed, null);
+});
+
 test("applyEdit renames every occurrence in one group only", () => {
   const song = makeSong();
   const key = Dict.entryKey("Dm7", "x,5,7,5,6,x");

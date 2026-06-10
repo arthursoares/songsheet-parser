@@ -21,18 +21,24 @@
       if (!e.chord || e.chord === "%") return;
       const key = entryKey(e.chord, e.voicing);
       if (!map.has(key)) {
-        map.set(key, { key, chord: e.chord, voicing: e.voicing || null, occurrences: [] });
+        map.set(key, { key, chord: e.chord, voicing: e.voicing || null, occurrences: [],
+                       _printed: new Set() });
       }
-      map.get(key).occurrences.push({ si, bi, ei });
+      const g = map.get(key);
+      g.occurrences.push({ si, bi, ei });
+      if (e.voicing_printed) g._printed.add(e.voicing_printed);
     });
 
     const CN = (typeof window !== "undefined") && window.ChordNaming;
     const entries = [...map.values()].map((g) => {
+      const { _printed, ...rest } = g;
       const v = g.voicing;
       const parsed = v ? v.split(",").map((t) => (t === "x" ? "x" : parseInt(t, 10))) : null;
       return {
-        ...g,
+        ...rest,
         count: g.occurrences.length,
+        // the page's reading, when every occurrence in the group prints the same
+        printed: _printed.size === 1 ? [..._printed][0] : null,
         notes: (CN && parsed) ? CN.pcNotes(parsed) : [],
         suggestions: (CN && parsed) ? CN.suggestNames(parsed).slice(0, 4) : [],
         nameMatchesVoicing: (CN && parsed) ? CN.nameMatchesVoicing(g.chord, parsed) : null,

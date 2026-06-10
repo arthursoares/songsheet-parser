@@ -16,6 +16,8 @@ function flagReason(e) {
   if (e.voicing &&
       window.ChordNaming.nameMatchesVoicing(e.chord, parseVoicing(e.voicing)) === false)
     return "name ≠ voicing";
+  if (e.voicing_printed && e.voicing_printed !== (e.voicing || ""))
+    return e.voicing ? "≠ print" : "no voicing (print has one)";
   return "";
 }
 
@@ -206,9 +208,14 @@ function openEditor(si, bi, ei) {
     <input type="text" id="edText" value="${esc(e.text || "")}">
     <label>Voicing</label>
     <div id="edFb"></div>
+    ${e.voicing_printed
+      ? `<img class="printcrop" id="edPrintCrop" alt="" title="the printed diagram"
+             src="/api/diagram-crop/${encodeURIComponent(state.album)}/${encodeURIComponent(state.file)}?si=${si}&bi=${bi}&ei=${ei}">`
+      : ""}
     ${e.voicing_printed && e.voicing_printed !== (e.voicing || "")
       ? `<div class="printhint">print reads <b>${esc(e.voicing_printed)}</b>
-           <button id="edUsePrint" title="set the voicing to what the page prints">use</button></div>`
+           <button id="edUsePrint" title="set the fretboard to what the page prints">use</button>
+           <button id="edUsePrintNext" title="accept the printed voicing and jump to the next flagged chord">use + next</button></div>`
       : ""}
     <label>Suggestions</label>
     <div class="suggest" id="edSuggest"></div>
@@ -222,12 +229,24 @@ function openEditor(si, bi, ei) {
     refreshNaming();
   });
   fb.set(curVoicing);
+  const cropImg = $("edPrintCrop");
+  if (cropImg) cropImg.addEventListener("error", () => { cropImg.style.display = "none"; });
   const usePrint = $("edUsePrint");
   if (usePrint) {
     usePrint.addEventListener("click", () => {
       curVoicing = parseVoicing(e.voicing_printed);
       fb.set(curVoicing);
       refreshNaming();
+    });
+  }
+  const usePrintNext = $("edUsePrintNext");
+  if (usePrintNext) {
+    usePrintNext.addEventListener("click", () => {
+      pushUndo();
+      e.voicing = e.voicing_printed;
+      markDirty();
+      renderBars();
+      nextFlaggedAfter(si, bi, ei);
     });
   }
   $("edName").addEventListener("input", () => { $("edErr").textContent = ""; refreshNaming(); });

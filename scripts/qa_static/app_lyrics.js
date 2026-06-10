@@ -36,7 +36,8 @@ function renderLyrics() {
   root.innerHTML = "";
   const hint = document.createElement("div");
   hint.className = "ly-hint";
-  hint.textContent = "Drag a chord onto a syllable to re-anchor it (within its bar). ⌘Z undoes.";
+  hint.textContent = "Drag a chord onto a syllable to re-anchor it (within its bar). " +
+    "Double-click a syllable to edit it — a space splits the word, empty deletes. ⌘Z undoes.";
   root.appendChild(hint);
 
   song().sections.forEach((sec, si) => {
@@ -88,13 +89,15 @@ function renderLyBar(si, bi, bar) {
         wrap.appendChild(makeSyl(si, bi, syl,
           k === 0 ? { chord: e.chord, voicing: e.voicing, chordPos } : null,
           // drop target syllable index within the bar's flat syllable list:
-          sylIndexInBar(bar, chordPos, k)));
+          sylIndexInBar(bar, chordPos, k),
+          chordPos, k));
       });
     } else {
       // instrumental / textless entry — standalone chord token, droppable too
       wrap.appendChild(makeSyl(si, bi, "",
         { chord: e.chord, voicing: e.voicing, chordPos, inst: true },
-        sylIndexInBar(bar, chordPos, 0)));
+        sylIndexInBar(bar, chordPos, 0),
+        chordPos, 0));
     }
   });
   if (!anySyl && !bar.length) {
@@ -108,7 +111,8 @@ function renderLyBar(si, bi, bar) {
 
 // Build a syllable column. `chord` (or null) renders a draggable token above;
 // the column itself is a drop target carrying its flat syllable index.
-function makeSyl(si, bi, sylText, chord, sylIdx) {
+// ownerPos/k locate the syllable for editing: token k of entry ownerPos.
+function makeSyl(si, bi, sylText, chord, sylIdx, ownerPos, k) {
   const col = document.createElement("span");
   col.className = "ly-syl";
 
@@ -147,6 +151,40 @@ function makeSyl(si, bi, sylText, chord, sylIdx) {
     txt.textContent = sylText || "·";
   }
   col.appendChild(txt);
+
+  // Inline syllable editing: double-click swaps the span for an input.
+  // Commit rebuilds the owning entry's text token (space = split, empty =
+  // delete); Esc cancels. One undo step per committed edit.
+  if (sylText && !(chord && chord.inst)) {
+    txt.title = "double-click to edit (space splits, empty deletes)";
+    txt.addEventListener("dblclick", (ev) => {
+      ev.stopPropagation();
+      const input = document.createElement("input");
+      input.className = "ly-edit";
+      input.value = sylText;
+      input.size = Math.max(3, sylText.length + 2);
+      col.replaceChild(input, txt);
+      input.focus();
+      input.select();
+      let done = false;
+      const commit = () => {
+        if (done) return;
+        done = true;
+        const e = song().sections[si].bars[bi][ownerPos];
+        const nt = window.DocOps.replaceTextToken(e.text, k, input.value);
+        if (nt === null || nt === (e.text || "")) { renderLyrics(); return; }
+        pushUndo();
+        if (nt) e.text = nt; else delete e.text;
+        markDirty();
+        renderLyrics();
+      };
+      input.addEventListener("keydown", (ev2) => {
+        if (ev2.key === "Enter") { ev2.preventDefault(); commit(); }
+        else if (ev2.key === "Escape") { done = true; renderLyrics(); }
+      });
+      input.addEventListener("blur", commit);
+    });
+  }
 
   // Drop target: re-anchor the dragged chord onto this syllable (same bar only).
   col.addEventListener("dragover", (ev) => {

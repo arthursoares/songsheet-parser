@@ -22,6 +22,8 @@ SCRIPTS = Path(__file__).resolve().parent
 ROOT = SCRIPTS.parent
 SCHEMA_PATH = ROOT / "schemas" / "songsheet.schema.json"
 STATIC_DIR = SCRIPTS / "qa_static"
+PDF_DIR: Path | None = None  # set in main(); sibling pdf/ of --songs by default
+CV_CACHE_DIR = Path("/tmp/cv-cache")  # shared with audit_voicings runs
 
 SAFE = re.compile(r"^[A-Za-z0-9._-]+$")  # path-segment guard (no traversal)
 
@@ -59,19 +61,41 @@ def _bars_per_line(params):
     return n if n in (4, 6, 8) else 4
 
 
-def _song_status(path: Path):
-    """Read document.status from a song JSON; default 'pending'. Never raises."""
+def _song_meta(path: Path):
+    """Status + voicing-audit summary for the sidebar. Never raises.
+
+    print_diffs counts entries where the stored voicing differs from (or is
+    missing against) voicing_printed; audited says whether the CV audit has
+    touched this song at all (so 0 diffs is meaningful).
+    """
     try:
         doc = json.loads(path.read_text())
-        return doc.get("document", {}).get("status") or "pending"
+        status = doc.get("document", {}).get("status") or "pending"
+        diffs, audited = 0, False
+        for song in doc.get("songs", []):
+            for sec in song.get("sections", []):
+                for bar in sec.get("bars", []):
+                    for e in bar:
+                        vp = e.get("voicing_printed")
+                        if not vp:
+                            continue
+                        audited = True
+                        if vp != e.get("voicing"):
+                            diffs += 1
+        return status, diffs, audited
     except Exception:
-        return "pending"
+        return "pending", 0, False
 
 
 def list_albums(root: Path):
     out = []
     for album in sorted(p for p in root.iterdir() if p.is_dir()):
-        songs = [{"file": f.name, "status": _song_status(f)} for f in sorted(album.glob("*.json"))]
+        songs = []
+        for f in sorted(album.glob("*.json")):
+            status, diffs, audited = _song_meta(f)
+            songs.append(
+                {"file": f.name, "status": status, "print_diffs": diffs, "audited": audited}
+            )
         out.append({"album": album.name, "songs": songs})
     return out
 
@@ -379,6 +403,71 @@ def _h_export_album(req, album):
     return _json(400, {"error": f"unknown fmt: {fmt}"})
 
 
+# entry-keyed cache of rendered crops (song mtime in the key invalidates)
+_CROP_CACHE: dict = {}
+
+
+def _h_diagram_crop(req, album, file):
+    """?si=&bi=&ei= — magnified PNG of the PRINTED diagram for one chord entry.
+
+    Pairs the song's entries with the CV reader's diagram boxes (same
+    alignment as audit_voicings) and crops the PDF's native page image.
+    """
+    if PDF_DIR is None or not PDF_DIR.is_dir():
+        return _json(404, {"error": "no pdf directory configured"})
+    target, err = _existing_song(req.root, album, file)
+    if err is not None:
+        return err
+    try:
+        si, bi, ei = (int(req.params[k]) for k in ("si", "bi", "ei"))
+    except (KeyError, ValueError):
+        return _json(400, {"error": "si/bi/ei query params required"})
+
+    key = (album, file, si, bi, ei, target.stat().st_mtime)
+    if key in _CROP_CACHE:
+        return 200, "image/png", _CROP_CACHE[key]
+
+    import audit_voicings as av
+
+    pdf = av.pdf_for_album(album, PDF_DIR)
+    if pdf is None:
+        return _json(404, {"error": f"no PDF for album {album}"})
+    doc = json.loads(target.read_text())
+    song = doc["songs"][0]
+    try:
+        entry = song["sections"][si]["bars"][bi][ei]
+    except (IndexError, KeyError, TypeError):
+        return _json(404, {"error": "no such entry"})
+    try:
+        diagrams = av.song_diagram_data(song, pdf, CV_CACHE_DIR)
+        pairs, _mode = av.pair_song(song, diagrams)
+    except Exception as e:  # noqa: BLE001
+        return _json(500, {"error": f"diagram pairing failed: {e}"})
+    hit = next((d for e2, d in pairs if e2 is entry), None)
+    if hit is None:
+        return _json(404, {"error": "entry has no paired diagram"})
+    _v, _derr, page_num, box = hit
+
+    import io
+
+    import numpy as np
+    from diagram_reader import load_page_image
+    from PIL import Image
+
+    page = load_page_image(pdf, page_num)
+    x0, y0, x1, y1 = box
+    m = 4
+    crop = np.asarray(page[max(0, y0 - m) : y1 + m + 1, max(0, x0 - m) : x1 + m + 1]).astype(
+        "uint8"
+    )
+    im = Image.fromarray(crop).resize((crop.shape[1] * 8, crop.shape[0] * 8), Image.LANCZOS)
+    buf = io.BytesIO()
+    im.save(buf, "PNG")
+    data = buf.getvalue()
+    _CROP_CACHE[key] = data
+    return 200, "image/png", data
+
+
 def _h_page(req, album, file, n):
     """pages/<file-stem>-p<n>.png"""
     if not n.isdigit():
@@ -425,6 +514,7 @@ _ROUTES = [
     ("GET", "/api/export/{album}/{file}", _h_export),
     ("GET", "/api/export-album/{album}", _h_export_album),
     ("GET", "/api/page/{album}/{file}/{n}", _h_page),
+    ("GET", "/api/diagram-crop/{album}/{file}", _h_diagram_crop),
 ]
 _COMPILED_ROUTES = [(m, p.strip("/").split("/"), fn) for m, p, fn in _ROUTES]
 
@@ -677,10 +767,17 @@ def serve(songs_root: Path, port: int):
 
 
 def main():
+    global PDF_DIR
     ap = argparse.ArgumentParser(description="Songsheet QA correction server")
     ap.add_argument("--songs", type=Path, default=ROOT / "data" / "joao-gilberto" / "songs")
     ap.add_argument("--port", type=int, default=8000)
+    ap.add_argument(
+        "--pdfs",
+        type=Path,
+        help="album PDF dir for printed-diagram crops (default: sibling pdf/ of --songs)",
+    )
     args = ap.parse_args()
+    PDF_DIR = args.pdfs or args.songs.parent / "pdf"
     serve(args.songs, args.port)
 
 

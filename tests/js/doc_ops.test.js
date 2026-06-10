@@ -172,6 +172,15 @@ test("reanchoredBar returns null for no-op or invalid moves", () => {
   assert.equal(DocOps.reanchoredBar(bar, -1, 0), null);
 });
 
+test("replaceTextToken edits, splits on space, deletes on empty", () => {
+  assert.equal(DocOps.replaceTextToken("Vai mi nha", 1, "MI"), "Vai MI nha");
+  assert.equal(DocOps.replaceTextToken("demorando em", 0, "demo rando"), "demo rando em");
+  assert.equal(DocOps.replaceTextToken("Vai mi nha", 2, ""), "Vai mi");
+  assert.equal(DocOps.replaceTextToken("Vai", 0, ""), "");
+  assert.equal(DocOps.replaceTextToken("Vai mi", 5, "x"), null);
+  assert.equal(DocOps.replaceTextToken("a  b", 1, "  c   d  "), "a c d");
+});
+
 test("reanchoredBar clamps an out-of-range target to the syllable count", () => {
   const bar = makeSong().sections[0].bars[0];
   // Target far past the end: G7 ends up after every syllable (textless).
