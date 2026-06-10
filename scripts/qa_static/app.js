@@ -580,13 +580,9 @@ function renderBars() {
 // Move a chord entry to the adjacent bar (dir -1 = previous, +1 = next).
 // Moving left appends to the end of the previous bar; right prepends to the next.
 function moveChord(si, bi, ei, dir) {
-  const bars = song().sections[si].bars;
-  const target = bi + dir;
-  if (target < 0 || target >= bars.length) return;
+  if (!window.DocOps.canMoveChord(song(), si, bi, dir)) return;
   pushUndo();
-  const [entry] = bars[bi].splice(ei, 1);
-  if (dir < 0) bars[target].push(entry);
-  else bars[target].unshift(entry);
+  window.DocOps.moveChord(song(), si, bi, ei, dir);
   markDirty();
   state.sel = null;
   $("editor").classList.remove("open");
@@ -594,8 +590,8 @@ function moveChord(si, bi, ei, dir) {
 }
 
 // ---- Structural editing (Bars view) ----
-// All ops: pushUndo() first, mutate song().sections, clear selection (so the
-// editor never points at a removed entry), markDirty(), re-render.
+// The pure mutations live in doc_ops.js (window.DocOps); these wrappers own
+// pushUndo() (before the change), confirm dialogs, selection, and re-render.
 
 // After any structural change: drop the editor selection and re-render bars +
 // the dependent views/sidebar (renderBars rebuilds state.flags → Review).
@@ -608,51 +604,35 @@ function afterStructuralEdit() {
   if (state.activeView === "review") renderReview();
 }
 
-// Insert an empty bar after bar index bi (use bi = -1 to add the first bar to an
-// empty section). An empty bar [] is schema-valid (bars is an array of arrays).
 function addBarAfter(si, bi) {
   pushUndo();
-  song().sections[si].bars.splice(bi + 1, 0, []);
+  window.DocOps.addBarAfter(song(), si, bi);
   afterStructuralEdit();
 }
 
 function deleteBar(si, bi) {
   if (!confirm(`Delete bar ${bi + 1}?`)) return;
   pushUndo();
-  song().sections[si].bars.splice(bi, 1);
+  window.DocOps.deleteBar(song(), si, bi);
   afterStructuralEdit();
 }
 
-// Split a bar into two. Multi-entry: split at the midpoint. Single/empty entry:
-// the new second bar is a "%" continuation (keeps it simple & schema-valid).
 function splitBar(si, bi) {
-  const bars = song().sections[si].bars;
-  const bar = bars[bi];
   pushUndo();
-  if (bar.length >= 2) {
-    const mid = Math.ceil(bar.length / 2);
-    const tail = bar.splice(mid);
-    bars.splice(bi + 1, 0, tail);
-  } else {
-    bars.splice(bi + 1, 0, [{ chord: "%" }]);
-  }
+  window.DocOps.splitBar(song(), si, bi);
   afterStructuralEdit();
 }
 
-// Merge a bar with the next one (concatenate entries, drop the next bar).
 function mergeBarWithNext(si, bi) {
-  const bars = song().sections[si].bars;
-  if (bi >= bars.length - 1) return;
+  if (!window.DocOps.canMergeBarWithNext(song(), si, bi)) return;
   pushUndo();
-  bars[bi] = bars[bi].concat(bars[bi + 1]);
-  bars.splice(bi + 1, 1);
+  window.DocOps.mergeBarWithNext(song(), si, bi);
   afterStructuralEdit();
 }
 
-// Insert a new section after section index si (with one "%" bar so it renders).
 function addSectionAfter(si) {
   pushUndo();
-  song().sections.splice(si + 1, 0, { label: "", bars: [[{ chord: "%" }]] });
+  window.DocOps.addSectionAfter(song(), si);
   afterStructuralEdit();
 }
 
@@ -661,7 +641,7 @@ function deleteSection(si) {
   const name = (sec && sec.label) || `Section ${si + 1}`;
   if (!confirm(`Delete "${name}" and all its bars?`)) return;
   pushUndo();
-  song().sections.splice(si, 1);
+  window.DocOps.deleteSection(song(), si);
   afterStructuralEdit();
 }
 
@@ -774,58 +754,18 @@ async function save() {
 // its index up to the next chord's index. Voicings are preserved per chord.
 // Cross-bar drops are detected and no-op gracefully.
 
-// Tokenize an entry's text into syllable/word tokens (split on whitespace).
-function lySyllables(text) {
-  if (!text) return [];
-  return String(text).split(/\s+/).filter((s) => s.length);
-}
-
-// Build a flat model of one bar for re-anchoring:
-//   syllables: [{text}], chords: [{chord, voicing, idx}] where idx is the
-//   syllable index the chord anchors to. Instrumental entries (no text) anchor
-//   to the syllable index at their position (a synthetic empty-run boundary).
-function lyBarModel(bar) {
-  const syllables = [];
-  const chords = [];
-  bar.forEach((e) => {
-    const syls = lySyllables(e.text);
-    const idx = syllables.length;
-    chords.push({ chord: e.chord, voicing: e.voicing, idx });
-    syls.forEach((s) => syllables.push({ text: s }));
-  });
-  return { syllables, chords };
-}
-
-// Rebuild a bar's entry array from a {syllables, chords} model after a move.
-// Each chord owns syllables [idx, nextChord.idx); text is the run joined by
-// spaces (omitted when empty). Chords are kept in ascending idx order; ties
-// keep their existing relative order (stable).
-function lyRebuildBar(model) {
-  const chords = model.chords
-    .map((c, i) => ({ ...c, _o: i }))
-    .sort((a, b) => a.idx - b.idx || a._o - b._o);
-  return chords.map((c, i) => {
-    const next = i + 1 < chords.length ? chords[i + 1].idx : model.syllables.length;
-    const run = model.syllables.slice(c.idx, Math.max(c.idx, next))
-      .map((s) => s.text).join(" ");
-    const entry = { chord: c.chord };
-    if (c.voicing) entry.voicing = c.voicing;
-    if (run) entry.text = run;
-    return entry;
-  });
-}
+// Tokenization + bar model + rebuild live in doc_ops.js (window.DocOps).
+const lySyllables = (text) => window.DocOps.lySyllables(text);
+const sylIndexInBar = (bar, chordPos, k) => window.DocOps.sylIndexInBar(bar, chordPos, k);
 
 // Perform the re-anchor: move chord at chordPos within the bar to target
 // syllable index, rebuild entries, mutate state.doc.
 function lyReanchor(si, bi, chordPos, targetSylIdx) {
   const bar = song().sections[si].bars[bi];
-  const model = lyBarModel(bar);
-  if (chordPos < 0 || chordPos >= model.chords.length) return;
-  const clamped = Math.max(0, Math.min(targetSylIdx, model.syllables.length));
-  if (model.chords[chordPos].idx === clamped) return; // no change
+  const rebuilt = window.DocOps.reanchoredBar(bar, chordPos, targetSylIdx);
+  if (rebuilt === null) return; // invalid or no change
   pushUndo();
-  model.chords[chordPos].idx = clamped;
-  song().sections[si].bars[bi] = lyRebuildBar(model);
+  song().sections[si].bars[bi] = rebuilt;
   markDirty();
   renderLyrics();
 }
@@ -908,13 +848,6 @@ function renderLyBar(si, bi, bar) {
     wrap.appendChild(empty);
   }
   return wrap;
-}
-
-// Flat syllable index (within the bar) of the k-th syllable of entry chordPos.
-function sylIndexInBar(bar, chordPos, k) {
-  let idx = 0;
-  for (let i = 0; i < chordPos; i++) idx += lySyllables(bar[i].text).length;
-  return idx + k;
 }
 
 // Build a syllable column. `chord` (or null) renders a draggable token above;
