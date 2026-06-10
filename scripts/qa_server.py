@@ -177,229 +177,300 @@ def _load_doc(body: bytes):
         return None, _json(400, {"error": f"invalid JSON: {e}"})
 
 
-def handle(method: str, path: str, body: bytes, root: Path):
-    """Pure router. Returns (status, ctype, body) or (status, ctype, body, headers)."""
-    orig_path = path
-    path = path.split("?", 1)[0]  # drop query string (e.g. cache-bust ?t=)
-    parts = [p for p in path.split("/") if p != ""]
+def _existing_song(root: Path, album: str, fname: str):
+    """Resolve root/album/fname for read routes: (target, None) or (None, error response)."""
+    target = _safe_under(root, album, fname)
+    if target is None:
+        return None, _json(400, {"error": "bad path"})
+    if not target.exists():
+        return None, _json(404, {"error": "not found"})
+    return target, None
 
-    if method == "GET" and path == "/api/albums":
-        return _json(200, list_albums(root))
 
-    # /api/song/{album}/{file}
-    if parts[:2] == ["api", "song"] and len(parts) == 4:
-        album, fname = parts[2], parts[3]
-        target = _safe_under(root, album, fname)
-        if target is None:
-            return _json(400, {"error": "bad path"})
-        if method == "GET":
-            if not target.exists():
-                return _json(404, {"error": "not found"})
-            return 200, "application/json", target.read_bytes()
-        if method == "POST":
-            return save_song(target, body)
+# --- route handlers -------------------------------------------------------
+# Each takes (req, **path_args) where req has .root, .body, .params, and
+# returns (status, ctype, body) or (status, ctype, body, headers).
 
-    # /api/chordmark/{album}/{file}  -> the generated ChordMark source text
-    if parts[:2] == ["api", "chordmark"] and len(parts) == 4 and method == "GET":
-        album, fname = parts[2], parts[3]
-        target = _safe_under(root, album, fname)
-        if target is None:
-            return _json(400, {"error": "bad path"})
-        if not target.exists():
-            return _json(404, {"error": "not found"})
-        try:
-            text = _build_chordmark(target, _bars_per_line(_query_params(orig_path)))
-        except Exception as e:  # noqa: BLE001
-            return _json(500, {"error": f"chordmark build failed: {e}"})
-        return 200, "text/plain; charset=utf-8", text.encode()
 
-    # /api/render-doc?style=target|fork&dict=&inline=&bars=  -> render from POSTed doc
-    #   Live preview of UNSAVED edits: body is the in-memory document. Never writes.
-    if path == "/api/render-doc" and method == "POST":
-        doc, err = _load_doc(body)
-        if err is not None:
-            return err
-        params = _query_params(orig_path)
-        bars = _bars_per_line(params)
-        if params.get("style") == "fork":
-            return render_song_doc(doc, bars_per_line=bars)
-        return render_target_doc(
-            doc,
-            dictionary=params.get("dict", "per_voicing"),
-            inline=params.get("inline") == "1",
+def _h_albums(req):
+    return _json(200, list_albums(req.root))
+
+
+def _h_song_get(req, album, file):
+    target, err = _existing_song(req.root, album, file)
+    if err is not None:
+        return err
+    return 200, "application/json", target.read_bytes()
+
+
+def _h_song_post(req, album, file):
+    # No existence check: a save may (re)create the file.
+    target = _safe_under(req.root, album, file)
+    if target is None:
+        return _json(400, {"error": "bad path"})
+    return save_song(target, req.body)
+
+
+def _h_chordmark(req, album, file):
+    """The generated ChordMark source text for a saved song."""
+    target, err = _existing_song(req.root, album, file)
+    if err is not None:
+        return err
+    try:
+        text = _build_chordmark(target, _bars_per_line(req.params))
+    except Exception as e:  # noqa: BLE001
+        return _json(500, {"error": f"chordmark build failed: {e}"})
+    return 200, "text/plain; charset=utf-8", text.encode()
+
+
+def _h_render_doc(req):
+    """?style=target|fork&dict=&inline=&bars= — render from a POSTed doc.
+
+    Live preview of UNSAVED edits: body is the in-memory document. Never writes.
+    """
+    doc, err = _load_doc(req.body)
+    if err is not None:
+        return err
+    bars = _bars_per_line(req.params)
+    if req.params.get("style") == "fork":
+        return render_song_doc(doc, bars_per_line=bars)
+    return render_target_doc(
+        doc,
+        dictionary=req.params.get("dict", "per_voicing"),
+        inline=req.params.get("inline") == "1",
+        bars_per_line=bars,
+    )
+
+
+def _h_chordmark_doc(req):
+    """?bars= — the generated ChordMark source from a POSTed doc."""
+    doc, err = _load_doc(req.body)
+    if err is not None:
+        return err
+    try:
+        text = _build_chordmark_doc(doc, _bars_per_line(req.params))
+    except Exception as e:  # noqa: BLE001
+        return _json(500, {"error": f"chordmark build failed: {e}"})
+    return 200, "text/plain; charset=utf-8", text.encode()
+
+
+def _h_harmony(req, album, file):
+    """Harmonic analysis of a saved song."""
+    target, err = _existing_song(req.root, album, file)
+    if err is not None:
+        return err
+    try:
+        doc = json.loads(target.read_text())
+    except Exception as e:  # noqa: BLE001
+        return _json(500, {"error": f"bad song file: {e}"})
+    return harmony_doc(doc)
+
+
+def _h_harmony_doc(req):
+    """Harmonic analysis of a POSTed (unsaved) document.
+
+    Live analysis of in-memory edits, same contract as /api/render-doc.
+    """
+    doc, err = _load_doc(req.body)
+    if err is not None:
+        return err
+    return harmony_doc(doc)
+
+
+def _h_convert(req):
+    """?fmt=pdf|png&name=<stem> — body is an HTML document, returns it converted
+    by headless Chrome as a downloadable attachment. Used by the Harmony tab's
+    PDF export (the snapshot HTML is built client-side so it reflects unsaved edits).
+    """
+    fmt = req.params.get("fmt", "pdf")
+    if fmt not in ("pdf", "png"):
+        return _json(400, {"error": f"unsupported fmt {fmt!r}"})
+    try:
+        html = req.body.decode("utf-8")
+    except UnicodeDecodeError:
+        return _json(400, {"error": "body must be utf-8 HTML"})
+    if not html.strip():
+        return _json(400, {"error": "empty body"})
+    try:
+        data = _chrome_convert(html, fmt)
+    except RuntimeError as e:
+        return _json(500, {"error": str(e)})
+    stem = re.sub(r"[^A-Za-z0-9._-]+", "-", req.params.get("name", "export")) or "export"
+    ctype = "application/pdf" if fmt == "pdf" else "image/png"
+    return 200, ctype, data, _attach(stem, fmt)
+
+
+def _h_render(req, album, file):
+    """ChordMark HTML rendered via the fork (or style=target)."""
+    target, err = _existing_song(req.root, album, file)
+    if err is not None:
+        return err
+    bars = _bars_per_line(req.params)
+    if req.params.get("style") == "target":
+        return render_target_html(
+            target,
+            dictionary=req.params.get("dict", "per_voicing"),
+            inline=req.params.get("inline") == "1",
             bars_per_line=bars,
         )
+    return render_song_html(target, bars_per_line=bars)
 
-    # /api/chordmark-doc?bars=  -> the generated ChordMark source from a POSTed doc
-    if path == "/api/chordmark-doc" and method == "POST":
-        doc, err = _load_doc(body)
-        if err is not None:
-            return err
+
+def _h_export(req, album, file):
+    """?fmt=chordmark|chordpro|html|pdf|png — downloadable file for one song."""
+    target, err = _existing_song(req.root, album, file)
+    if err is not None:
+        return err
+    fmt = req.params.get("fmt", "html")
+    stem = file[:-5] if file.endswith(".json") else file
+
+    if fmt == "chordmark":
         try:
-            text = _build_chordmark_doc(doc, _bars_per_line(_query_params(orig_path)))
+            text = _build_chordmark(target, _bars_per_line(req.params))
         except Exception as e:  # noqa: BLE001
             return _json(500, {"error": f"chordmark build failed: {e}"})
-        return 200, "text/plain; charset=utf-8", text.encode()
+        return (200, "text/plain; charset=utf-8", text.encode(), _attach(stem, "chordmark"))
 
-    # /api/harmony/{album}/{file}  -> harmonic analysis of a saved song
-    if parts[:2] == ["api", "harmony"] and len(parts) == 4 and method == "GET":
-        album, fname = parts[2], parts[3]
-        target = _safe_under(root, album, fname)
-        if target is None:
-            return _json(400, {"error": "bad path"})
-        if not target.exists():
-            return _json(404, {"error": "not found"})
+    if fmt == "chordpro":
         try:
-            doc = json.loads(target.read_text())
+            text = _build_chordpro(target)
         except Exception as e:  # noqa: BLE001
-            return _json(500, {"error": f"bad song file: {e}"})
-        return harmony_doc(doc)
+            return _json(500, {"error": f"chordpro build failed: {e}"})
+        return (200, "text/plain; charset=utf-8", text.encode(), _attach(stem, "chordpro"))
 
-    # /api/harmony-doc  -> harmonic analysis of a POSTed (unsaved) document
-    #   Live analysis of in-memory edits, same contract as /api/render-doc.
-    if path == "/api/harmony-doc" and method == "POST":
-        doc, err = _load_doc(body)
-        if err is not None:
-            return err
-        return harmony_doc(doc)
-
-    # /api/convert?fmt=pdf|png&name=<stem>  -> body is an HTML document, returns
-    #   it converted by headless Chrome as a downloadable attachment. Used by the
-    #   Harmony tab's PDF export (the snapshot HTML is built client-side so it
-    #   reflects unsaved edits).
-    if path == "/api/convert" and method == "POST":
-        params = _query_params(orig_path)
-        fmt = params.get("fmt", "pdf")
-        if fmt not in ("pdf", "png"):
-            return _json(400, {"error": f"unsupported fmt {fmt!r}"})
+    html, err = _render_html_for_export(target, req.params)
+    if err is not None:
+        return err
+    if fmt == "html":
+        return 200, "text/html", html.encode(), _attach(stem, "html")
+    if fmt in ("pdf", "png"):
+        if _chrome() is None:
+            return _json(500, {"error": "Chrome not found for PDF export"})
         try:
-            html = body.decode("utf-8")
-        except UnicodeDecodeError:
-            return _json(400, {"error": "body must be utf-8 HTML"})
-        if not html.strip():
-            return _json(400, {"error": "empty body"})
-        try:
-            data = _chrome_convert(html, fmt)
+            blob = _chrome_convert(html, fmt)
         except RuntimeError as e:
             return _json(500, {"error": str(e)})
-        stem = re.sub(r"[^A-Za-z0-9._-]+", "-", params.get("name", "export")) or "export"
         ctype = "application/pdf" if fmt == "pdf" else "image/png"
-        return 200, ctype, data, _attach(stem, fmt)
+        return 200, ctype, blob, _attach(stem, fmt)
+    return _json(400, {"error": f"unknown fmt: {fmt}"})
 
-    # /api/render/{album}/{file}  -> ChordMark HTML rendered via the fork
-    if parts[:2] == ["api", "render"] and len(parts) == 4 and method == "GET":
-        album, fname = parts[2], parts[3]
-        target = _safe_under(root, album, fname)
-        if target is None:
-            return _json(400, {"error": "bad path"})
-        if not target.exists():
-            return _json(404, {"error": "not found"})
-        params = _query_params(orig_path)
-        bars = _bars_per_line(params)
-        if params.get("style") == "target":
-            return render_target_html(
-                target,
-                dictionary=params.get("dict", "per_voicing"),
-                inline=params.get("inline") == "1",
-                bars_per_line=bars,
-            )
-        return render_song_html(target, bars_per_line=bars)
 
-    # /api/export/{album}/{file}?fmt=chordmark|html|pdf|png  -> downloadable file
-    if parts[:2] == ["api", "export"] and len(parts) == 4 and method == "GET":
-        album, fname = parts[2], parts[3]
-        target = _safe_under(root, album, fname)
-        if target is None:
-            return _json(400, {"error": "bad path"})
-        if not target.exists():
-            return _json(404, {"error": "not found"})
-        params = _query_params(orig_path)
-        fmt = params.get("fmt", "html")
-        stem = fname[:-5] if fname.endswith(".json") else fname
+def _h_export_album(req, album):
+    """?fmt=pdf|html — whole-album songbook (one document)."""
+    album_dir = _safe_under(req.root, album)
+    if album_dir is None:
+        return _json(400, {"error": "bad path"})
+    if not album_dir.is_dir():
+        return _json(404, {"error": "not found"})
+    fmt = req.params.get("fmt", "pdf")
+    html, err = _render_album_songbook_html(album_dir, album, req.params)
+    if err is not None:
+        return err
+    if fmt == "html":
+        return 200, "text/html", html.encode(), _attach(f"{album}-songbook", "html")
+    if fmt == "pdf":
+        if _chrome() is None:
+            return _json(500, {"error": "Chrome not found for PDF export"})
+        try:
+            blob = _chrome_convert(html, "pdf")
+        except RuntimeError as e:
+            return _json(500, {"error": str(e)})
+        return 200, "application/pdf", blob, _attach(f"{album}-songbook", "pdf")
+    return _json(400, {"error": f"unknown fmt: {fmt}"})
 
-        if fmt == "chordmark":
-            try:
-                text = _build_chordmark(target, _bars_per_line(params))
-            except Exception as e:  # noqa: BLE001
-                return _json(500, {"error": f"chordmark build failed: {e}"})
-            return (200, "text/plain; charset=utf-8", text.encode(), _attach(stem, "chordmark"))
 
-        if fmt == "chordpro":
-            try:
-                text = _build_chordpro(target)
-            except Exception as e:  # noqa: BLE001
-                return _json(500, {"error": f"chordpro build failed: {e}"})
-            return (200, "text/plain; charset=utf-8", text.encode(), _attach(stem, "chordpro"))
+def _h_page(req, album, file, n):
+    """pages/<file-stem>-p<n>.png"""
+    if not n.isdigit():
+        return _json(400, {"error": "bad path"})
+    slug = file[:-5] if file.endswith(".json") else file
+    png = _safe_under(req.root, album, "pages", f"{slug}-p{n}.png")
+    if png is None:
+        return _json(400, {"error": "bad path"})
+    if not png.exists():
+        return _json(404, {"error": "no page"})
+    return 200, "image/png", png.read_bytes()
 
-        html, err = _render_html_for_export(target, params)
-        if err is not None:
-            return err
-        if fmt == "html":
-            return 200, "text/html", html.encode(), _attach(stem, "html")
-        if fmt in ("pdf", "png"):
-            if _chrome() is None:
-                return _json(500, {"error": "Chrome not found for PDF export"})
-            try:
-                blob = _chrome_convert(html, fmt)
-            except RuntimeError as e:
-                return _json(500, {"error": str(e)})
-            ctype = "application/pdf" if fmt == "pdf" else "image/png"
-            return 200, ctype, blob, _attach(stem, fmt)
-        return _json(400, {"error": f"unknown fmt: {fmt}"})
 
-    # /api/export-album/{album}?fmt=pdf|html  -> whole-album songbook (one document)
-    if parts[:2] == ["api", "export-album"] and len(parts) == 3 and method == "GET":
-        album = parts[2]
-        album_dir = _safe_under(root, album)
-        if album_dir is None:
-            return _json(400, {"error": "bad path"})
-        if not album_dir.is_dir():
-            return _json(404, {"error": "not found"})
-        params = _query_params(orig_path)
-        fmt = params.get("fmt", "pdf")
-        html, err = _render_album_songbook_html(album_dir, album, params)
-        if err is not None:
-            return err
-        if fmt == "html":
-            return 200, "text/html", html.encode(), _attach(f"{album}-songbook", "html")
-        if fmt == "pdf":
-            if _chrome() is None:
-                return _json(500, {"error": "Chrome not found for PDF export"})
-            try:
-                blob = _chrome_convert(html, "pdf")
-            except RuntimeError as e:
-                return _json(500, {"error": str(e)})
-            return 200, "application/pdf", blob, _attach(f"{album}-songbook", "pdf")
-        return _json(400, {"error": f"unknown fmt: {fmt}"})
+def _static_file(path: str):
+    """Static files: index.html at "/", else by name under STATIC_DIR. None if no match."""
+    rel = "index.html" if path == "/" else path.lstrip("/")
+    if ".." in rel or not all(SAFE.match(seg) for seg in rel.split("/")):
+        return None
+    f = STATIC_DIR / rel
+    if not (f.exists() and f.is_file()):
+        return None
+    ctype = {
+        ".html": "text/html",
+        ".js": "text/javascript",
+        ".css": "text/css",
+        ".png": "image/png",
+        ".json": "application/json",
+    }.get(f.suffix.lower(), "application/octet-stream")
+    return 200, ctype, f.read_bytes()
 
-    # /api/page/{album}/{file}/{n}  -> pages/<file-stem>-p<n>.png
-    if parts[:2] == ["api", "page"] and len(parts) == 5 and method == "GET":
-        album, fname, n = parts[2], parts[3], parts[4]
-        if not n.isdigit():
-            return _json(400, {"error": "bad path"})
-        slug = fname[:-5] if fname.endswith(".json") else fname
-        png = _safe_under(root, album, "pages", f"{slug}-p{n}.png")
-        if png is None:
-            return _json(400, {"error": "bad path"})
-        if not png.exists():
-            return _json(404, {"error": "no page"})
-        return 200, "image/png", png.read_bytes()
 
-    # static files (index.html at "/", else by name under STATIC_DIR)
+# (method, /pattern/with/{params}, handler) — matched in order, segment-exact.
+_ROUTES = [
+    ("GET", "/api/albums", _h_albums),
+    ("GET", "/api/song/{album}/{file}", _h_song_get),
+    ("POST", "/api/song/{album}/{file}", _h_song_post),
+    ("GET", "/api/chordmark/{album}/{file}", _h_chordmark),
+    ("POST", "/api/render-doc", _h_render_doc),
+    ("POST", "/api/chordmark-doc", _h_chordmark_doc),
+    ("GET", "/api/harmony/{album}/{file}", _h_harmony),
+    ("POST", "/api/harmony-doc", _h_harmony_doc),
+    ("POST", "/api/convert", _h_convert),
+    ("GET", "/api/render/{album}/{file}", _h_render),
+    ("GET", "/api/export/{album}/{file}", _h_export),
+    ("GET", "/api/export-album/{album}", _h_export_album),
+    ("GET", "/api/page/{album}/{file}/{n}", _h_page),
+]
+_COMPILED_ROUTES = [(m, p.strip("/").split("/"), fn) for m, p, fn in _ROUTES]
+
+
+def _match_route(pattern_parts: list[str], parts: list[str]):
+    """Match path segments against a pattern; dict of {param} captures, or None."""
+    if len(pattern_parts) != len(parts):
+        return None
+    args = {}
+    for pat, seg in zip(pattern_parts, parts):
+        if pat.startswith("{") and pat.endswith("}"):
+            args[pat[1:-1]] = seg
+        elif pat != seg:
+            return None
+    return args
+
+
+class _Request:
+    """What a route handler sees: corpus root, raw body, parsed query params."""
+
+    __slots__ = ("root", "body", "params")
+
+    def __init__(self, root: Path, body: bytes, params: dict):
+        self.root = root
+        self.body = body
+        self.params = params
+
+
+def handle(method: str, path: str, body: bytes, root: Path):
+    """Pure router. Returns (status, ctype, body) or (status, ctype, body, headers)."""
+    params = _query_params(path)
+    path = path.split("?", 1)[0]  # drop query string (e.g. cache-bust ?t=)
+    parts = [p for p in path.split("/") if p != ""]
+    req = _Request(root, body, params)
+
+    for route_method, pattern_parts, handler in _COMPILED_ROUTES:
+        if route_method != method:
+            continue
+        args = _match_route(pattern_parts, parts)
+        if args is not None:
+            return handler(req, **args)
+
     if method == "GET":
-        rel = "index.html" if path == "/" else path.lstrip("/")
-        if ".." not in rel and all(SAFE.match(seg) for seg in rel.split("/")):
-            f = STATIC_DIR / rel
-            if f.exists() and f.is_file():
-                ext = f.suffix.lower()
-                ctype = {
-                    ".html": "text/html",
-                    ".js": "text/javascript",
-                    ".css": "text/css",
-                    ".png": "image/png",
-                    ".json": "application/json",
-                }.get(ext, "application/octet-stream")
-                return 200, ctype, f.read_bytes()
+        hit = _static_file(path)
+        if hit is not None:
+            return hit
 
     return _json(404, {"error": "unknown route"})
 

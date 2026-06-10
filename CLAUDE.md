@@ -86,7 +86,7 @@ Single page end-to-end: render a PNG, run stage 2 then stage 3.
   onto a syllable to re-anchor (per-bar chord↔syllable rebuild, within a single bar only).
 - **Keyboard:** ⌘S/Ctrl+S save, Esc close editor, `n`/`p` prev/next song, `]` next-flagged, Enter
   applies in the chord editor, ⌘Z/⌘⇧Z (Ctrl+Y) undo/redo.
-- `qa_server.py` (stdlib HTTP), exact routes in `handle()`:
+- `qa_server.py` (stdlib HTTP), exact routes in the `_ROUTES` table (one `_h_*` handler each):
   - `GET /api/albums`
   - `GET|POST /api/song/<album>/<file>` (POST is schema-validated)
   - `GET /api/chordmark/<album>/<file>?bars=` — generated ChordMark source for a saved song
