@@ -2,6 +2,18 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: use superpowers:subagent-driven-development (or executing-plans) to implement this task-by-task. Steps use `- [ ]` checkboxes.
 
+> **STATUS UPDATE 2026-06-10:** still not started as a whole, but one building block landed
+> ahead of schedule and changes the architecture assumptions below: **`scripts/diagram_reader.py`**
+> reads chord diagrams DETERMINISTICALLY from page rasters (~98% print-faithful vs the vision
+> model's ~40% exact on voicings — see `eval_extraction.py` + `audit_voicings.py`). For format B
+> (Rousseau chord grids) this likely replaces vision for the voicing dots entirely (the plan
+> below assumed "vision is still the reliable route for actual frets" — no longer true for
+> consistently-typeset diagrams). Any new profile should plan a per-element split: deterministic
+> CV for diagram geometry, LLM for lyrics/structure, PDF text layer where present. The reader's
+> grayscale bands + horizontal-grid geometry are calibrated to the Lumiar/João-Gilberto
+> rendering; new formats need re-calibration (the golden-corpus auto-calibration approach in
+> `diagram_digits.json` generalizes).
+
 **Goal:** Extend the PDF → JSON extraction pipeline to support multiple songbook formats via pluggable **format profiles**, normalizing every format into the existing chord-anchored model (`document → songs → sections → bars`, each bar an ordered list of `{chord, voicing?, text?}`). First two new formats: the **Lumiar/Chediak scanned songbook** (Caetano Veloso vol. 1) and the **Christophe Rousseau digital chord-grid arrangement** (Deixar Você).
 
 **Architecture:** Only `parse_songsheet.py`'s prompt is truly format-specific today. Make it a `--format <profile>` selector backed by a profiles registry; add a **spread-splitter** to `extract_pages.py` for two-up scans; add an optional **digital text cross-check** for vector PDFs. The data model, schema, QA tool, renderers, and exports are already format-agnostic and do **not** change. Every output stamps `_meta.format`.

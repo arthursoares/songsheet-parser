@@ -12,6 +12,14 @@ data/*/songs/
 # backing up the corrected corpus + scans; its metadata isn't ours to track.
 data/.gitignore
 data/README.md
+data/*.json
+
+# Playwright MCP artifacts (screenshots/snapshots from browser verification)
+.playwright-mcp/
+
+# Blog-post draft (published elsewhere; embeds corpus-derived stats)
+draft-post.md
+draft-post-charts/
 
 # Throwaway prototypes / experiments (embed copyrighted song data — never commit)
 experiments/

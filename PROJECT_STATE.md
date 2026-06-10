@@ -1,6 +1,6 @@
 # Songsheet Parser — Project State
 
-**Last updated:** 2026-06-09
+**Last updated:** 2026-06-10
 
 ## What this is
 
@@ -78,18 +78,65 @@ per-occurrence. Lyrics carry word-continuation dashes (`tris- te- za e`). Schema
   list and/or scan pane.
 - ChordMark output carries `composer`/`key` metadata directives; `json_to_chordmark.py` walks
   directories recursively, mirroring the per-album corpus layout.
-- Test suite: 227 passing (pytest). JS verified via `node --check` + Playwright smoke.
+- **Hardening pass (2026-06-10):** `data/` is its own **private git repo**
+  (github.com/arthursoares/songsheet-data — corpus + scans backed up off-machine);
+  `pyproject.toml` with PEP 735 dep groups + ruff (lint/format applied repo-wide); GitHub Actions
+  CI (ruff + pytest + `node --test`); `schema_version` field (current 2, stamped on save, future
+  versions refused); qa_server routes as a `_ROUTES` table; app.js split into six `app_*.js`
+  files (classic-script idiom — harmony.js shares globals, so ES modules deferred deliberately);
+  pure doc mutations extracted to `doc_ops.js` with node tests (caught + fixed a real data-loss
+  bug: re-anchoring a bar's first chord deleted leading syllables); chord-naming **parity
+  fixture** pinned in both pytest and node (also caught: harmony.py read `Caug`/`C+` as a major
+  triad — fixed).
+- **Parser eval harness (2026-06-10):** `eval_extraction.py` — `score` (candidate corpus vs
+  status=done golden songs; chord accuracy is HARMONIC equivalence via harmony.py with spelling
+  tracked separately; text comparison dash-insensitive; alignment-based so dropped bars don't
+  cascade), `diff` (bar-level disagreements between two parses), `reparse` (the whole
+  prompt-improvement loop for one golden song, page parses cached). Measured baseline on the
+  golden song (gpt-5.5): structure/anchor ~100%, chords ~81% (plus ~20% spelling-convention
+  deltas), lyrics 49→55-62% after prompt fixes (diacritics + positional anchoring), **voicings
+  26–43% across ALL prompt variants and a hi-DPI test — perception-bound, not prompt-bound**
+  (the model recites textbook shapes for the chord name; those evade the name≠voicing flag, so
+  the prompt now has a read-don't-recall rule making errors detectable).
+- **CV diagram reader (2026-06-10):** `diagram_reader.py` reads the diagrams DETERMINISTICALLY
+  from the PDFs' native embedded images (all 15 albums are ~592×840 ≈ 72 dpi rasters; each
+  diagram ~36×22 px — the root cause of the vision ceiling). Geometry: horizontal grids
+  (top = high e), bold string line = played / thin = muted (bold + no dot = open), dots as ≥4 px
+  vertical ink runs, uniform fret-grid reconstruction, 'o'-under-nut open marker; absolute base
+  fret = harmonic fit of the chord name, tie-broken by auto-calibrated 4×5 px digit templates
+  (`diagram_digits.json`). **82.5% exact vs golden / ~97.6% print-faithful** (residuals are
+  editorial corrections beyond the print: unmarked opens, unprinted barre dots).
+- **Corpus voicing audit (2026-06-10):** `audit_voicings.py` diffed the reader against every
+  stored voicing — 175/185 songs aligned, **5,865 voicings double-confirmed, 12,748 in a ranked
+  review worklist, 598 missing voicings recovered from print** (report in the songsheet-data
+  repo). Every aligned entry carries **`voicing_printed`** (optional schema field — print
+  evidence kept separate from editorial `voicing`).
+- **QA tool v3 (2026-06-10):** chord editor shows the **magnified printed diagram**
+  (`/api/diagram-crop`) + "print reads … use / use + next"; `]`/`[` cycle EVERY chord for full
+  sequential review (`}`/`{` keep flagged-only jumps); `≠ print` flag reason; Dictionary
+  "print → N×" batch-apply; sidebar per-song audit badges (count or ✓); **Lyrics text mode**
+  (default): free-form ChordMark lyric lines — read-only chord line above, editable `_`-marker
+  line below; gluing a marker mid-word (`tris_te`) stores the continuation dash, marker count
+  validated on commit; grid mode (drag + dblclick syllable edit) kept as toggle.
+- Test suite: **289 pytest + 51 node tests** passing; CI runs both plus ruff.
 
 ### In progress / next
-- **Hyphenation seeded for only 1 song** so far (Chega de Saudade). Run
-  `migrate_hyphenation.py data/joao-gilberto/songs/` to do the rest (~190 LLM calls).
-- Per-chord accuracy: voicings/fingerings from vision are often wrong — the QA tool is the fix;
-  most of the corpus is unreviewed.
+- **Full manual review of the corpus** — the active campaign, now instrumented: the audit ranks
+  all 185 songs by disagreement count (12,748 voicings to look at; 5,865 pre-confirmed), the
+  editor shows the printed diagram next to the fretboard, `]`/`[` walk every chord, and the
+  Lyrics text mode fixes words/splits as plain typing (each fused word also upgrades the corpus
+  to proper hyphenation — same gesture). Songs marked **done** grow the golden eval set
+  (currently 1) which feeds the eval and the reader's digit templates.
+- **Wire the diagram reader into fresh parses** (enrich step in `validate_extraction.py`):
+  override vision voicings with reader voicings at parse time — fresh extractions jump from
+  ~40% to ~95%+ voicing accuracy. The corpus audit already proved the pairing.
+- **10 unalignable songs** from the audit (diagram/entry counts differ by 4–9) need structural
+  attention (likely missing/extra bars).
 - Continuation-song splits: a song spanning pages can appear as two entries when the title-page name
-  differs from the running header (e.g. "Brigas, nunca mais" / "Brigas Nunca Mais"). Assembler matches
-  exact normalized titles; fuzzy merge is a future improvement.
-- Multi-format extraction (pluggable format profiles) — planned; two samples analyzed (Lumiar/Caetano
-  scanned songbook ≈ current pipeline; Rousseau digital chord-grid arrangement, lyric-less). See
+  differs from the running header. Assembler matches exact normalized titles; fuzzy merge is a
+  future improvement.
+- Multi-format extraction (pluggable format profiles) — planned; the CV diagram reader is the
+  first concrete per-element extractor in that direction. See
   `docs/superpowers/plans/2026-05-30-multi-format-extraction.md`.
 - **Harmonic analysis next step: D1 corpus report** (`harmony_report.py` — device quantification
   over all songs, functional stats over confirmed-key songs, key-suggestions worklist). Gate:
@@ -102,8 +149,8 @@ per-occurrence. Lyrics carry word-continuation dashes (`tris- te- za e`). Schema
 - **MusicXML export** (alongside PDF/PNG/HTML/.chordmark/ChordPro).
 - **Full transpose** of a song, including voicings.
 - **Corpus-wide chord rename** (the Dictionary batch-edit is per-song today).
-- **Lyrics tab**: cross-bar re-anchor + intra-word (syllable-level) splitting (currently within-bar,
-  whitespace-only — see prototype limits above).
+- **Lyrics grid mode**: cross-bar drag re-anchor (the TEXT mode already moves lyrics across bars
+  and rows freely; the drag prototype remains within-bar).
 - **Section reorder** in the UI.
 - **favicon** (one 404 on load; cosmetic).
 
