@@ -142,6 +142,65 @@
     return idx + k;
   }
 
+  // ---- ChordMark-style lyric line (free-form text editing) ----
+  // The editable form of a run of entries is ONE string in ChordMark lyric
+  // syntax: a "_" marker per entry, lyrics flowing naturally around them.
+  // A marker glued into a word ("tris_te") is a mid-word chord change, which
+  // the corpus stores as a trailing continuation dash ("tris-"). So:
+  //   build:  trailing dash on an entry's text -> glue the next marker
+  //           (internal "syl- la- ble" runs collapse to the natural word)
+  //   parse:  segment not ending in whitespace before the next marker ->
+  //           store it with a trailing dash
+
+  // Display form of one entry's text: internal continuation dashes collapse
+  // ("tris- te- za e" -> "tristeza e"); a trailing dash is DROPPED here (the
+  // caller expresses it by gluing the next marker instead).
+  function lyDisplayText(text) {
+    const toks = lySyllables(text);
+    let out = "";
+    toks.forEach((t, i) => {
+      const cont = t.endsWith("-") && i < toks.length - 1;
+      out += cont ? t.slice(0, -1) : t + " ";
+    });
+    return out.trim().replace(/-$/, "");
+  }
+
+  // One editable lyric line for a run of entries, ChordMark-style.
+  function buildLyricLine(entries) {
+    let out = "";
+    entries.forEach((e, i) => {
+      if (i > 0) {
+        const prevRaw = (entries[i - 1].text || "").trim();
+        out += prevRaw.endsWith("-") ? "_" : " _";
+      } else {
+        out = "_";
+      }
+      const seg = lyDisplayText(e.text);
+      if (seg) out += seg;
+    });
+    return out;
+  }
+
+  // Parse an edited lyric line back into per-entry text fragments.
+  // Returns { leading, fragments } where fragments[k] is entry k's new text
+  // ("" = no text) and leading is any text BEFORE the first marker (belongs
+  // to whatever entry precedes this run). Returns null when the marker count
+  // doesn't equal expectedCount — the one invariant that guards the commit.
+  function parseLyricLine(line, expectedCount) {
+    const pieces = String(line || "").split("_");
+    if (pieces.length - 1 !== expectedCount) return null;
+    const leading = pieces[0].trim();
+    const fragments = [];
+    for (let k = 1; k < pieces.length; k++) {
+      const raw = pieces[k];
+      const frag = raw.trim();
+      // glued to the NEXT marker = the word continues -> trailing dash
+      const glued = k < pieces.length - 1 && raw.length > 0 && !/\s$/.test(raw);
+      fragments.push(frag ? frag + (glued && !frag.endsWith("-") ? "-" : "") : "");
+    }
+    return { leading, fragments };
+  }
+
   // New entry text with token k replaced by newText (trimmed). A space inside
   // newText SPLITS the token into multiple syllables; empty newText DELETES
   // the token. Returns null if k is out of range; "" means no tokens remain.
@@ -172,6 +231,7 @@
     addSectionAfter, deleteSection,
     lySyllables, lyBarModel, lyRebuildBar, sylIndexInBar, reanchoredBar,
     replaceTextToken,
+    lyDisplayText, buildLyricLine, parseLyricLine,
   };
   if (typeof window !== "undefined") window.DocOps = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;

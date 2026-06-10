@@ -111,8 +111,12 @@ globals, explicit load order in index.html):
   **Source** toggle (shows the generated `.chordmark` beside the render) and the export buttons.
   **JSON** is a CodeMirror 5 editor over the raw song JSON (Tab indent / syntax coloring / live
   lint with line·col + gutter marker; Apply parse-guards + is undoable, Format / Reload).
-  **Lyrics** is a **prototype**: chords render above their anchored syllables; drag a chord token
-  onto a syllable to re-anchor (per-bar chord↔syllable rebuild, within a single bar only).
+  **Lyrics** has two modes (toggle, persisted): **text** (default) = free-form ChordMark lyric
+  lines — read-only chord line above an editable line with one `_` marker per entry; gluing a
+  marker into a word (`tris_te`) stores a trailing continuation dash, a space before it removes
+  it; marker count is validated on commit (Enter/blur; Esc reverts); leading text flows to the
+  previous entry. **grid** = the original prototype: drag a chord onto a syllable to re-anchor
+  (within one bar), double-click a syllable to edit (space splits, empty deletes).
 - **Keyboard:** ⌘S/Ctrl+S save, Esc close editor, `n`/`p` prev/next song, `]`/`[` next/prev CHORD
   (full sequential review; skips `%`), `}`/`{` next/prev flagged, Enter
   applies in the chord editor, ⌘Z/⌘⇧Z (Ctrl+Y) undo/redo.

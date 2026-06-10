@@ -29,11 +29,115 @@ function lyReanchor(si, bi, chordPos, targetSylIdx) {
 // Currently-dragged chord descriptor (set on dragstart, read on drop).
 let lyDrag = null;
 
+// Two modes: "text" = free-form ChordMark lyric lines (chords read-only above,
+// `_` markers in editable text); "grid" = the original drag/dblclick prototype.
+function lyMode() { return localStorage.getItem("qaLyMode") || "text"; }
+
 function renderLyrics() {
   const root = $("lyrics");
   if (!root) return;
   if (!state.doc) { root.innerHTML = `<div class="empty">No song loaded.</div>`; return; }
   root.innerHTML = "";
+
+  const bar = document.createElement("div");
+  bar.className = "ly-modebar";
+  bar.innerHTML =
+    `<button class="tab ${lyMode() === "text" ? "active" : ""}" data-mode="text">text</button>
+     <button class="tab ${lyMode() === "grid" ? "active" : ""}" data-mode="grid">grid</button>`;
+  bar.querySelectorAll("[data-mode]").forEach((b) =>
+    b.addEventListener("click", () => { localStorage.setItem("qaLyMode", b.dataset.mode); renderLyrics(); }));
+  root.appendChild(bar);
+
+  if (lyMode() === "text") renderLyricsText(root);
+  else renderLyricsGrid(root);
+}
+
+// ---- text mode: ChordMark lyric lines ----
+// One row per 4 bars: a read-only chord line above an editable lyric line with
+// one `_` marker per chord entry. Commit on Enter/blur; Esc reverts. The only
+// invariant is the marker count — a mismatch refuses the commit with a message.
+// Gluing a marker into a word ("tris_te") stores a continuation dash; text
+// before the row's first marker flows back to the previous entry.
+const LY_BARS_PER_ROW = 4;
+
+function renderLyricsText(root) {
+  const hint = document.createElement("div");
+  hint.className = "ly-hint";
+  hint.textContent = "Each _ anchors the chord shown above it. Edit text freely: " +
+    "delete the space before a _ to split a word across chords (tris_te), " +
+    "add one to separate. Enter/blur applies, Esc reverts. ⌘Z undoes.";
+  root.appendChild(hint);
+
+  let prevEntry = null; // last entry of the previous row (for leading text)
+  song().sections.forEach((sec, si) => {
+    const secEl = document.createElement("div");
+    secEl.className = "ly-section";
+    const lab = document.createElement("div");
+    lab.className = "ly-seclabel";
+    lab.textContent = sec.label || `Section ${si + 1}`;
+    secEl.appendChild(lab);
+
+    const bars = sec.bars || [];
+    for (let b0 = 0; b0 < bars.length; b0 += LY_BARS_PER_ROW) {
+      const rowBars = bars.slice(b0, b0 + LY_BARS_PER_ROW);
+      const entries = rowBars.flat();
+      if (!entries.length) continue;
+      const rowEl = document.createElement("div");
+      rowEl.className = "ly-row";
+      const chordLine = document.createElement("div");
+      chordLine.className = "ly-chordline";
+      chordLine.textContent =
+        "| " + rowBars.map((bar) => bar.map((e) => e.chord).join("  ")).join("  |  ") + " |";
+      rowEl.appendChild(chordLine);
+
+      const input = document.createElement("input");
+      input.className = "ly-line-edit";
+      input.value = window.DocOps.buildLyricLine(entries);
+      input.spellcheck = false;
+      const original = input.value;
+      const errEl = document.createElement("div");
+      errEl.className = "ly-line-err";
+      const prevRef = prevEntry; // entry preceding this row, frozen at render
+      let cancelled = false;
+      const commit = () => {
+        if (cancelled || input.value === original) return;
+        const parsed = window.DocOps.parseLyricLine(input.value, entries.length);
+        if (parsed === null) {
+          const got = (input.value.match(/_/g) || []).length;
+          errEl.textContent =
+            `needs exactly ${entries.length} markers for the chords above (found ${got}) — not applied`;
+          return;
+        }
+        errEl.textContent = "";
+        pushUndo();
+        if (parsed.leading) {
+          if (prevRef) prevRef.text = ((prevRef.text || "") + " " + parsed.leading).trim();
+          else parsed.fragments[0] = (parsed.leading + " " + parsed.fragments[0]).trim();
+        }
+        entries.forEach((e, k) => {
+          const frag = parsed.fragments[k];
+          if (frag) e.text = frag; else delete e.text;
+        });
+        markDirty();
+        renderBars();
+        renderLyrics();
+      };
+      input.addEventListener("keydown", (ev) => {
+        if (ev.key === "Enter") { ev.preventDefault(); commit(); }
+        else if (ev.key === "Escape") { cancelled = true; input.value = original; errEl.textContent = ""; input.blur(); cancelled = false; }
+      });
+      input.addEventListener("blur", commit);
+      rowEl.appendChild(input);
+      rowEl.appendChild(errEl);
+      secEl.appendChild(rowEl);
+      prevEntry = entries[entries.length - 1];
+    }
+    root.appendChild(secEl);
+  });
+}
+
+// ---- grid mode: the original drag/dblclick prototype ----
+function renderLyricsGrid(root) {
   const hint = document.createElement("div");
   hint.className = "ly-hint";
   hint.textContent = "Drag a chord onto a syllable to re-anchor it (within its bar). " +

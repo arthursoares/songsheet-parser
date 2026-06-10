@@ -181,6 +181,60 @@ test("replaceTextToken edits, splits on space, deletes on empty", () => {
   assert.equal(DocOps.replaceTextToken("a  b", 1, "  c   d  "), "a c d");
 });
 
+test("buildLyricLine: ChordMark markers, dashes glue mid-word splits", () => {
+  const entries = [
+    { chord: "Bm7/F#", text: "A tris-" },
+    { chord: "E13", text: "te-" },
+    { chord: "Amaj7", text: "za é se-" },
+    { chord: "A7", text: "nhora," },
+  ];
+  assert.equal(DocOps.buildLyricLine(entries), "_A tris_te_za é se_nhora,");
+  // dash-less corpus text gets a space before the next marker instead
+  const plain = [{ chord: "C", text: "Vai mi" }, { chord: "G7", text: "nha" }];
+  assert.equal(DocOps.buildLyricLine(plain), "_Vai mi _nha");
+  // textless entries are bare markers
+  const inst = [{ chord: "C" }, { chord: "%" }, { chord: "G7", text: "lá" }];
+  assert.equal(DocOps.buildLyricLine(inst), "_ _ _lá");
+});
+
+test("lyDisplayText collapses internal continuation dashes", () => {
+  assert.equal(DocOps.lyDisplayText("tris- te- za e"), "tristeza e");
+  assert.equal(DocOps.lyDisplayText("nhora,"), "nhora,");
+  assert.equal(DocOps.lyDisplayText("se-"), "se");
+});
+
+test("parseLyricLine round-trips and derives boundary dashes from glue", () => {
+  const r = DocOps.parseLyricLine("_A tris_te_za é se_nhora,", 4);
+  assert.deepEqual(r, {
+    leading: "",
+    fragments: ["A tris-", "te-", "za é se-", "nhora,"],
+  });
+  // deleting the space fuses the word -> dash appears; adding one removes it
+  const r2 = DocOps.parseLyricLine("_Vai mi_nha _tris teza", 3);
+  assert.deepEqual(r2.fragments, ["Vai mi-", "nha", "tris teza"]);
+  // empty segments clear an entry's text; leading text is surfaced
+  const r3 = DocOps.parseLyricLine("hey _ _lá", 2);
+  assert.deepEqual(r3, { leading: "hey", fragments: ["", "lá"] });
+});
+
+test("parseLyricLine rejects a marker-count mismatch", () => {
+  assert.equal(DocOps.parseLyricLine("_a _b", 3), null);
+  assert.equal(DocOps.parseLyricLine("_a _b _c", 2), null);
+  assert.equal(DocOps.parseLyricLine("no markers at all", 1), null);
+});
+
+test("build/parse round-trip is stable", () => {
+  const entries = [
+    { chord: "Bm7/F#", text: "A tris-" },
+    { chord: "E13", text: "te-" },
+    { chord: "%" },
+    { chord: "A7", text: "nhora," },
+  ];
+  const line = DocOps.buildLyricLine(entries);
+  const r = DocOps.parseLyricLine(line, 4);
+  assert.deepEqual(r.fragments, ["A tris-", "te-", "", "nhora,"]);
+});
+
 test("reanchoredBar clamps an out-of-range target to the syllable count", () => {
   const bar = makeSong().sections[0].bars[0];
   // Target far past the end: G7 ends up after every syllable (textless).
