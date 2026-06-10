@@ -57,14 +57,19 @@ node scripts/render_chordmark.js in.chordmark out.html [--chordmark-repo PATH]
 
 Single page end-to-end: render a PNG, run stage 2 then stage 3.
 
-**QA tool internals** (`scripts/qa_static/`, pure-JS, no build):
-- `app.js` orchestrates (song-list sidebar with search + status filter, undo/redo stacks,
-  dirty-state guard, keyboard shortcuts, structural edits, live preview, in-app export wiring);
-  `chord_naming.js` = detect (tonal) + validate (chord-symbol) + intervals; `chord_dictionary.js`
-  = group/batch-edit/merge; `fretboard.js` = dual-mode voicing editor; `diagram.js` = SVG chord
-  thumbnail; `harmony.js` = the **Harmony** tab (renders `/api/harmony-doc` output);
-  `vendor/` = bundled tonal + chord-symbol, plus `vendor/codemirror/` (vendored
-  CodeMirror 5) backing the **JSON** tab's code editor.
+**QA tool internals** (`scripts/qa_static/`, pure-JS, no build — classic scripts sharing
+globals, explicit load order in index.html):
+- The app is split into `app_core.js` (state, undo/redo, shared helpers), `app_songs.js`
+  (sidebar, load/save, dirty-guard nav), `app_bars.js` (Bars view, chord editor, structural-edit
+  wrappers), `app_lyrics.js` (Lyrics prototype), `app_views.js` (tabs, Review, Preview + exports,
+  JSON/CodeMirror), `app_dict.js` (Dictionary view), and `app.js` (entry: init/keyboard/layout —
+  load LAST). `doc_ops.js` = the PURE document mutations (structural ops + lyric re-anchor model;
+  UMD, node-testable via `node --test tests/js/`); `chord_naming.js` = detect (tonal) + validate
+  (chord-symbol) + intervals; `chord_dictionary.js` = group/batch-edit/merge (also UMD + tested);
+  `fretboard.js` = dual-mode voicing editor; `diagram.js` = SVG chord thumbnail; `harmony.js` =
+  the **Harmony** tab (renders `/api/harmony-doc` output; reads app globals — why these stay
+  classic scripts rather than ES modules); `vendor/` = bundled tonal + chord-symbol, plus
+  `vendor/codemirror/` (vendored CodeMirror 5) backing the **JSON** tab's code editor.
 - **Seven tabs:** Bars / Lyrics / Review / Dictionary / Harmony / Preview / JSON. Bars also does
   structural editing (add/delete bar, split/merge bar, add/delete section, inline section-label
   rename). Review is a worklist of flagged chords (name↔voicing mismatch or invalid name).
