@@ -5,7 +5,7 @@ Parse songsheet images using vision models.
 Usage:
     python parse_songsheet.py image.png --output data/artist/json/
     python parse_songsheet.py data/artist/png/*.png --output data/artist/json/
-    
+
 Providers:
     codex   - OpenAI vision (default, e.g. gpt-5.5) via your ChatGPT/Codex
               subscription. Requires `codex login` (reads ~/.codex/auth.json).
@@ -105,12 +105,12 @@ def get_mime_type(image_path: Path) -> str:
 def parse_with_claude(image_path: Path, model: str = "claude-sonnet-4-20250514") -> dict:
     """Parse using Anthropic Claude."""
     import anthropic
-    
+
     client = anthropic.Anthropic()
-    
+
     image_data = encode_image(image_path)
     mime_type = get_mime_type(image_path)
-    
+
     response = client.messages.create(
         model=model,
         max_tokens=4096,
@@ -134,45 +134,47 @@ def parse_with_claude(image_path: Path, model: str = "claude-sonnet-4-20250514")
             }
         ],
     )
-    
+
     return json.loads(response.content[0].text)
 
 
 def parse_with_gemini(image_path: Path, model: str = "gemini-2.0-flash") -> dict:
     """Parse using Google Gemini."""
     import google.generativeai as genai
-    
+
     genai.configure(api_key=os.environ["GEMINI_API_KEY"])
-    
+
     model = genai.GenerativeModel(model)
-    
+
     image_data = encode_image(image_path)
     mime_type = get_mime_type(image_path)
-    
-    response = model.generate_content([
-        {"mime_type": mime_type, "data": image_data},
-        PARSE_PROMPT,
-    ])
-    
+
+    response = model.generate_content(
+        [
+            {"mime_type": mime_type, "data": image_data},
+            PARSE_PROMPT,
+        ]
+    )
+
     # Extract JSON from response (may have markdown wrapper)
     text = response.text
     if "```json" in text:
         text = text.split("```json")[1].split("```")[0]
     elif "```" in text:
         text = text.split("```")[1].split("```")[0]
-    
+
     return json.loads(text.strip())
 
 
 def parse_with_openai(image_path: Path, model: str = "gpt-4o") -> dict:
     """Parse using OpenAI GPT-4V."""
     import openai
-    
+
     client = openai.OpenAI()
-    
+
     image_data = encode_image(image_path)
     mime_type = get_mime_type(image_path)
-    
+
     response = client.chat.completions.create(
         model=model,
         max_tokens=4096,
@@ -194,13 +196,13 @@ def parse_with_openai(image_path: Path, model: str = "gpt-4o") -> dict:
             }
         ],
     )
-    
+
     text = response.choices[0].message.content
     if "```json" in text:
         text = text.split("```json")[1].split("```")[0]
     elif "```" in text:
         text = text.split("```")[1].split("```")[0]
-    
+
     return json.loads(text.strip())
 
 
@@ -223,13 +225,13 @@ def parse_songsheet(image_path: Path, provider: str = "codex", model: str = None
         "gemini": (parse_with_gemini, "gemini-2.0-flash"),
         "openai": (parse_with_openai, "gpt-4o"),
     }
-    
+
     if provider not in parsers:
         raise ValueError(f"Unknown provider: {provider}. Use: {list(parsers.keys())}")
-    
+
     parser_fn, default_model = parsers[provider]
     model = model or default_model
-    
+
     result = parser_fn(image_path, model)
 
     # Add provenance metadata (kept alongside the document/songs payload)
@@ -245,37 +247,39 @@ def main():
     parser = argparse.ArgumentParser(description="Parse songsheet images to JSON")
     parser.add_argument("images", nargs="+", type=Path, help="Image files to parse")
     parser.add_argument("-o", "--output", type=Path, required=True, help="Output directory")
-    parser.add_argument("-p", "--provider", default="codex", choices=["codex", "claude", "gemini", "openai"])
+    parser.add_argument(
+        "-p", "--provider", default="codex", choices=["codex", "claude", "gemini", "openai"]
+    )
     parser.add_argument("-m", "--model", help="Override model name")
     parser.add_argument("--dry-run", action="store_true", help="Show what would be done")
-    
+
     args = parser.parse_args()
-    
+
     args.output.mkdir(parents=True, exist_ok=True)
-    
+
     for image_path in args.images:
         if not image_path.exists():
             print(f"⚠️  Skipping {image_path}: not found", file=sys.stderr)
             continue
-            
+
         output_path = args.output / f"{image_path.stem}.json"
-        
+
         if args.dry_run:
             print(f"Would parse: {image_path} → {output_path}")
             continue
-        
+
         print(f"Parsing: {image_path.name}...", end=" ", flush=True)
-        
+
         try:
             result = parse_songsheet(image_path, args.provider, args.model)
-            
+
             with open(output_path, "w") as f:
                 json.dump(result, f, indent=2, ensure_ascii=False)
-            
+
             confidence = result.get("_confidence", "?")
             flags = len(result.get("_flags", []))
             print(f"✓ {result.get('title', 'Unknown')} (confidence: {confidence}, flags: {flags})")
-            
+
         except Exception as e:
             print(f"✗ Error: {e}", file=sys.stderr)
 

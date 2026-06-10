@@ -1,4 +1,5 @@
 """Pytest setup: make scripts/ importable as top-level modules."""
+
 import sys
 from pathlib import Path
 

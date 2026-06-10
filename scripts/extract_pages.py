@@ -6,6 +6,7 @@ Stage 1 of the pipeline: PDF -> PNG pages.
 Rendering uses PyMuPDF (``import fitz``), so no external poppler binaries are
 required.
 """
+
 import argparse
 import sys
 from pathlib import Path
@@ -57,9 +58,7 @@ def render_pdf(
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Extract pages from a PDF as PNG images."
-    )
+    parser = argparse.ArgumentParser(description="Extract pages from a PDF as PNG images.")
     parser.add_argument("pdf", help="Path to the input PDF file")
     parser.add_argument(
         "--output",

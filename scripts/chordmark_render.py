@@ -23,19 +23,19 @@ def normalize_chord_name(name):
     """
     if not name or name == PERCENT:
         return name
-    out = re.sub(r"7/(9|11|13)", r"\1", name)   # C7/9 -> C9, Cm7/9 -> Cm9
-    out = re.sub(r"6/9", "69", out)             # C6/9 -> C69
+    out = re.sub(r"7/(9|11|13)", r"\1", name)  # C7/9 -> C9, Cm7/9 -> Cm9
+    out = re.sub(r"6/9", "69", out)  # C6/9 -> C69
     # Comma (or OCR-dot) tension stacks: the 13 already implies the 9.
     out = re.sub(r"13[,.](♭9|b9|-9)", "13-9", out)  # E13,♭9 -> E13-9
-    out = re.sub(r"13[,.]9", "13", out)             # E13,9  -> E13
-    out = re.sub(r"9[,.]13", "13", out)             # A9,13  -> A13
-    out = re.sub(r"13[,.]4", "13sus4", out)         # A13,4  -> A13sus4
+    out = re.sub(r"13[,.]9", "13", out)  # E13,9  -> E13
+    out = re.sub(r"9[,.]13", "13", out)  # A9,13  -> A13
+    out = re.sub(r"13[,.]4", "13sus4", out)  # A13,4  -> A13sus4
     # Slash-4 means sus4 in this songbook (a bass note is always a letter,
     # so a digit after '/' is never a real bass).
     out = re.sub(r"7/4/9|4/79|9/4|4/9", "9sus4", out)  # C#4/9, A9/4 -> ...9sus4
-    out = re.sub(r"7/4", "7sus4", out)                 # G7/4 -> G7sus4
+    out = re.sub(r"7/4", "7sus4", out)  # G7/4 -> G7sus4
     # chord-symbol accepts -9 on dominants but wants b9 on minor sevenths.
-    out = re.sub(r"m7-9", "m7b9", out)              # F#m7-9 -> F#m7b9
+    out = re.sub(r"m7-9", "m7b9", out)  # F#m7-9 -> F#m7b9
     return out
 
 

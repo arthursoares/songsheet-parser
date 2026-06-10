@@ -40,14 +40,14 @@ _ROMAN_NUMERALS = ["I", "II", "III", "IV", "V", "VI", "VII"]
 
 # Confidence penalties (subtracted from 1.0; >=0.8 high, >=0.5 medium, else low).
 PENALTY = {
-    "no_chord": 0.6,            # orphan leading '%' or unparseable symbol
+    "no_chord": 0.6,  # orphan leading '%' or unparseable symbol
     "ambiguous_quality": 0.30,  # notes under-determined AND no usable symbol quality
-    "symbol_fallback": 0.15,    # voicing present but didn't determine quality
-    "root_missing": 0.55,       # symbol root pc absent from the voicing's notes
-    "quality_mismatch": 0.55,   # notes-derived family != symbol-implied family
-    "bass_mismatch": 0.15,      # symbol slash bass != physical lowest note
+    "symbol_fallback": 0.15,  # voicing present but didn't determine quality
+    "root_missing": 0.55,  # symbol root pc absent from the voicing's notes
+    "quality_mismatch": 0.55,  # notes-derived family != symbol-implied family
+    "bass_mismatch": 0.15,  # symbol slash bass != physical lowest note
     "unresolved_dominant": 0.20,
-    "dim_multimatch": 0.15,     # >1 diminished rule matched
+    "dim_multimatch": 0.15,  # >1 diminished rule matched
     "nondiatonic_guess": 0.10,  # function fell through to 'chromatic'
 }
 
@@ -68,6 +68,7 @@ def note_to_pc(name):
 # ---------------------------------------------------------------------------
 # A0 — event normalization
 # ---------------------------------------------------------------------------
+
 
 def _bar_beats(n, beats_per_bar=DEFAULT_BEATS):
     """Beat durations for a bar of n chords. Largest-remainder, earliest-wins;
@@ -119,20 +120,22 @@ def normalize_events(song, beats_per_bar=DEFAULT_BEATS):
                     is_percent = False
                     if symbol:
                         last_real = {"symbol": symbol, "voicing": voicing}
-                events.append({
-                    "idx": idx,
-                    "section": s_i,
-                    "section_label": label,
-                    "bar": bar_global,
-                    "bar_in_section": b_i,
-                    "pos": pos,
-                    "symbol": symbol,
-                    "chord": chord,
-                    "voicing": voicing,
-                    "is_percent": is_percent,
-                    "text": entry.get("text"),
-                    "beats": durations[pos],
-                })
+                events.append(
+                    {
+                        "idx": idx,
+                        "section": s_i,
+                        "section_label": label,
+                        "bar": bar_global,
+                        "bar_in_section": b_i,
+                        "pos": pos,
+                        "symbol": symbol,
+                        "chord": chord,
+                        "voicing": voicing,
+                        "is_percent": is_percent,
+                        "text": entry.get("text"),
+                        "beats": durations[pos],
+                    }
+                )
                 idx += 1
             bar_global += 1
     return events
@@ -141,6 +144,7 @@ def normalize_events(song, beats_per_bar=DEFAULT_BEATS):
 # ---------------------------------------------------------------------------
 # A1 — voicing → pitches
 # ---------------------------------------------------------------------------
+
 
 def voicing_to_pitches(voicing):
     """Decode a comma fret voicing ('x,5,7,5,6,x') into sounding pitches.
@@ -175,6 +179,7 @@ def voicing_to_pitches(voicing):
 # ---------------------------------------------------------------------------
 # A2 — notes-first quality
 # ---------------------------------------------------------------------------
+
 
 def quality_from_pitches(root_pc, pcs):
     """Quality string from a root pitch class and a set of pitch classes.
@@ -298,7 +303,7 @@ def _symbol_to_intervals(qtext):
     # altered tension, consumed above), '7M', 'M7', and 'mM7' all mean maj7
     t = re.sub(r"7\+", "maj7", t)
     t = re.sub(r"7M", "maj7", t)
-    t = re.sub(r"^mM(?=\d|/)", "mmaj", t)   # DmM7(b5) — minor with a capital-M maj7
+    t = re.sub(r"^mM(?=\d|/)", "mmaj", t)  # DmM7(b5) — minor with a capital-M maj7
     t = re.sub(r"M(?=7|9|11|13)", "maj", t)  # DM7, AM7(b5)
 
     iv = None
@@ -365,8 +370,13 @@ def _symbol_to_intervals(qtext):
         elif tok == "b13":
             iv.add(8)
     # a bare 9/11 extension implies the ♭7 (C9 = C7/9), unless a 6th/maj7 is there
-    if (2 in iv or (5 in iv and not susish)) and not seen_seventh \
-            and 11 not in iv and not minorish and 4 in iv:
+    if (
+        (2 in iv or (5 in iv and not susish))
+        and not seen_seventh
+        and 11 not in iv
+        and not minorish
+        and 4 in iv
+    ):
         iv.add(10)
     if 2 in iv and minorish and not seen_seventh and 11 not in iv and 9 not in iv:
         # m9 implies m7/9 unless it's an m6/9 or m(add9) form — corpus writes m79/m7/9
@@ -390,7 +400,7 @@ def parse_symbol(symbol):
     if not m:
         return None
     root = m.group(1)
-    rest = s[m.end():]
+    rest = s[m.end() :]
     bass = None
     bm = _BASS_RE.search(rest)
     if bm:
@@ -424,21 +434,27 @@ def analyze_chord(symbol, voicing):
     if sym is None:
         penalties.append("no_chord")
         return {
-            "symbol": symbol, "root": None, "root_pc": None,
-            "bass": None, "bass_pc": None, "bass_physical": pitch["bass_pc"],
-            "quality": "ambiguous", "quality_source": None,
-            "family": "amb", "notes": notes, "midis": pitch["midis"],
-            "penalties": penalties, "discrepancy": None,
+            "symbol": symbol,
+            "root": None,
+            "root_pc": None,
+            "bass": None,
+            "bass_pc": None,
+            "bass_physical": pitch["bass_pc"],
+            "quality": "ambiguous",
+            "quality_source": None,
+            "family": "amb",
+            "notes": notes,
+            "midis": pitch["midis"],
+            "penalties": penalties,
+            "discrepancy": None,
         }
 
     notes_quality = quality_from_pitches(sym["root_pc"], pitch["pcs"])
     if notes_quality != "ambiguous":
         quality, source = notes_quality, "notes"
-        if sym["quality"] != "ambiguous" and \
-                quality_family(notes_quality) != sym["family"]:
+        if sym["quality"] != "ambiguous" and quality_family(notes_quality) != sym["family"]:
             penalties.append("quality_mismatch")
-            discrepancy = (f"notes say {notes_quality!r} but symbol implies "
-                           f"{sym['quality']!r}")
+            discrepancy = f"notes say {notes_quality!r} but symbol implies {sym['quality']!r}"
     elif sym["quality"] != "ambiguous":
         quality, source = sym["quality"], "symbol"
         if pitch["pcs"]:
@@ -451,19 +467,27 @@ def analyze_chord(symbol, voicing):
         penalties.append("root_missing")
         discrepancy = discrepancy or "symbol root not present in the voicing"
 
-    if sym["bass_pc"] is not None and pitch["bass_pc"] is not None \
-            and sym["bass_pc"] != pitch["bass_pc"]:
+    if (
+        sym["bass_pc"] is not None
+        and pitch["bass_pc"] is not None
+        and sym["bass_pc"] != pitch["bass_pc"]
+    ):
         penalties.append("bass_mismatch")
 
     return {
         "symbol": symbol,
-        "root": sym["root"], "root_pc": sym["root_pc"],
-        "bass": sym["bass"], "bass_pc": sym["bass_pc"],
+        "root": sym["root"],
+        "root_pc": sym["root_pc"],
+        "bass": sym["bass"],
+        "bass_pc": sym["bass_pc"],
         "bass_physical": pitch["bass_pc"],
-        "quality": quality, "quality_source": source,
+        "quality": quality,
+        "quality_source": source,
         "family": quality_family(quality),
-        "notes": notes, "midis": pitch["midis"],
-        "penalties": penalties, "discrepancy": discrepancy,
+        "notes": notes,
+        "midis": pitch["midis"],
+        "penalties": penalties,
+        "discrepancy": discrepancy,
     }
 
 
@@ -480,6 +504,7 @@ def confidence_level(penalties):
 # ---------------------------------------------------------------------------
 # moves — the holds-resolved, deduplicated progression stream
 # ---------------------------------------------------------------------------
+
 
 def _build_moves(events):
     """Collapse the event stream into harmonic 'moves'.
@@ -552,8 +577,10 @@ def _ks_candidates(events, top=3):
         scored.append((pc, "major", _ks_correlate(_KS_MAJOR, rotated)))
         scored.append((pc, "minor", _ks_correlate(_KS_MINOR, rotated)))
     scored.sort(key=lambda t: -t[2])
-    return [{"tonic_pc": pc, "mode": mode, "score": round(s, 3), "how": "ks"}
-            for pc, mode, s in scored[:top]]
+    return [
+        {"tonic_pc": pc, "mode": mode, "score": round(s, 3), "how": "ks"}
+        for pc, mode, s in scored[:top]
+    ]
 
 
 def _spell_pc(pc, events):
@@ -599,9 +626,11 @@ def estimate_key(events, stored_key=None):
             # ii–V–I weighs more than a bare V–I
             if i > 0:
                 prev = moves[i - 1]["chord"]
-                if prev["root_pc"] is not None \
-                        and prev["family"] in ("min", "halfdim") \
-                        and (prev["root_pc"] + 5) % 12 == c["root_pc"]:
+                if (
+                    prev["root_pc"] is not None
+                    and prev["family"] in ("min", "halfdim")
+                    and (prev["root_pc"] + 5) % 12 == c["root_pc"]
+                ):
                     weight = 2.0
             scores[target] += weight
             if nxt["family"] in ("min", "halfdim"):
@@ -643,12 +672,23 @@ def estimate_key(events, stored_key=None):
         if ks:
             pc = ks[0]["tonic_pc"]
             return {
-                "tonic_pc": pc, "tonic_name": _spell_pc(pc, events),
-                "mode": ks[0]["mode"], "how": "ks", "margin": 0.0,
-                "candidates": candidates, "confidence": "low",
+                "tonic_pc": pc,
+                "tonic_name": _spell_pc(pc, events),
+                "mode": ks[0]["mode"],
+                "how": "ks",
+                "margin": 0.0,
+                "candidates": candidates,
+                "confidence": "low",
             }
-        return {"tonic_pc": None, "tonic_name": None, "mode": None, "how": "none",
-                "margin": 0.0, "candidates": [], "confidence": "low"}
+        return {
+            "tonic_pc": None,
+            "tonic_name": None,
+            "mode": None,
+            "how": "none",
+            "margin": 0.0,
+            "candidates": [],
+            "confidence": "low",
+        }
 
     return {
         "tonic_pc": best,
@@ -664,6 +704,7 @@ def estimate_key(events, stored_key=None):
 # ---------------------------------------------------------------------------
 # A5 — Roman numerals + function classification
 # ---------------------------------------------------------------------------
+
 
 def _letter_index(name):
     return _LETTERS.index(name[0])
@@ -743,11 +784,17 @@ def classify_function(prev, cur, nxt, tonic_pc, mode="major"):
     prev/cur/nxt are {'root_pc', 'family'} dicts (prev/nxt may be None).
     Returns {'function','label','why','penalties','target_pc'}.
     """
-    out = {"function": "chromatic", "label": "chromatic", "why": "",
-           "penalties": [], "target_pc": None}
+    out = {
+        "function": "chromatic",
+        "label": "chromatic",
+        "why": "",
+        "penalties": [],
+        "target_pc": None,
+    }
     if cur is None or cur["root_pc"] is None:
-        out.update(function="unknown", label="unknown",
-                   why="no identifiable chord", penalties=["no_chord"])
+        out.update(
+            function="unknown", label="unknown", why="no identifiable chord", penalties=["no_chord"]
+        )
         return out
     if tonic_pc is None:
         out.update(function="unknown", label="unknown", why="no key established")
@@ -761,76 +808,116 @@ def classify_function(prev, cur, nxt, tonic_pc, mode="major"):
     # bluesy I7 → IV: dominant quality on the tonic resolving up a fourth
     if offset == 0 and fam == "dom":
         if nxt_root is not None and (cur["root_pc"] + 5) % 12 == nxt_root:
-            out.update(function="tonic", label="I7 (bluesy, → IV)",
-                       why="dominant quality on the tonic resolving to IV")
+            out.update(
+                function="tonic",
+                label="I7 (bluesy, → IV)",
+                why="dominant quality on the tonic resolving to IV",
+            )
             return out
-        out.update(function="tonic", label="I7 (bluesy)",
-                   why="dominant quality on the tonic", penalties=["nondiatonic_guess"])
+        out.update(
+            function="tonic",
+            label="I7 (bluesy)",
+            why="dominant quality on the tonic",
+            penalties=["nondiatonic_guess"],
+        )
         return out
 
     # diminished disambiguation — tie-break order: leading-tone > passing > common-tone
     if fam == "dim":
         matches = []
         if nxt_root is not None and (cur["root_pc"] + 1) % 12 == nxt_root:
-            matches.append(("dominant", "leading-tone °7 (≈ V7♭9 of next)",
-                            "root a semitone below the next chord"))
+            matches.append(
+                (
+                    "dominant",
+                    "leading-tone °7 (≈ V7♭9 of next)",
+                    "root a semitone below the next chord",
+                )
+            )
         prev_root = prev["root_pc"] if prev else None
-        if prev_root is not None and nxt_root is not None and (
+        if (
+            prev_root is not None
+            and nxt_root is not None
+            and (
                 ((prev_root + 1) % 12 == cur["root_pc"] and (cur["root_pc"] + 1) % 12 == nxt_root)
-                or ((prev_root - 1) % 12 == cur["root_pc"] and (cur["root_pc"] - 1) % 12 == nxt_root)):
-            matches.append(("passing", "passing °7",
-                            "chromatic stepwise motion between its neighbours"))
+                or (
+                    (prev_root - 1) % 12 == cur["root_pc"] and (cur["root_pc"] - 1) % 12 == nxt_root
+                )
+            )
+        ):
+            matches.append(
+                ("passing", "passing °7", "chromatic stepwise motion between its neighbours")
+            )
         if nxt_root is not None and cur["root_pc"] == nxt_root:
-            matches.append(("passing", "common-tone °7",
-                            "same root as the chord it embellishes"))
+            matches.append(("passing", "common-tone °7", "same root as the chord it embellishes"))
         if matches:
             func, label, why = matches[0]
             pens = ["dim_multimatch"] if len(matches) > 1 else []
             out.update(function=func, label=label, why=why, penalties=pens)
             return out
-        out.update(function="chromatic", label="diminished (unclassified)",
-                   why="no diminished rule matched", penalties=["nondiatonic_guess"])
+        out.update(
+            function="chromatic",
+            label="diminished (unclassified)",
+            why="no diminished rule matched",
+            penalties=["nondiatonic_guess"],
+        )
         return out
 
     # diatonic by degree + family
     if offset in table and fam in table[offset][1]:
         degree, _, func = table[offset]
-        out.update(function=func, label=degree,
-                   why=f"diatonic {degree} in the {mode} key")
+        out.update(function=func, label=degree, why=f"diatonic {degree} in the {mode} key")
         return out
 
     # secondary dominant — only on a real down-a-fifth resolution
     if fam == "dom":
         target = (cur["root_pc"] + 5) % 12
         if nxt_root is not None and nxt_root == target:
-            out.update(function="secondary_dominant", label="V7/x",
-                       why="dominant resolving down a fifth to a non-tonic target",
-                       target_pc=target)
+            out.update(
+                function="secondary_dominant",
+                label="V7/x",
+                why="dominant resolving down a fifth to a non-tonic target",
+                target_pc=target,
+            )
             return out
-        out.update(function="dominant", label="unresolved dominant",
-                   why="dominant quality but no down-a-fifth resolution",
-                   penalties=["unresolved_dominant"])
+        out.update(
+            function="dominant",
+            label="unresolved dominant",
+            why="dominant quality but no down-a-fifth resolution",
+            penalties=["unresolved_dominant"],
+        )
         return out
 
     # secondary ii: minor chord a fifth above a following dominant (ii of a ii–V)
-    if fam in ("min", "halfdim") and nxt is not None and nxt["family"] == "dom" \
-            and nxt_root is not None and (cur["root_pc"] + 5) % 12 == nxt_root:
+    if (
+        fam in ("min", "halfdim")
+        and nxt is not None
+        and nxt["family"] == "dom"
+        and nxt_root is not None
+        and (cur["root_pc"] + 5) % 12 == nxt_root
+    ):
         target = (nxt_root + 5) % 12
         if target != tonic_pc:
-            out.update(function="secondary_ii", label="ii/x",
-                       why="minor chord starting a ii–V toward a non-tonic target",
-                       target_pc=target)
+            out.update(
+                function="secondary_ii",
+                label="ii/x",
+                why="minor chord starting a ii–V toward a non-tonic target",
+                target_pc=target,
+            )
             return out
 
-    out.update(function="chromatic", label="chromatic",
-               why="no diatonic or secondary rule matched",
-               penalties=["nondiatonic_guess"])
+    out.update(
+        function="chromatic",
+        label="chromatic",
+        why="no diatonic or secondary rule matched",
+        penalties=["nondiatonic_guess"],
+    )
     return out
 
 
 # ---------------------------------------------------------------------------
 # A6 — device detectors (operate on the holds-resolved move stream)
 # ---------------------------------------------------------------------------
+
 
 def detect_devices(moves, tonic_pc=None):
     """Detect harmonic devices over the move stream.
@@ -850,27 +937,41 @@ def detect_devices(moves, tonic_pc=None):
 
     for i in range(n - 1):
         # ii–V (and ii–V–I)
-        if fam(i) in ("min", "halfdim") and fam(i + 1) == "dom" \
-                and root(i) is not None and root(i + 1) is not None \
-                and (root(i) + 5) % 12 == root(i + 1):
+        if (
+            fam(i) in ("min", "halfdim")
+            and fam(i + 1) == "dom"
+            and root(i) is not None
+            and root(i + 1) is not None
+            and (root(i) + 5) % 12 == root(i + 1)
+        ):
             target = (root(i + 1) + 5) % 12
             if i + 2 < n and root(i + 2) == target:
-                devices.append({"type": "ii-V-I", "move_idxs": [i, i + 1, i + 2],
-                                "target_pc": target})
+                devices.append(
+                    {"type": "ii-V-I", "move_idxs": [i, i + 1, i + 2], "target_pc": target}
+                )
             else:
-                devices.append({"type": "ii-V", "move_idxs": [i, i + 1],
-                                "target_pc": target})
+                devices.append({"type": "ii-V", "move_idxs": [i, i + 1], "target_pc": target})
         # secondary dominant: dom resolving down a fifth to a non-tonic root
-        if fam(i) == "dom" and root(i) is not None and root(i + 1) is not None \
-                and (root(i) + 5) % 12 == root(i + 1) \
-                and (tonic_pc is None or root(i + 1) != tonic_pc):
-            devices.append({"type": "secondary_dominant", "move_idxs": [i, i + 1],
-                            "target_pc": root(i + 1)})
+        if (
+            fam(i) == "dom"
+            and root(i) is not None
+            and root(i + 1) is not None
+            and (root(i) + 5) % 12 == root(i + 1)
+            and (tonic_pc is None or root(i + 1) != tonic_pc)
+        ):
+            devices.append(
+                {"type": "secondary_dominant", "move_idxs": [i, i + 1], "target_pc": root(i + 1)}
+            )
         # tritone substitution: dom7 resolving DOWN A SEMITONE
-        if fam(i) == "dom" and root(i) is not None and root(i + 1) is not None \
-                and (root(i) - 1) % 12 == root(i + 1):
-            devices.append({"type": "tritone_sub", "move_idxs": [i, i + 1],
-                            "target_pc": root(i + 1)})
+        if (
+            fam(i) == "dom"
+            and root(i) is not None
+            and root(i + 1) is not None
+            and (root(i) - 1) % 12 == root(i + 1)
+        ):
+            devices.append(
+                {"type": "tritone_sub", "move_idxs": [i, i + 1], "target_pc": root(i + 1)}
+            )
 
     # chromatic descending bass runs (each step exactly −1 semitone, length ≥ 3)
     run = [0]
@@ -880,12 +981,12 @@ def detect_devices(moves, tonic_pc=None):
             run.append(i)
         else:
             if len(run) >= 3:
-                devices.append({"type": "chromatic_bass_run", "move_idxs": list(run),
-                                "length": len(run)})
+                devices.append(
+                    {"type": "chromatic_bass_run", "move_idxs": list(run), "length": len(run)}
+                )
             run = [i]
     if len(run) >= 3:
-        devices.append({"type": "chromatic_bass_run", "move_idxs": list(run),
-                        "length": len(run)})
+        devices.append({"type": "chromatic_bass_run", "move_idxs": list(run), "length": len(run)})
 
     # maj7 tonic colour
     if tonic_pc is not None:
@@ -937,6 +1038,7 @@ TENSION = {
     "unknown": 1.5,
 }
 
+
 def analyze_song(song, beats_per_bar=DEFAULT_BEATS):
     """Full analysis of one song dict → annotated stream (A7).
 
@@ -949,8 +1051,7 @@ def analyze_song(song, beats_per_bar=DEFAULT_BEATS):
     tonic_pc, tonic_name, mode = key["tonic_pc"], key["tonic_name"], key["mode"]
 
     moves = _build_moves(events)
-    ctx = [{"root_pc": m["chord"]["root_pc"], "family": m["chord"]["family"]}
-           for m in moves]
+    ctx = [{"root_pc": m["chord"]["root_pc"], "family": m["chord"]["family"]} for m in moves]
     functions = []
     for i, mv in enumerate(moves):
         prev = ctx[i - 1] if i > 0 else None
@@ -981,39 +1082,44 @@ def analyze_song(song, beats_per_bar=DEFAULT_BEATS):
         mv, fn = moves[m_i], functions[m_i]
         c = mv["chord"]
         penalties = list(c["penalties"]) + list(fn["penalties"]) + key_penalty
-        rn = roman(c["root"], c["quality"], tonic_name, mode or "major", c["bass"]) \
-            if tonic_name else None
+        rn = (
+            roman(c["root"], c["quality"], tonic_name, mode or "major", c["bass"])
+            if tonic_name
+            else None
+        )
         target_pc = target_of_move.get(m_i)
-        out_events.append({
-            "idx": ev["idx"],
-            "section": ev["section"],
-            "section_label": ev["section_label"],
-            "bar": ev["bar"],
-            "bar_in_section": ev["bar_in_section"],
-            "pos": ev["pos"],
-            "beats": ev["beats"],
-            "symbol": ev["symbol"],
-            "chord": ev["chord"],
-            "is_percent": ev["is_percent"],
-            "voicing": ev["voicing"],
-            "root": c["root"],
-            "bass": c["bass"],
-            "bass_physical": c["bass_physical"],
-            "quality": c["quality"],
-            "quality_source": c["quality_source"],
-            "notes": c["notes"],
-            "midis": c["midis"],
-            "roman": rn,
-            "function": fn["function"],
-            "func_label": fn["label"],
-            "why": fn["why"],
-            "devices": devices_of_move.get(m_i, []),
-            "tension": TENSION.get(fn["function"], 1.5),
-            "tonic_target": DEFAULT_PC_NAMES[target_pc] if target_pc is not None else None,
-            "confidence": confidence_level(penalties),
-            "discrepancy": c["discrepancy"],
-            "text": ev["text"],
-        })
+        out_events.append(
+            {
+                "idx": ev["idx"],
+                "section": ev["section"],
+                "section_label": ev["section_label"],
+                "bar": ev["bar"],
+                "bar_in_section": ev["bar_in_section"],
+                "pos": ev["pos"],
+                "beats": ev["beats"],
+                "symbol": ev["symbol"],
+                "chord": ev["chord"],
+                "is_percent": ev["is_percent"],
+                "voicing": ev["voicing"],
+                "root": c["root"],
+                "bass": c["bass"],
+                "bass_physical": c["bass_physical"],
+                "quality": c["quality"],
+                "quality_source": c["quality_source"],
+                "notes": c["notes"],
+                "midis": c["midis"],
+                "roman": rn,
+                "function": fn["function"],
+                "func_label": fn["label"],
+                "why": fn["why"],
+                "devices": devices_of_move.get(m_i, []),
+                "tension": TENSION.get(fn["function"], 1.5),
+                "tonic_target": DEFAULT_PC_NAMES[target_pc] if target_pc is not None else None,
+                "confidence": confidence_level(penalties),
+                "discrepancy": c["discrepancy"],
+                "text": ev["text"],
+            }
+        )
 
     func_counts = {}
     for fn in functions:
@@ -1040,5 +1146,4 @@ def analyze_song(song, beats_per_bar=DEFAULT_BEATS):
             d["target"] = DEFAULT_PC_NAMES[d["target_pc"]]
         out_devices.append(d)
 
-    return {"key": key, "events": out_events, "devices": out_devices,
-            "summary": summary}
+    return {"key": key, "events": out_events, "devices": out_devices, "summary": summary}

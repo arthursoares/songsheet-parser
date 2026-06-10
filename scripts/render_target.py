@@ -7,9 +7,33 @@ Reads the new model: document -> songs -> sections -> bars -> [{chord, voicing?,
 
 import html as _html
 
-ROMAN = ["", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI",
-         "XII", "XIII", "XIV", "XV", "XVI", "XVII", "XVIII", "XIX", "XX",
-         "XXI", "XXII", "XXIII", "XXIV"]
+ROMAN = [
+    "",
+    "I",
+    "II",
+    "III",
+    "IV",
+    "V",
+    "VI",
+    "VII",
+    "VIII",
+    "IX",
+    "X",
+    "XI",
+    "XII",
+    "XIII",
+    "XIV",
+    "XV",
+    "XVI",
+    "XVII",
+    "XVIII",
+    "XIX",
+    "XX",
+    "XXI",
+    "XXII",
+    "XXIII",
+    "XXIV",
+]
 
 
 def _roman(n):
@@ -60,38 +84,47 @@ def diagram(voicing):
 
     el = []
     for r in range(NF + 1):
-        el.append(f'<line class="fl" x1="{x(0):.1f}" y1="{yf(r):.1f}" '
-                  f'x2="{x(NS-1):.1f}" y2="{yf(r):.1f}"/>')
+        el.append(
+            f'<line class="fl" x1="{x(0):.1f}" y1="{yf(r):.1f}" '
+            f'x2="{x(NS - 1):.1f}" y2="{yf(r):.1f}"/>'
+        )
     for i in range(NS):
-        el.append(f'<line class="sl" x1="{x(i):.1f}" y1="{padT}" '
-                  f'x2="{x(i):.1f}" y2="{padT+gh:.1f}"/>')
+        el.append(
+            f'<line class="sl" x1="{x(i):.1f}" y1="{padT}" x2="{x(i):.1f}" y2="{padT + gh:.1f}"/>'
+        )
     if start == 1:
-        el.append(f'<line class="nut" x1="{x(0):.1f}" y1="{padT}" '
-                  f'x2="{x(NS-1):.1f}" y2="{padT}"/>')
+        el.append(
+            f'<line class="nut" x1="{x(0):.1f}" y1="{padT}" x2="{x(NS - 1):.1f}" y2="{padT}"/>'
+        )
     else:
-        el.append(f'<text class="pos" x="{padL-5:.1f}" y="{padT+fy*0.72:.1f}" '
-                  f'text-anchor="end">{_roman(start)}</text>')
+        el.append(
+            f'<text class="pos" x="{padL - 5:.1f}" y="{padT + fy * 0.72:.1f}" '
+            f'text-anchor="end">{_roman(start)}</text>'
+        )
 
     barred = [i for i, f in enumerate(frets) if f == start]
     if start > 0 and len(barred) >= 2:
         x1, x2 = x(min(barred)), x(max(barred))
         yb = padT + 0.5 * fy
-        el.append(f'<line class="barre" x1="{x1:.1f}" y1="{yb:.1f}" '
-                  f'x2="{x2:.1f}" y2="{yb:.1f}"/>')
+        el.append(f'<line class="barre" x1="{x1:.1f}" y1="{yb:.1f}" x2="{x2:.1f}" y2="{yb:.1f}"/>')
 
     for i, f in enumerate(frets):
         if f is None:
-            el.append(f'<text class="mk" x="{x(i):.1f}" y="{padT-4}" '
-                      f'text-anchor="middle">×</text>')
+            el.append(
+                f'<text class="mk" x="{x(i):.1f}" y="{padT - 4}" text-anchor="middle">×</text>'
+            )
         elif f == 0:
-            el.append(f'<text class="mk" x="{x(i):.1f}" y="{padT-4}" '
-                      f'text-anchor="middle">○</text>')
+            el.append(
+                f'<text class="mk" x="{x(i):.1f}" y="{padT - 4}" text-anchor="middle">○</text>'
+            )
         else:
             row = f - start + 1
-            el.append(f'<circle class="dot" cx="{x(i):.1f}" '
-                      f'cy="{padT+(row-0.5)*fy:.1f}" r="{fy*0.32:.1f}"/>')
+            el.append(
+                f'<circle class="dot" cx="{x(i):.1f}" '
+                f'cy="{padT + (row - 0.5) * fy:.1f}" r="{fy * 0.32:.1f}"/>'
+            )
 
-    return (f'<svg class="diag" viewBox="0 0 {W} {H}">' + "".join(el) + "</svg>")
+    return f'<svg class="diag" viewBox="0 0 {W} {H}">' + "".join(el) + "</svg>"
 
 
 def _bar_tokens(bar):
@@ -127,12 +160,15 @@ def render_bar_html(bar, inline_diagrams=False):
     """
     slots = []
     for label, text, voicing, chord in _bar_tokens(bar):
-        idia = (f'<span class="idia">{diagram(voicing)}</span>'
-                if inline_diagrams and voicing and chord != "%" else "")
+        idia = (
+            f'<span class="idia">{diagram(voicing)}</span>'
+            if inline_diagrams and voicing and chord != "%"
+            else ""
+        )
         slots.append(
             '<span class="sl">'
             f'<span class="ch"><b class="cn">{_html.escape(label)}</b></span>'
-            f'{idia}'
+            f"{idia}"
             f'<span class="ly">{_html.escape(text)}</span>'
             "</span>"
         )
@@ -188,7 +224,6 @@ def dictionary_entries(sections, mode="per_voicing"):
 
 import chordmark_render  # reuse phrase-grouping  # noqa: E402
 
-
 _CSS = """
 @page { size: A4; margin: 1.4cm; } * { box-sizing: border-box; }
 body { margin:0; background:#f0f0f1; color:#111;
@@ -229,15 +264,17 @@ h1 { text-align:center; font-size: 2.4rem; font-weight:700; margin:0 0 .15rem; }
 def _dictionary_html(sections, mode):
     parts = []
     for e in dictionary_entries(sections, mode):
-        parts.append(f'<div class="dia"><div class="dn">{_html.escape(nice_name(e["chord"]))}</div>'
-                     f'{diagram(e["voicing"])}</div>')
+        parts.append(
+            f'<div class="dia"><div class="dn">{_html.escape(nice_name(e["chord"]))}</div>'
+            f"{diagram(e['voicing'])}</div>"
+        )
     return '<div class="dict">' + "".join(parts) + "</div>"
 
 
 def _chunk(items, n):
     """Split a list into consecutive chunks of at most n (n>=1)."""
     n = max(1, n)
-    return [items[i:i + n] for i in range(0, len(items), n)]
+    return [items[i : i + n] for i in range(0, len(items), n)]
 
 
 def _body_html(sections, inline_diagrams, bars_per_line=4):
@@ -250,8 +287,7 @@ def _body_html(sections, inline_diagrams, bars_per_line=4):
         if label:
             lines.append(f'<div class="seclabel">{_html.escape(label)}</div>')
         for group in _chunk(sec.get("bars", []), bars_per_line):
-            cells = "".join(render_bar_html(bar, inline_diagrams=inline_diagrams)
-                            for bar in group)
+            cells = "".join(render_bar_html(bar, inline_diagrams=inline_diagrams) for bar in group)
             lines.append(f'<div class="ln" style="{cols}">{cells}</div>')
     return '<div class="body">' + "".join(lines) + "</div>"
 
@@ -266,7 +302,7 @@ def _song_inner_html(song, dictionary="per_voicing", inline_diagrams=False, bars
     title = _html.escape(song.get("title") or "")
     composer = _html.escape(", ".join(song.get("composers") or []))
     return (
-        f"<h1>{title}</h1><div class=\"composer\">{composer}</div>"
+        f'<h1>{title}</h1><div class="composer">{composer}</div>'
         f"{_dictionary_html(sections, dictionary)}"
         f"{_body_html(sections, inline_diagrams, bars_per_line)}"
     )
@@ -275,10 +311,11 @@ def _song_inner_html(song, dictionary="per_voicing", inline_diagrams=False, bars
 def render_song(song, dictionary="per_voicing", inline_diagrams=False, bars_per_line=4):
     """Render a song dict to a full standalone target-look HTML page."""
     title = _html.escape(song.get("title") or "")
-    inner = _song_inner_html(song, dictionary=dictionary,
-                             inline_diagrams=inline_diagrams, bars_per_line=bars_per_line)
+    inner = _song_inner_html(
+        song, dictionary=dictionary, inline_diagrams=inline_diagrams, bars_per_line=bars_per_line
+    )
     return (
-        "<!doctype html><html><head><meta charset=\"utf-8\">"
+        '<!doctype html><html><head><meta charset="utf-8">'
         f"<title>{title}</title><style>{_CSS}</style></head>"
         '<body><div class="page">'
         f"{inner}"
@@ -299,8 +336,9 @@ _SONGBOOK_CSS = """
 """
 
 
-def render_songbook(songs, title="", dictionary="per_voicing",
-                    inline_diagrams=False, bars_per_line=4):
+def render_songbook(
+    songs, title="", dictionary="per_voicing", inline_diagrams=False, bars_per_line=4
+):
     """Render many song dicts into ONE standalone HTML document.
 
     One shared <style> block; an optional title + table-of-contents at the top;
@@ -308,9 +346,7 @@ def render_songbook(songs, title="", dictionary="per_voicing",
     break is inserted before every song after the first (.song{break-before:page}).
     """
     head_title = _html.escape(title or "Songbook")
-    toc_items = "".join(
-        f"<li>{_html.escape(s.get('title') or '')}</li>" for s in songs
-    )
+    toc_items = "".join(f"<li>{_html.escape(s.get('title') or '')}</li>" for s in songs)
     toc = ""
     if songs:
         heading = f"<h1>{_html.escape(title)}</h1>" if title else ""
@@ -318,13 +354,14 @@ def render_songbook(songs, title="", dictionary="per_voicing",
 
     sections_html = "".join(
         '<section class="song">'
-        + _song_inner_html(s, dictionary=dictionary,
-                           inline_diagrams=inline_diagrams, bars_per_line=bars_per_line)
+        + _song_inner_html(
+            s, dictionary=dictionary, inline_diagrams=inline_diagrams, bars_per_line=bars_per_line
+        )
         + "</section>"
         for s in songs
     )
     return (
-        "<!doctype html><html><head><meta charset=\"utf-8\">"
+        '<!doctype html><html><head><meta charset="utf-8">'
         f"<title>{head_title}</title><style>{_CSS}{_SONGBOOK_CSS}</style></head>"
         "<body>"
         f"{toc}"

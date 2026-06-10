@@ -12,9 +12,8 @@ Usage:
 import argparse
 import json
 import re
-from pathlib import Path
-
 import threading
+from pathlib import Path
 
 import jsonschema  # imported at startup so a save never fails on a lazy import
 
@@ -44,7 +43,8 @@ def _json(status, obj):
 
 def _query_params(path):
     """Parse the query string of a raw path into a flat dict (last value wins)."""
-    from urllib.parse import urlparse, parse_qs
+    from urllib.parse import parse_qs, urlparse
+
     q = urlparse(path).query
     return {k: v[-1] for k, v in parse_qs(q).items()}
 
@@ -70,10 +70,7 @@ def _song_status(path: Path):
 def list_albums(root: Path):
     out = []
     for album in sorted(p for p in root.iterdir() if p.is_dir()):
-        songs = [
-            {"file": f.name, "status": _song_status(f)}
-            for f in sorted(album.glob("*.json"))
-        ]
+        songs = [{"file": f.name, "status": _song_status(f)} for f in sorted(album.glob("*.json"))]
         out.append({"album": album.name, "songs": songs})
     return out
 
@@ -81,6 +78,7 @@ def list_albums(root: Path):
 def _chrome():
     """Path to a headless-capable Chrome/Chromium binary, or None if not found."""
     import shutil
+
     for c in ("google-chrome", "chromium", "chromium-browser"):
         p = shutil.which(c)
         if p:
@@ -114,12 +112,24 @@ def _chrome_convert(html: str, fmt: str):
             in_html.write_text(html, encoding="utf-8")
             if fmt == "pdf":
                 out = Path(tmp) / "out.pdf"
-                cmd = [chrome, "--headless", "--disable-gpu", "--no-pdf-header-footer",
-                       f"--print-to-pdf={out}", str(in_html)]
+                cmd = [
+                    chrome,
+                    "--headless",
+                    "--disable-gpu",
+                    "--no-pdf-header-footer",
+                    f"--print-to-pdf={out}",
+                    str(in_html),
+                ]
             else:
                 out = Path(tmp) / "out.png"
-                cmd = [chrome, "--headless", "--disable-gpu", f"--screenshot={out}",
-                       "--window-size=1100,1600", str(in_html)]
+                cmd = [
+                    chrome,
+                    "--headless",
+                    "--disable-gpu",
+                    f"--screenshot={out}",
+                    "--window-size=1100,1600",
+                    str(in_html),
+                ]
             try:
                 r = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
             except subprocess.TimeoutExpired as e:
@@ -311,16 +321,14 @@ def handle(method: str, path: str, body: bytes, root: Path):
                 text = _build_chordmark(target, _bars_per_line(params))
             except Exception as e:  # noqa: BLE001
                 return _json(500, {"error": f"chordmark build failed: {e}"})
-            return (200, "text/plain; charset=utf-8", text.encode(),
-                    _attach(stem, "chordmark"))
+            return (200, "text/plain; charset=utf-8", text.encode(), _attach(stem, "chordmark"))
 
         if fmt == "chordpro":
             try:
                 text = _build_chordpro(target)
             except Exception as e:  # noqa: BLE001
                 return _json(500, {"error": f"chordpro build failed: {e}"})
-            return (200, "text/plain; charset=utf-8", text.encode(),
-                    _attach(stem, "chordpro"))
+            return (200, "text/plain; charset=utf-8", text.encode(), _attach(stem, "chordpro"))
 
         html, err = _render_html_for_export(target, params)
         if err is not None:
@@ -383,9 +391,13 @@ def handle(method: str, path: str, body: bytes, root: Path):
             f = STATIC_DIR / rel
             if f.exists() and f.is_file():
                 ext = f.suffix.lower()
-                ctype = {".html": "text/html", ".js": "text/javascript",
-                         ".css": "text/css", ".png": "image/png",
-                         ".json": "application/json"}.get(ext, "application/octet-stream")
+                ctype = {
+                    ".html": "text/html",
+                    ".js": "text/javascript",
+                    ".css": "text/css",
+                    ".png": "image/png",
+                    ".json": "application/json",
+                }.get(ext, "application/octet-stream")
                 return 200, ctype, f.read_bytes()
 
     return _json(404, {"error": "unknown route"})
@@ -409,9 +421,11 @@ def save_song(target: Path, body: bytes):
 
 
 def _html_error(msg):
-    body = (f"<!doctype html><meta charset='utf-8'>"
-            f"<body style='font:14px sans-serif;color:#b00;padding:20px'>"
-            f"ChordMark preview unavailable:<br><pre>{msg}</pre></body>")
+    body = (
+        f"<!doctype html><meta charset='utf-8'>"
+        f"<body style='font:14px sans-serif;color:#b00;padding:20px'>"
+        f"ChordMark preview unavailable:<br><pre>{msg}</pre></body>"
+    )
     return 200, "text/html", body.encode()
 
 
@@ -426,8 +440,9 @@ def render_target_doc(doc, dictionary="per_voicing", inline=False, bars_per_line
         songs = doc.get("songs", [])
         if not songs:
             return _html_error("no songs in document")
-        html = render_target.render_song(songs[0], dictionary=dictionary,
-                                         inline_diagrams=inline, bars_per_line=bars_per_line)
+        html = render_target.render_song(
+            songs[0], dictionary=dictionary, inline_diagrams=inline, bars_per_line=bars_per_line
+        )
         return 200, "text/html", html.encode()
     except Exception as e:  # noqa: BLE001
         return _html_error(f"target render failed: {e}")
@@ -439,8 +454,7 @@ def render_target_html(song_path: Path, dictionary="per_voicing", inline=False, 
         doc = json.loads(song_path.read_text())
     except Exception as e:  # noqa: BLE001
         return _html_error(f"target render failed: {e}")
-    return render_target_doc(doc, dictionary=dictionary, inline=inline,
-                             bars_per_line=bars_per_line)
+    return render_target_doc(doc, dictionary=dictionary, inline=inline, bars_per_line=bars_per_line)
 
 
 def _render_album_songbook_html(album_dir: Path, album: str, params):
@@ -491,8 +505,7 @@ def _build_chordmark_doc(doc, bars_per_line=4) -> str:
     import chordmark_render
 
     songs = doc.get("songs", [])
-    return "\n\n".join(chordmark_render.render_song(s, bars_per_line=bars_per_line)
-                       for s in songs)
+    return "\n\n".join(chordmark_render.render_song(s, bars_per_line=bars_per_line) for s in songs)
 
 
 def _build_chordmark(song_path: Path, bars_per_line=4) -> str:
@@ -534,8 +547,12 @@ def render_song_doc(doc, bars_per_line=4):
         html_path = Path(tmp) / "song.html"
         cm_path.write_text(chordmark)
         try:
-            r = subprocess.run([node, str(render_js), str(cm_path), str(html_path)],
-                               capture_output=True, text=True, timeout=60)
+            r = subprocess.run(
+                [node, str(render_js), str(cm_path), str(html_path)],
+                capture_output=True,
+                text=True,
+                timeout=60,
+            )
         except subprocess.TimeoutExpired:
             return _html_error("fork render timed out")
         if r.returncode != 0 or not html_path.exists():

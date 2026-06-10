@@ -45,8 +45,7 @@ def apply_fragments(song, hyphenated):
                     continue
                 new = next(it)
                 if len(new.split()) != len(entry["text"].split()):
-                    raise ValueError(
-                        f"token count changed: {entry['text']!r} -> {new!r}")
+                    raise ValueError(f"token count changed: {entry['text']!r} -> {new!r}")
                 entry["text"] = new
     return song
 
@@ -77,8 +76,7 @@ def hyphenate_via_llm(fragments):
     text = codex_client.complete_text(prompt)
     lines = [ln for ln in text.splitlines() if ln.strip() != ""]
     if len(lines) != len(fragments):
-        raise ValueError(
-            f"LLM returned {len(lines)} lines for {len(fragments)} fragments")
+        raise ValueError(f"LLM returned {len(lines)} lines for {len(fragments)} fragments")
     return lines
 
 
@@ -111,8 +109,9 @@ def main():
     for f in files:
         try:
             changed = migrate_file(f, hyphenate_via_llm, dry_run=args.dry_run)
-            label = ("WOULD CHANGE" if (changed and args.dry_run)
-                     else ("CHANGED" if changed else "skip"))
+            label = (
+                "WOULD CHANGE" if (changed and args.dry_run) else ("CHANGED" if changed else "skip")
+            )
             print(f"{label}  {f}")
         except Exception as e:  # noqa: BLE001
             print(f"ERROR  {f}: {e}")

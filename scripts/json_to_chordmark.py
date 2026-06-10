@@ -32,9 +32,7 @@ def collect_json_files(inputs):
     files = []
     for p in inputs:
         if p.is_dir():
-            files.extend(
-                (f, f.parent.relative_to(p)) for f in sorted(p.rglob("*.json"))
-            )
+            files.extend((f, f.parent.relative_to(p)) for f in sorted(p.rglob("*.json")))
         elif p.suffix == ".json":
             files.append((p, Path(".")))
     return files

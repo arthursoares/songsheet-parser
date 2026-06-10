@@ -14,9 +14,7 @@ def make_doc(title="Chega de Saudade"):
             {
                 "title": title,
                 "chords": {},
-                "sections": [
-                    {"label": None, "bars": [[{"chord": "Dm7", "text": "Vai"}]]}
-                ],
+                "sections": [{"label": None, "bars": [[{"chord": "Dm7", "text": "Vai"}]]}],
             }
         ],
     }
@@ -25,7 +23,8 @@ def make_doc(title="Chega de Saudade"):
 def run_cli(*args):
     return subprocess.run(
         [str(PY), str(SCRIPT), *map(str, args)],
-        capture_output=True, text=True,
+        capture_output=True,
+        text=True,
     )
 
 
@@ -48,12 +47,8 @@ def test_cli_mirrors_album_subdirs_and_avoids_title_collisions(tmp_path):
     corpus = tmp_path / "songs"
     (corpus / "album-a").mkdir(parents=True)
     (corpus / "album-b").mkdir(parents=True)
-    (corpus / "album-a" / "01-desafinado.json").write_text(
-        json.dumps(make_doc("Desafinado"))
-    )
-    (corpus / "album-b" / "03-desafinado.json").write_text(
-        json.dumps(make_doc("Desafinado"))
-    )
+    (corpus / "album-a" / "01-desafinado.json").write_text(json.dumps(make_doc("Desafinado")))
+    (corpus / "album-b" / "03-desafinado.json").write_text(json.dumps(make_doc("Desafinado")))
     out_dir = tmp_path / "out"
 
     result = run_cli(corpus, "--output", out_dir)

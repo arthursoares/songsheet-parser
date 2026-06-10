@@ -4,8 +4,8 @@ import chordmark_render as cr
 
 
 def test_normalize_tension_infix_to_extension():
-    assert cr.normalize_chord_name("D#m7/9/A#") == "D#m9/A#"   # m7/9 -> m9, bass kept
-    assert cr.normalize_chord_name("D#7/9/A#") == "D#9/A#"     # 7/9 -> 9, bass kept
+    assert cr.normalize_chord_name("D#m7/9/A#") == "D#m9/A#"  # m7/9 -> m9, bass kept
+    assert cr.normalize_chord_name("D#7/9/A#") == "D#9/A#"  # 7/9 -> 9, bass kept
     assert cr.normalize_chord_name("C7/13") == "C13"
     assert cr.normalize_chord_name("Am7/11") == "Am11"
     assert cr.normalize_chord_name("C6/9") == "C69"

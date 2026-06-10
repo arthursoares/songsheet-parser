@@ -10,9 +10,16 @@ def _corpus(tmp_path):
     songs = tmp_path / "songs"
     album = songs / "1-album"
     (album / "pages").mkdir(parents=True)
-    doc = {"document": {"title": "Album"},
-           "songs": [{"title": "Song One", "pages": [1],
-                      "sections": [{"label": None, "bars": [[{"chord": "Dm7"}]]}]}]}
+    doc = {
+        "document": {"title": "Album"},
+        "songs": [
+            {
+                "title": "Song One",
+                "pages": [1],
+                "sections": [{"label": None, "bars": [[{"chord": "Dm7"}]]}],
+            }
+        ],
+    }
     (album / "01-song-one.json").write_text(json.dumps(doc))
     (album / "pages" / "01-song-one-p1.png").write_bytes(b"\x89PNG")
     return songs
@@ -23,8 +30,9 @@ def test_list_albums(tmp_path):
     status, ctype, body = S.handle("GET", "/api/albums", b"", root)
     assert status == 200
     data = json.loads(body)
-    assert data == [{"album": "1-album",
-                     "songs": [{"file": "01-song-one.json", "status": "pending"}]}]
+    assert data == [
+        {"album": "1-album", "songs": [{"file": "01-song-one.json", "status": "pending"}]}
+    ]
 
 
 def test_list_albums_reads_status(tmp_path):
@@ -61,8 +69,9 @@ def test_save_valid_song_writes(tmp_path):
     root = _corpus(tmp_path)
     doc = json.loads((root / "1-album" / "01-song-one.json").read_text())
     doc["songs"][0]["sections"][0]["bars"][0][0]["chord"] = "Am7"
-    status, _, body = S.handle("POST", "/api/song/1-album/01-song-one.json",
-                               json.dumps(doc).encode(), root)
+    status, _, body = S.handle(
+        "POST", "/api/song/1-album/01-song-one.json", json.dumps(doc).encode(), root
+    )
     assert status == 200
     assert json.loads(body)["ok"] is True
     on_disk = json.loads((root / "1-album" / "01-song-one.json").read_text())
@@ -73,8 +82,9 @@ def test_save_invalid_song_rejected(tmp_path):
     root = _corpus(tmp_path)
     doc = json.loads((root / "1-album" / "01-song-one.json").read_text())
     doc["songs"][0]["sections"][0]["bars"][0][0] = {"voicing": "x,5,7,5,6,x"}
-    status, _, body = S.handle("POST", "/api/song/1-album/01-song-one.json",
-                               json.dumps(doc).encode(), root)
+    status, _, body = S.handle(
+        "POST", "/api/song/1-album/01-song-one.json", json.dumps(doc).encode(), root
+    )
     assert status == 422
     assert json.loads(body)["ok"] is False
     on_disk = json.loads((root / "1-album" / "01-song-one.json").read_text())
@@ -84,6 +94,7 @@ def test_save_invalid_song_rejected(tmp_path):
 def test_save_rejects_path_traversal(tmp_path):
     root = _corpus(tmp_path)
     import json as _j
+
     body = _j.dumps({"document": {"title": "x"}, "songs": []}).encode()
     status, _, _ = S.handle("POST", "/api/song/../evil.json", body, root)
     assert status == 400
@@ -118,8 +129,7 @@ def test_serves_static_js(tmp_path, monkeypatch):
 
 def test_chordmark_source(tmp_path):
     root = _corpus(tmp_path)
-    status, ctype, body = S.handle(
-        "GET", "/api/chordmark/1-album/01-song-one.json", b"", root)
+    status, ctype, body = S.handle("GET", "/api/chordmark/1-album/01-song-one.json", b"", root)
     assert status == 200
     assert ctype.startswith("text/plain")
     assert b"Dm7" in body
@@ -127,8 +137,7 @@ def test_chordmark_source(tmp_path):
 
 def test_chordmark_source_ignores_query(tmp_path):
     root = _corpus(tmp_path)
-    status, _, body = S.handle(
-        "GET", "/api/chordmark/1-album/01-song-one.json?t=9", b"", root)
+    status, _, body = S.handle("GET", "/api/chordmark/1-album/01-song-one.json?t=9", b"", root)
     assert status == 200
     assert b"Dm7" in body
 
@@ -147,8 +156,7 @@ def test_chordmark_rejects_path_traversal(tmp_path):
 
 def test_export_chordmark(tmp_path):
     root = _corpus(tmp_path)
-    result = S.handle(
-        "GET", "/api/export/1-album/01-song-one.json?fmt=chordmark", b"", root)
+    result = S.handle("GET", "/api/export/1-album/01-song-one.json?fmt=chordmark", b"", root)
     status, ctype, body = result[0], result[1], result[2]
     headers = result[3]
     assert status == 200
@@ -160,8 +168,7 @@ def test_export_chordmark(tmp_path):
 
 def test_export_chordpro(tmp_path):
     root = _corpus(tmp_path)
-    result = S.handle(
-        "GET", "/api/export/1-album/01-song-one.json?fmt=chordpro", b"", root)
+    result = S.handle("GET", "/api/export/1-album/01-song-one.json?fmt=chordpro", b"", root)
     status, ctype, body = result[0], result[1], result[2]
     headers = result[3]
     assert status == 200
@@ -176,7 +183,8 @@ def test_render_doc_target(tmp_path):
     root = _corpus(tmp_path)
     doc = json.loads((root / "1-album" / "01-song-one.json").read_text())
     status, ctype, body = S.handle(
-        "POST", "/api/render-doc?style=target&bars=4", json.dumps(doc).encode(), root)
+        "POST", "/api/render-doc?style=target&bars=4", json.dumps(doc).encode(), root
+    )
     assert status == 200
     assert ctype == "text/html"
     assert b'class="ln"' in body
@@ -191,8 +199,7 @@ def test_render_doc_bad_json_400(tmp_path):
 def test_chordmark_doc(tmp_path):
     root = _corpus(tmp_path)
     doc = json.loads((root / "1-album" / "01-song-one.json").read_text())
-    status, ctype, body = S.handle(
-        "POST", "/api/chordmark-doc", json.dumps(doc).encode(), root)
+    status, ctype, body = S.handle("POST", "/api/chordmark-doc", json.dumps(doc).encode(), root)
     assert status == 200
     assert ctype.startswith("text/plain")
     assert b"Dm7" in body
@@ -207,7 +214,8 @@ def test_chordmark_doc_bad_json_400(tmp_path):
 def test_export_html(tmp_path):
     root = _corpus(tmp_path)
     result = S.handle(
-        "GET", "/api/export/1-album/01-song-one.json?fmt=html&style=target", b"", root)
+        "GET", "/api/export/1-album/01-song-one.json?fmt=html&style=target", b"", root
+    )
     status, ctype, body = result[0], result[1], result[2]
     headers = result[3]
     assert status == 200
@@ -226,7 +234,8 @@ def test_export_rejects_path_traversal(tmp_path):
 def test_render_target_style(tmp_path):
     root = _corpus(tmp_path)
     status, ctype, body = S.handle(
-        "GET", "/api/render/1-album/01-song-one.json?style=target", b"", root)
+        "GET", "/api/render/1-album/01-song-one.json?style=target", b"", root
+    )
     assert status == 200
     assert ctype == "text/html"
     assert b"<!doctype html>" in body
@@ -237,10 +246,10 @@ def test_render_target_style(tmp_path):
 # /api/harmony — harmonic analysis (Phase B)
 # ---------------------------------------------------------------------------
 
+
 def test_harmony_get(tmp_path):
     root = _corpus(tmp_path)
-    status, ctype, body = S.handle(
-        "GET", "/api/harmony/1-album/01-song-one.json", b"", root)
+    status, ctype, body = S.handle("GET", "/api/harmony/1-album/01-song-one.json", b"", root)
     assert status == 200
     assert ctype == "application/json"
     data = json.loads(body)
@@ -263,12 +272,22 @@ def test_harmony_rejects_path_traversal(tmp_path):
 
 def test_harmony_doc_post(tmp_path):
     root = _corpus(tmp_path)
-    doc = {"document": {"title": "t"},
-           "songs": [{"title": "s", "key": "C", "sections": [
-               {"label": None, "bars": [
-                   [{"chord": "Dm7"}], [{"chord": "G7"}], [{"chord": "Cmaj7"}]]}]}]}
-    status, ctype, body = S.handle(
-        "POST", "/api/harmony-doc", json.dumps(doc).encode(), root)
+    doc = {
+        "document": {"title": "t"},
+        "songs": [
+            {
+                "title": "s",
+                "key": "C",
+                "sections": [
+                    {
+                        "label": None,
+                        "bars": [[{"chord": "Dm7"}], [{"chord": "G7"}], [{"chord": "Cmaj7"}]],
+                    }
+                ],
+            }
+        ],
+    }
+    status, ctype, body = S.handle("POST", "/api/harmony-doc", json.dumps(doc).encode(), root)
     assert status == 200
     data = json.loads(body)
     assert data["key"]["tonic_name"] == "C" and data["key"]["how"] == "stored"
@@ -284,20 +303,24 @@ def test_harmony_doc_bad_json_400(tmp_path):
 def test_harmony_doc_no_songs_400(tmp_path):
     root = _corpus(tmp_path)
     status, _, _ = S.handle(
-        "POST", "/api/harmony-doc", b'{"document": {"title": "t"}, "songs": []}', root)
+        "POST", "/api/harmony-doc", b'{"document": {"title": "t"}, "songs": []}', root
+    )
     assert status == 400
 
 
 def test_harmony_doc_analyzes_first_song_only(tmp_path):
     root = _corpus(tmp_path)
-    doc = {"document": {"title": "t"},
-           "songs": [
-               {"title": "first", "sections": [
-                   {"label": None, "bars": [[{"chord": "C"}]]}]},
-               {"title": "second", "sections": [
-                   {"label": None, "bars": [[{"chord": "D"}], [{"chord": "E"}]]}]}]}
-    status, _, body = S.handle(
-        "POST", "/api/harmony-doc", json.dumps(doc).encode(), root)
+    doc = {
+        "document": {"title": "t"},
+        "songs": [
+            {"title": "first", "sections": [{"label": None, "bars": [[{"chord": "C"}]]}]},
+            {
+                "title": "second",
+                "sections": [{"label": None, "bars": [[{"chord": "D"}], [{"chord": "E"}]]}],
+            },
+        ],
+    }
+    status, _, body = S.handle("POST", "/api/harmony-doc", json.dumps(doc).encode(), root)
     assert status == 200
     assert json.loads(body)["summary"]["events"] == 1  # songs[0] only
 
@@ -305,6 +328,7 @@ def test_harmony_doc_analyzes_first_song_only(tmp_path):
 # ---------------------------------------------------------------------------
 # /api/convert — HTML body -> PDF/PNG via headless Chrome (Harmony exports)
 # ---------------------------------------------------------------------------
+
 
 def test_convert_pdf(tmp_path, monkeypatch):
     root = _corpus(tmp_path)
@@ -331,8 +355,10 @@ def test_convert_empty_body_400(tmp_path):
 
 def test_convert_chrome_failure_500(tmp_path, monkeypatch):
     root = _corpus(tmp_path)
+
     def boom(html, fmt):
         raise RuntimeError("Chrome not found")
+
     monkeypatch.setattr(S, "_chrome_convert", boom)
     status, _, _ = S.handle("POST", "/api/convert?fmt=pdf", b"<html>x</html>", root)
     assert status == 500

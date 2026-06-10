@@ -1,11 +1,11 @@
 """Tests for scripts/harmony.py — the pure harmonic-analysis engine (Phase A)."""
+
 import json
 from pathlib import Path
 
 import pytest
-
-import harmony
 from harmony import (
+    _build_moves,
     analyze_chord,
     analyze_song,
     classify_function,
@@ -17,7 +17,6 @@ from harmony import (
     quality_from_pitches,
     roman,
     voicing_to_pitches,
-    _build_moves,
 )
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -32,13 +31,21 @@ def _song(sections):
 # A0 — event normalization
 # ---------------------------------------------------------------------------
 
+
 class TestNormalizeEvents:
     def test_percent_carries_previous_chord_and_voicing(self):
-        song = _song([{"label": "A", "bars": [
-            [{"chord": "Gm7", "voicing": "3,x,3,3,2,x"}],
-            [{"chord": "%"}],
-            [{"chord": "%"}],
-        ]}])
+        song = _song(
+            [
+                {
+                    "label": "A",
+                    "bars": [
+                        [{"chord": "Gm7", "voicing": "3,x,3,3,2,x"}],
+                        [{"chord": "%"}],
+                        [{"chord": "%"}],
+                    ],
+                }
+            ]
+        )
         evs = normalize_events(song)
         assert evs[1]["is_percent"] and evs[2]["is_percent"]
         assert evs[1]["chord"] == "Gm7" and evs[2]["chord"] == "Gm7"
@@ -51,21 +58,30 @@ class TestNormalizeEvents:
         assert evs[0]["chord"] is None and evs[0]["is_percent"]
 
     def test_indices_unique_and_stable(self):
-        song = _song([
-            {"label": "A", "bars": [[{"chord": "C"}, {"chord": "C"}]]},
-            {"label": "B", "bars": [[{"chord": "C"}]]},
-        ])
+        song = _song(
+            [
+                {"label": "A", "bars": [[{"chord": "C"}, {"chord": "C"}]]},
+                {"label": "B", "bars": [[{"chord": "C"}]]},
+            ]
+        )
         evs = normalize_events(song)
         assert [e["idx"] for e in evs] == [0, 1, 2]
         assert evs[2]["section"] == 1 and evs[2]["bar"] == 1
         assert evs[2]["bar_in_section"] == 0
 
     def test_beats_distribution(self):
-        song = _song([{"label": None, "bars": [
-            [{"chord": "C"}],
-            [{"chord": "C"}, {"chord": "G"}],
-            [{"chord": "C"}, {"chord": "F"}, {"chord": "G"}],
-        ]}])
+        song = _song(
+            [
+                {
+                    "label": None,
+                    "bars": [
+                        [{"chord": "C"}],
+                        [{"chord": "C"}, {"chord": "G"}],
+                        [{"chord": "C"}, {"chord": "F"}, {"chord": "G"}],
+                    ],
+                }
+            ]
+        )
         evs = normalize_events(song)
         assert evs[0]["beats"] == 4
         assert [e["beats"] for e in evs[1:3]] == [2, 2]
@@ -81,6 +97,7 @@ class TestNormalizeEvents:
 # ---------------------------------------------------------------------------
 # A1 — voicing → pitches
 # ---------------------------------------------------------------------------
+
 
 class TestVoicingToPitches:
     def test_open_e(self):
@@ -111,30 +128,34 @@ class TestVoicingToPitches:
 # A2 — notes-first quality
 # ---------------------------------------------------------------------------
 
+
 class TestQualityFromPitches:
-    @pytest.mark.parametrize("intervals,expected", [
-        ({0, 4, 7}, ""),
-        ({0, 3, 7}, "m"),
-        ({0, 4, 7, 11}, "maj7"),
-        ({0, 4, 7, 10}, "7"),
-        ({0, 4, 8, 10}, "7♯5"),
-        ({0, 4, 7, 10, 1}, "7♭9"),
-        ({0, 4, 6, 10, 2}, "9♭5"),
-        ({0, 4, 10, 9}, "13"),
-        ({0, 4, 9, 2}, "6/9"),
-        ({0, 3, 7, 10}, "m7"),
-        ({0, 3, 6, 10}, "m7♭5"),
-        ({0, 3, 7, 11}, "mMaj7"),
-        ({0, 3, 6, 11}, "mMaj7♭5"),
-        ({0, 3, 6, 9}, "°7"),
-        ({0, 3, 6}, "dim"),
-        ({0, 5, 7}, "sus4"),
-        ({0, 5, 7, 10}, "7sus4"),
-        ({0, 4, 7, 10, 2}, "9"),
-        ({0, 3, 7, 10, 2}, "m9"),
-        ({0, 3, 7, 9}, "m6"),
-        ({0, 4, 8}, "aug"),
-    ])
+    @pytest.mark.parametrize(
+        "intervals,expected",
+        [
+            ({0, 4, 7}, ""),
+            ({0, 3, 7}, "m"),
+            ({0, 4, 7, 11}, "maj7"),
+            ({0, 4, 7, 10}, "7"),
+            ({0, 4, 8, 10}, "7♯5"),
+            ({0, 4, 7, 10, 1}, "7♭9"),
+            ({0, 4, 6, 10, 2}, "9♭5"),
+            ({0, 4, 10, 9}, "13"),
+            ({0, 4, 9, 2}, "6/9"),
+            ({0, 3, 7, 10}, "m7"),
+            ({0, 3, 6, 10}, "m7♭5"),
+            ({0, 3, 7, 11}, "mMaj7"),
+            ({0, 3, 6, 11}, "mMaj7♭5"),
+            ({0, 3, 6, 9}, "°7"),
+            ({0, 3, 6}, "dim"),
+            ({0, 5, 7}, "sus4"),
+            ({0, 5, 7, 10}, "7sus4"),
+            ({0, 4, 7, 10, 2}, "9"),
+            ({0, 3, 7, 10, 2}, "m9"),
+            ({0, 3, 7, 9}, "m6"),
+            ({0, 4, 8}, "aug"),
+        ],
+    )
     def test_qualities(self, intervals, expected):
         assert quality_from_pitches(0, intervals) == expected
 
@@ -161,46 +182,50 @@ class TestQualityFromPitches:
 # A3 — symbol parse + reconcile
 # ---------------------------------------------------------------------------
 
+
 class TestParseSymbol:
-    @pytest.mark.parametrize("symbol,root,quality,bass", [
-        ("C", "C", "", None),
-        ("Cm7", "C", "m7", None),
-        ("Cmaj7", "C", "maj7", None),
-        ("C7+", "C", "maj7", None),   # Brazilian: trailing 7+ = maj7
-        ("C7M", "C", "maj7", None),
-        ("CM7", "C", "maj7", None),   # capital M = maj
-        ("DM7/F#", "D", "maj7", "F#"),
-        ("AM7(b5)", "A", "maj7♭5", None),
-        ("DmM7(b5)", "D", "mMaj7♭5", None),
-        ("B7sus", "B", "7sus4", None),  # 'sus' without the 4
-        ("Cmaj9", "C", "maj9", None),
-        ("C7", "C", "7", None),
-        ("C6", "C", "6", None),
-        ("C69", "C", "6/9", None),
-        ("C6/9", "C", "6/9", None),
-        ("C7+5", "C", "7♯5", None),
-        ("C7-9", "C", "7♭9", None),
-        ("C7-5", "C", "7♭5", None),
-        ("Cm7-5", "C", "m7♭5", None),
-        ("C13", "C", "13", None),
-        ("C13-9", "C", "13♭9", None),
-        ("C13,9", "C", "13", None),
-        ("C9", "C", "9", None),
-        ("Cm7/9", "C", "m9", None),
-        ("Cm79", "C", "m9", None),
-        ("Cm7(9)", "C", "m9", None),
-        ("Cdim7", "C", "°7", None),
-        ("Cdim", "C", "dim", None),
-        ("Cmmaj7", "C", "mMaj7", None),
-        ("C7sus4", "C", "7sus4", None),
-        ("Csus4", "C", "sus4", None),
-        ("C479", "C", "9sus4", None),
-        ("C/E", "C", "", "E"),
-        ("Gm7/9", "G", "m9", None),
-        ("D#m7/9/A#", "D#", "m9", "A#"),
-        ("A13/G", "A", "13", "G"),
-        ("Bb7", "Bb", "7", None),
-    ])
+    @pytest.mark.parametrize(
+        "symbol,root,quality,bass",
+        [
+            ("C", "C", "", None),
+            ("Cm7", "C", "m7", None),
+            ("Cmaj7", "C", "maj7", None),
+            ("C7+", "C", "maj7", None),  # Brazilian: trailing 7+ = maj7
+            ("C7M", "C", "maj7", None),
+            ("CM7", "C", "maj7", None),  # capital M = maj
+            ("DM7/F#", "D", "maj7", "F#"),
+            ("AM7(b5)", "A", "maj7♭5", None),
+            ("DmM7(b5)", "D", "mMaj7♭5", None),
+            ("B7sus", "B", "7sus4", None),  # 'sus' without the 4
+            ("Cmaj9", "C", "maj9", None),
+            ("C7", "C", "7", None),
+            ("C6", "C", "6", None),
+            ("C69", "C", "6/9", None),
+            ("C6/9", "C", "6/9", None),
+            ("C7+5", "C", "7♯5", None),
+            ("C7-9", "C", "7♭9", None),
+            ("C7-5", "C", "7♭5", None),
+            ("Cm7-5", "C", "m7♭5", None),
+            ("C13", "C", "13", None),
+            ("C13-9", "C", "13♭9", None),
+            ("C13,9", "C", "13", None),
+            ("C9", "C", "9", None),
+            ("Cm7/9", "C", "m9", None),
+            ("Cm79", "C", "m9", None),
+            ("Cm7(9)", "C", "m9", None),
+            ("Cdim7", "C", "°7", None),
+            ("Cdim", "C", "dim", None),
+            ("Cmmaj7", "C", "mMaj7", None),
+            ("C7sus4", "C", "7sus4", None),
+            ("Csus4", "C", "sus4", None),
+            ("C479", "C", "9sus4", None),
+            ("C/E", "C", "", "E"),
+            ("Gm7/9", "G", "m9", None),
+            ("D#m7/9/A#", "D#", "m9", "A#"),
+            ("A13/G", "A", "13", "G"),
+            ("Bb7", "Bb", "7", None),
+        ],
+    )
     def test_corpus_vocabulary(self, symbol, root, quality, bass):
         p = parse_symbol(symbol)
         assert p["root"] == root
@@ -261,6 +286,7 @@ class TestAnalyzeChord:
 # A4 — key estimation
 # ---------------------------------------------------------------------------
 
+
 def _bars(*chords):
     return [[{"chord": c}] for c in chords]
 
@@ -278,12 +304,27 @@ class TestEstimateKey:
         assert key["tonic_pc"] == 10 and key["mode"] == "minor"
 
     def test_cadence_estimation(self):
-        song = _song([{"label": None, "bars": _bars(
-            "Cmaj7", "Dm7", "G7", "Cmaj7",
-            "Dm7", "G7", "Cmaj7",
-            "A7", "Dm7",          # one secondary toward ii — must not win
-            "Dm7", "G7", "Cmaj7",
-        )}])
+        song = _song(
+            [
+                {
+                    "label": None,
+                    "bars": _bars(
+                        "Cmaj7",
+                        "Dm7",
+                        "G7",
+                        "Cmaj7",
+                        "Dm7",
+                        "G7",
+                        "Cmaj7",
+                        "A7",
+                        "Dm7",  # one secondary toward ii — must not win
+                        "Dm7",
+                        "G7",
+                        "Cmaj7",
+                    ),
+                }
+            ]
+        )
         key = estimate_key(normalize_events(song), None)
         assert key["tonic_pc"] == 0
         assert key["mode"] == "major"
@@ -291,35 +332,85 @@ class TestEstimateKey:
 
     def test_heavy_tonicization_does_not_win(self):
         # 3 true ii–V–I to C vs 2 bare V–I into the tonicized D region
-        song = _song([{"label": None, "bars": _bars(
-            "Dm7", "G7", "Cmaj7",
-            "E7", "A7", "D7", "G7", "Cmaj7",   # chain resolving home
-            "Dm7", "G7", "Cmaj7",
-            "Dm7", "G7", "Cmaj7",
-        )}])
+        song = _song(
+            [
+                {
+                    "label": None,
+                    "bars": _bars(
+                        "Dm7",
+                        "G7",
+                        "Cmaj7",
+                        "E7",
+                        "A7",
+                        "D7",
+                        "G7",
+                        "Cmaj7",  # chain resolving home
+                        "Dm7",
+                        "G7",
+                        "Cmaj7",
+                        "Dm7",
+                        "G7",
+                        "Cmaj7",
+                    ),
+                }
+            ]
+        )
         key = estimate_key(normalize_events(song), None)
         assert key["tonic_pc"] == 0
 
     def test_not_the_relative_minor(self):
-        song = _song([{"label": None, "bars": _bars(
-            "Am7", "Dm7", "G7", "Cmaj7", "Am7", "Dm7", "G7", "Cmaj7",
-        )}])
+        song = _song(
+            [
+                {
+                    "label": None,
+                    "bars": _bars(
+                        "Am7",
+                        "Dm7",
+                        "G7",
+                        "Cmaj7",
+                        "Am7",
+                        "Dm7",
+                        "G7",
+                        "Cmaj7",
+                    ),
+                }
+            ]
+        )
         key = estimate_key(normalize_events(song), None)
         assert key["tonic_pc"] == 0  # C, not A minor
 
     def test_spelling_follows_song_symbols(self):
-        song = _song([{"label": None, "bars": _bars(
-            "D#m7", "G#7", "C#maj7", "D#m7", "G#7", "C#maj7",
-        )}])
+        song = _song(
+            [
+                {
+                    "label": None,
+                    "bars": _bars(
+                        "D#m7",
+                        "G#7",
+                        "C#maj7",
+                        "D#m7",
+                        "G#7",
+                        "C#maj7",
+                    ),
+                }
+            ]
+        )
         key = estimate_key(normalize_events(song), None)
         assert key["tonic_name"] == "C#"  # spelled as the songbook spells it
 
     def test_no_cadences_falls_back_to_ks_low_confidence(self):
-        song = _song([{"label": None, "bars": [
-            [{"chord": "C", "voicing": "x,3,2,0,1,0"}],
-            [{"chord": "F", "voicing": "1,3,3,2,1,1"}],
-            [{"chord": "C", "voicing": "x,3,2,0,1,0"}],
-        ]}])
+        song = _song(
+            [
+                {
+                    "label": None,
+                    "bars": [
+                        [{"chord": "C", "voicing": "x,3,2,0,1,0"}],
+                        [{"chord": "F", "voicing": "1,3,3,2,1,1"}],
+                        [{"chord": "C", "voicing": "x,3,2,0,1,0"}],
+                    ],
+                }
+            ]
+        )
         key = estimate_key(normalize_events(song), None)
         assert key["how"] == "ks" and key["confidence"] == "low"
 
@@ -328,23 +419,27 @@ class TestEstimateKey:
 # A5 — Roman numerals + function
 # ---------------------------------------------------------------------------
 
+
 class TestRoman:
-    @pytest.mark.parametrize("root,quality,tonic,mode,bass,expected", [
-        ("C", "maj7", "C", "major", None, "Imaj7"),
-        ("D", "m7", "C", "major", None, "ii7"),
-        ("G", "7", "C", "major", None, "V7"),
-        ("B", "m7♭5", "C", "major", None, "viiø7"),
-        ("D#", "m7", "C#", "major", None, "ii7"),
-        ("F#", "maj7", "C#", "major", None, "IVmaj7"),
-        ("Db", "7", "C", "major", None, "♭II7"),
-        ("A", "7", "C", "major", None, "VI7"),
-        ("Eb", "maj7", "C", "major", None, "♭IIImaj7"),
-        ("C", "7♯5", "C", "major", None, "I7♯5"),
-        ("C", "°7", "C", "major", None, "i°7"),
-        ("G", "7", "C", "major", "B", "V7/B"),
-        ("A", "m", "A", "minor", None, "i"),
-        ("E", "7", "A", "minor", None, "V7"),
-    ])
+    @pytest.mark.parametrize(
+        "root,quality,tonic,mode,bass,expected",
+        [
+            ("C", "maj7", "C", "major", None, "Imaj7"),
+            ("D", "m7", "C", "major", None, "ii7"),
+            ("G", "7", "C", "major", None, "V7"),
+            ("B", "m7♭5", "C", "major", None, "viiø7"),
+            ("D#", "m7", "C#", "major", None, "ii7"),
+            ("F#", "maj7", "C#", "major", None, "IVmaj7"),
+            ("Db", "7", "C", "major", None, "♭II7"),
+            ("A", "7", "C", "major", None, "VI7"),
+            ("Eb", "maj7", "C", "major", None, "♭IIImaj7"),
+            ("C", "7♯5", "C", "major", None, "I7♯5"),
+            ("C", "°7", "C", "major", None, "i°7"),
+            ("G", "7", "C", "major", "B", "V7/B"),
+            ("A", "m", "A", "minor", None, "i"),
+            ("E", "7", "A", "minor", None, "V7"),
+        ],
+    )
     def test_roman(self, root, quality, tonic, mode, bass, expected):
         assert roman(root, quality, tonic, mode, bass) == expected
 
@@ -401,6 +496,7 @@ class TestClassifyFunction:
 # A6 — device detectors
 # ---------------------------------------------------------------------------
 
+
 def _moves_for(*chords):
     song = _song([{"label": None, "bars": _bars(*chords)}])
     return _build_moves(normalize_events(song))
@@ -420,8 +516,7 @@ class TestDetectDevices:
 
     def test_secondary_dominant(self):
         devs = detect_devices(_moves_for("A7", "Dm7"), tonic_pc=0)
-        assert any(d["type"] == "secondary_dominant" and d["target_pc"] == 2
-                   for d in devs)
+        assert any(d["type"] == "secondary_dominant" and d["target_pc"] == 2 for d in devs)
 
     def test_v_to_tonic_not_secondary(self):
         devs = detect_devices(_moves_for("G7", "C"), tonic_pc=0)
@@ -433,16 +528,25 @@ class TestDetectDevices:
 
     def test_chromatic_bass_run(self):
         # G – F# – F – E in the bass (Desde's "tear" line shape)
-        devs = detect_devices(
-            _moves_for("G", "D/F#", "F6", "C/E"), tonic_pc=None)
+        devs = detect_devices(_moves_for("G", "D/F#", "F6", "C/E"), tonic_pc=None)
         runs = [d for d in devs if d["type"] == "chromatic_bass_run"]
         assert runs and runs[0]["length"] == 4
 
     def test_percent_carries_do_not_break_runs(self):
-        song = _song([{"label": None, "bars": [
-            [{"chord": "G"}], [{"chord": "%"}],
-            [{"chord": "D/F#"}], [{"chord": "F6"}], [{"chord": "C/E"}],
-        ]}])
+        song = _song(
+            [
+                {
+                    "label": None,
+                    "bars": [
+                        [{"chord": "G"}],
+                        [{"chord": "%"}],
+                        [{"chord": "D/F#"}],
+                        [{"chord": "F6"}],
+                        [{"chord": "C/E"}],
+                    ],
+                }
+            ]
+        )
         moves = _build_moves(normalize_events(song))
         assert len(moves) == 4  # the % merged into the G move
         devs = detect_devices(moves)
@@ -453,6 +557,7 @@ class TestDetectDevices:
 # A7 — assemble
 # ---------------------------------------------------------------------------
 
+
 class TestAnalyzeSong:
     def _fixture_song(self):
         doc = json.loads((FIXTURES / "chega-page1.json").read_text())
@@ -462,22 +567,49 @@ class TestAnalyzeSong:
         result = analyze_song(self._fixture_song())
         assert set(result) == {"key", "events", "devices", "summary"}
         ev = result["events"][0]
-        for field in ("idx", "section", "bar", "bar_in_section", "beats", "symbol",
-                      "chord", "root",
-                      "bass", "bass_physical", "quality", "quality_source", "notes",
-                      "midis", "roman", "function", "func_label", "why", "devices",
-                      "tension", "tonic_target", "confidence", "discrepancy", "text"):
+        for field in (
+            "idx",
+            "section",
+            "bar",
+            "bar_in_section",
+            "beats",
+            "symbol",
+            "chord",
+            "root",
+            "bass",
+            "bass_physical",
+            "quality",
+            "quality_source",
+            "notes",
+            "midis",
+            "roman",
+            "function",
+            "func_label",
+            "why",
+            "devices",
+            "tension",
+            "tonic_target",
+            "confidence",
+            "discrepancy",
+            "text",
+        ):
             assert field in ev, field
         assert result["summary"]["events"] == len(result["events"])
-        assert all(e["confidence"] in ("high", "medium", "low")
-                   for e in result["events"])
+        assert all(e["confidence"] in ("high", "medium", "low") for e in result["events"])
 
     def test_confidence_fires_on_known_discrepancy(self):
-        song = _song([{"label": None, "bars": [
-            [{"chord": "C7", "voicing": "x,3,5,3,4,x"}],  # voicing is Cm7
-            [{"chord": "G7"}],
-            [{"chord": "C"}],
-        ]}])
+        song = _song(
+            [
+                {
+                    "label": None,
+                    "bars": [
+                        [{"chord": "C7", "voicing": "x,3,5,3,4,x"}],  # voicing is Cm7
+                        [{"chord": "G7"}],
+                        [{"chord": "C"}],
+                    ],
+                }
+            ]
+        )
         result = analyze_song(song)
         ev = result["events"][0]
         assert ev["discrepancy"]
@@ -485,12 +617,19 @@ class TestAnalyzeSong:
         assert result["summary"]["discrepancies"] >= 1
 
     def test_percent_events_share_move_analysis(self):
-        song = _song([{"label": None, "bars": [
-            [{"chord": "Dm7", "voicing": "x,5,7,5,6,x"}],
-            [{"chord": "%"}],
-            [{"chord": "G7"}],
-            [{"chord": "Cmaj7"}],
-        ]}])
+        song = _song(
+            [
+                {
+                    "label": None,
+                    "bars": [
+                        [{"chord": "Dm7", "voicing": "x,5,7,5,6,x"}],
+                        [{"chord": "%"}],
+                        [{"chord": "G7"}],
+                        [{"chord": "Cmaj7"}],
+                    ],
+                }
+            ]
+        )
         result = analyze_song(song)
         e0, e1 = result["events"][0], result["events"][1]
         assert e1["is_percent"]
@@ -498,23 +637,42 @@ class TestAnalyzeSong:
         assert e1["roman"] == e0["roman"]
 
     def test_tension_levels_and_hold_carry(self):
-        song = _song([{"label": None, "bars": [
-            [{"chord": "Cmaj7"}],
-            [{"chord": "%"}],          # hold carries the tonic's tension
-            [{"chord": "Dm7"}],
-            [{"chord": "G7"}],
-            [{"chord": "Cmaj7"}],
-        ]}])
+        song = _song(
+            [
+                {
+                    "label": None,
+                    "bars": [
+                        [{"chord": "Cmaj7"}],
+                        [{"chord": "%"}],  # hold carries the tonic's tension
+                        [{"chord": "Dm7"}],
+                        [{"chord": "G7"}],
+                        [{"chord": "Cmaj7"}],
+                    ],
+                }
+            ]
+        )
         evs = analyze_song(song)["events"]
-        assert evs[0]["tension"] == 0.0       # tonic
-        assert evs[1]["tension"] == 0.0       # % hold shares the move
-        assert evs[2]["tension"] == 1.0       # subdominant
-        assert evs[3]["tension"] == 2.0       # dominant
+        assert evs[0]["tension"] == 0.0  # tonic
+        assert evs[1]["tension"] == 0.0  # % hold shares the move
+        assert evs[2]["tension"] == 1.0  # subdominant
+        assert evs[3]["tension"] == 2.0  # dominant
 
     def test_tonicization_span(self):
-        song = _song([{"label": None, "bars": _bars(
-            "Cmaj7", "Em7", "A7", "Dm7", "G7", "Cmaj7",
-        )}])
+        song = _song(
+            [
+                {
+                    "label": None,
+                    "bars": _bars(
+                        "Cmaj7",
+                        "Em7",
+                        "A7",
+                        "Dm7",
+                        "G7",
+                        "Cmaj7",
+                    ),
+                }
+            ]
+        )
         result = analyze_song(song)
         a7 = next(e for e in result["events"] if e["symbol"] == "A7")
         assert a7["tonic_target"] == "D"
@@ -540,8 +698,8 @@ def test_garota_key_is_csharp_major():
     song = json.loads(GAROTA.read_text())["songs"][0]
     result = analyze_song(song)
     key = result["key"]
-    assert key["tonic_pc"] == 1          # C#/Db
-    assert key["mode"] == "major"        # NOT the relative minor (KS picked F#m)
+    assert key["tonic_pc"] == 1  # C#/Db
+    assert key["mode"] == "major"  # NOT the relative minor (KS picked F#m)
     assert key["tonic_name"] in ("C#", "Db")
 
 

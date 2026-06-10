@@ -10,8 +10,8 @@ def _instrumental_song(n):
 
 def test_chordmark_group_bars_respects_max():
     bars = [[{"chord": "C"}] for _ in range(6)]
-    assert len(cr._group_bars(bars, 4)) == 2   # 6 bars, cap 4 -> 2 lines
-    assert len(cr._group_bars(bars, 8)) == 1   # cap 8 -> 1 line
+    assert len(cr._group_bars(bars, 4)) == 2  # 6 bars, cap 4 -> 2 lines
+    assert len(cr._group_bars(bars, 8)) == 1  # cap 8 -> 1 line
 
 
 def test_chordmark_render_song_bars_per_line_changes_layout():

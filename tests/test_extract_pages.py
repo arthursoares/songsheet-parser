@@ -1,4 +1,5 @@
 """Tests for scripts/extract_pages.py (PyMuPDF-based PDF -> PNG rendering)."""
+
 import sys
 from pathlib import Path
 

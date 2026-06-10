@@ -84,11 +84,13 @@ def split_songs(assembled: dict) -> list[dict]:
     for i, song in enumerate(assembled.get("songs", [])):
         _migrate_song_voicings(song)
         doc = {"document": document, "songs": [song]}
-        out.append({
-            "filename": song_filename(i, song.get("title") or f"song-{i + 1}"),
-            "doc": doc,
-            "pages": list(song.get("pages", [])),
-        })
+        out.append(
+            {
+                "filename": song_filename(i, song.get("title") or f"song-{i + 1}"),
+                "doc": doc,
+                "pages": list(song.get("pages", [])),
+            }
+        )
     return out
 
 
@@ -117,7 +119,9 @@ def materialize_one(assembled_path: Path, out_root: Path) -> list[Path]:
 
 
 def main():
-    ap = argparse.ArgumentParser(description="Materialize per-song corpus from scratch assembled docs")
+    ap = argparse.ArgumentParser(
+        description="Materialize per-song corpus from scratch assembled docs"
+    )
     ap.add_argument("--workdir", type=Path, default=Path("/tmp/ssv"))
     ap.add_argument("--out", type=Path, required=True)
     ap.add_argument("--only", help="Only this PDF stem (folder name under workdir)")

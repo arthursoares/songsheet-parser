@@ -147,9 +147,7 @@ def validate_pdf(pdf_path: Path, workdir: Path, dpi: int, force: bool) -> dict:
             page_results.append({"songs": []})
 
     document = assemble_document(pdf_path, page_results)
-    (work / "_assembled.json").write_text(
-        json.dumps(document, ensure_ascii=False, indent=2)
-    )
+    (work / "_assembled.json").write_text(json.dumps(document, ensure_ascii=False, indent=2))
 
     schema_error = None
     try:

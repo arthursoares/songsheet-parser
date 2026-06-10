@@ -16,7 +16,6 @@ The token grants vision input: images are sent as `input_image` parts.
 import base64
 import json
 import os
-import re
 import time
 import urllib.error
 import urllib.request
@@ -41,9 +40,7 @@ def _auth_path() -> str:
     codex_home = os.environ.get("CODEX_HOME", os.path.expanduser("~/.codex"))
     path = os.path.join(codex_home, "auth.json")
     if not os.path.exists(path):
-        raise CodexAuthError(
-            f"Codex auth file not found at {path}. Run `codex login` first."
-        )
+        raise CodexAuthError(f"Codex auth file not found at {path}. Run `codex login` first.")
     return path
 
 
@@ -110,9 +107,7 @@ def borrow_codex_key() -> tuple[str, Optional[str]]:
 
     tokens = data.get("tokens") or {}
     if not tokens.get("access_token"):
-        raise CodexAuthError(
-            "No ChatGPT tokens found in auth.json. Run `codex login` first."
-        )
+        raise CodexAuthError("No ChatGPT tokens found in auth.json. Run `codex login` first.")
 
     access_token = tokens["access_token"]
     account_id = tokens.get("account_id")
@@ -144,9 +139,7 @@ def make_client() -> openai.OpenAI:
     headers = {}
     if account_id:
         headers["ChatGPT-Account-ID"] = account_id
-    return openai.OpenAI(
-        api_key=token, base_url=CODEX_BASE_URL, default_headers=headers
-    )
+    return openai.OpenAI(api_key=token, base_url=CODEX_BASE_URL, default_headers=headers)
 
 
 def _mime_type(image_path: Path) -> str:
@@ -260,9 +253,7 @@ if __name__ == "__main__":
             stream=True,
         )
         out = "".join(
-            e.delta
-            for e in resp
-            if getattr(e, "type", None) == "response.output_text.delta"
+            e.delta for e in resp if getattr(e, "type", None) == "response.output_text.delta"
         )
         print(f"✓ Codex auth OK, model={DEFAULT_MODEL}, reply={out.strip()!r}")
     except Exception as e:
