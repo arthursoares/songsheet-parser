@@ -56,11 +56,33 @@ CRITICAL RULES:
      decide bar membership by the tick marks, NEVER by visual proximity.
 
 2. CHORD ENTRIES — one object per chord placement in the bar:
-   - "chord": the chord name as printed (e.g. "Dm7", "F7+5", "C#m7/G#").
+   - "chord": the chord name EXACTLY as printed (e.g. "Dm7", "F7+5", "C#m7/G#").
+     - Copy any ♯/# or ♭/b after the root letter exactly: do NOT drop one that is
+       printed, and do NOT add one that isn't ("Cdim7" stays "Cdim7").
+     - A lowercase m BEFORE maj7/M7 is minor-major ("F#mmaj7", "AmM7") — keep it.
+     - Emit a slash bass ("/G#") ONLY if a slash is actually printed. Never invent one.
    - "voicing": the fingering read from THAT chord's diagram, as 6 comma-separated
      strings, low E string first: each is "x" (muted) or a fret NUMBER 0-24.
-     Example: "x,5,7,5,6,x". Read the position marker (e.g. "5fr") — many chords
-     are NOT open position, so frets can be two digits (e.g. "x,9,11,10,11,9").
+     Example: "x,5,7,5,6,x".
+     DIAGRAM FORMAT — these are HORIZONTAL fretboard grids:
+     - The 6 HORIZONTAL lines are the strings. TOP line = high e (1st string),
+       BOTTOM line = low E (6th string).
+     - Vertical lines separate frets; fret columns run LEFT to RIGHT. A thick
+       left edge is the nut (leftmost column = fret 1).
+     - POSITION: a SHADED column with a small number under the grid (e.g. "5")
+       means that column IS that fret — number every column from it. Many chords
+       are not open position; frets can be two digits (e.g. "x,9,11,10,11,9").
+     - A black dot = fretted note at (that string line, that fret column).
+     - A small "o" at the LEFT edge of a string line = open string -> 0.
+     - A string line with NO dot and NO "o" = muted -> "x". Never invent a fret
+       on an unmarked string: non-x values = (number of dots) + (number of "o").
+     - Build the 6 values reading the BOTTOM line first (low E), then upward
+       to the TOP line (high e).
+     - READ, DON'T RECALL: never output the textbook fingering for the chord
+       NAME from memory — these books use NON-standard voicings (open strings
+       inside closed shapes, omitted strings). Trust only the printed dots and
+       "o" marks. If your result equals the standard barre shape for that chord
+       name, you are probably reciting, not reading — look at the diagram again.
      This is PER OCCURRENCE: the same chord name can have different voicings on
      different placements. Omit "voicing" only if no diagram is drawn for that placement.
 
@@ -69,11 +91,16 @@ CRITICAL RULES:
    ("%" = measure repeat: keep playing the previous chord.)
 
 4. LYRICS — "text" is the syllables sung from that chord's onset until the next
-   chord. PRESERVE word-continuation dashes: the source prints them as spacing
+   chord. Assign syllables by HORIZONTAL POSITION: a syllable belongs to the most
+   recent chord tick at or before it on the staff — do not shift syllables into
+   the neighboring chord's segment, and do not distribute them evenly.
+   PRESERVE word-continuation dashes: the source prints them as spacing
    (e.g. "Vai mi - nha"). A syllable that CONTINUES its word ends with a trailing
    hyphen; the LAST syllable of a word has none. Example: printed
    "tris - te - za e" -> "tris- te- za e" (tristeza is one word, "e" is the next).
    Separate complete words with a single space. Omit "text" for instrumental bars.
+   These are PORTUGUESE lyrics: preserve every diacritic exactly as printed
+   (é ã õ ç â ê á í ó ú à — e.g. "Solidão", "tão", "é"). Never strip accents.
 
 5. Leave "chords" as an empty object {} — it is generated later, not by you.
 
