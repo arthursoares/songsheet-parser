@@ -162,7 +162,10 @@ committed-shape per-song corpus at `data/<artist>/songs/<album>/<NN>-<song>.json
 migrating old voicings to comma form. `qa_server.py` + `scripts/qa_static/` is a localhost browser tool
 to review each song beside its scan and fix name/voicing/lyric; reverse chord detection (tonal.js) is
 validated through chord-symbol (the fork's parser), and saves are schema-checked. The song corpus and
-page images are git-ignored (copyright / personal-use song data).
+page images are git-ignored here (copyright / personal-use song data), but `data/` is its **own
+private git repo** — github.com/arthursoares/songsheet-data — versioning the corrected corpus, source
+PDFs, and intermediates (page PNGs / rendered HTML excluded as re-derivable). Commit + push there
+after meaningful QA sessions; it is the only backup of the hand-corrections.
 
 **Harmonic analysis** (in progress): the pure engine `scripts/harmony.py` (no I/O; event
 normalization, voicing→pitch decoding, **notes-first** quality with an ambiguity path, symbol

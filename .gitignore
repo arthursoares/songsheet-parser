@@ -8,6 +8,11 @@ data/*/songs/*/pages/
 # Per-song corpus JSON is personal-use song data (kept local, like the scans).
 data/*/songs/
 
+# data/ is its own private git repo (github.com/arthursoares/songsheet-data)
+# backing up the corrected corpus + scans; its metadata isn't ours to track.
+data/.gitignore
+data/README.md
+
 # Throwaway prototypes / experiments (embed copyrighted song data — never commit)
 experiments/
 
