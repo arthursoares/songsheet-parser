@@ -30,10 +30,40 @@ TRUTH = _song(
 def test_perfect_candidate_scores_one():
     s = E.score_song(TRUTH, TRUTH)
     assert s["chord_acc"] == 1.0
+    assert s["spelling_acc"] == 1.0
     assert s["voicing_acc"] == 1.0
     assert s["text_acc"] == 1.0
     assert s["anchor_acc"] == 1.0
     assert s["truth_bars"] == s["cand_bars"] == 3
+
+
+def test_spelling_convention_counts_as_correct_chord():
+    # Golden says Cmaj7 (Brazilian corpus might say C7+); candidate prints C7M.
+    # Harmonically identical -> chord_acc stays 1.0, spelling_acc drops.
+    cand = _song(
+        [
+            [
+                [
+                    {"chord": "Dm7", "voicing": "x,5,7,5,6,x", "text": "Vai mi"},
+                    {"chord": "G7", "text": "nha"},
+                ],
+                [{"chord": "C7M", "voicing": "x,3,5,4,5,3", "text": "teza"}],
+                [{"chord": "%"}],
+            ]
+        ]
+    )
+    s = E.score_song(TRUTH, cand)
+    assert s["chord_acc"] == 1.0
+    assert s["spelling_acc"] == 0.75  # 3 of 4 aligned names spelled identically
+    assert s["voicing_acc"] == 1.0
+
+
+def test_harm_key_equates_conventions():
+    assert E.harm_key("Cmaj7") == E.harm_key("C7M")
+    assert E.harm_key("Amaj7") == E.harm_key("A7+")
+    assert E.harm_key("Adim7") == E.harm_key("A°7")
+    assert E.harm_key("Cmaj7") != E.harm_key("C7")
+    assert E.harm_key("%") == ("raw", "%")
 
 
 def test_wrong_chord_name_lowers_chord_acc_only_for_that_entry():
@@ -123,6 +153,29 @@ def test_disagreements_reports_chords_voicings_text_structure():
     assert ("chords", 0, 1) in fields  # Cmaj7 vs Am7
     # chord mismatch in bar 1 suppresses its voicing/text comparison
     assert ("voicings", 0, 1) not in fields
+
+
+def test_disagreements_same_harmony_is_spelling_not_chords():
+    other = _song(
+        [
+            [
+                [
+                    {"chord": "Dm7", "voicing": "x,5,7,5,6,x", "text": "Vai mi"},
+                    {"chord": "G7", "text": "nha"},
+                ],
+                [{"chord": "C7M", "voicing": "x,3,5,4,5,3", "text": "teza"}],
+                [{"chord": "%"}],
+            ]
+        ]
+    )
+    items = E.disagreements(TRUTH, other)
+    assert [(d["field"], d["si"], d["bi"]) for d in items] == [("spelling", 0, 1)]
+
+
+def test_norm_text_dash_insensitive_but_accent_sensitive():
+    assert E._norm_text("nho- ra,") == E._norm_text("nhora,")
+    assert E._norm_text("tris- te- za e") == E._norm_text("tristeza e")
+    assert E._norm_text("Soli-dao") != E._norm_text("Solidão")  # accents are real errors
 
 
 def test_disagreements_text_normalized():
