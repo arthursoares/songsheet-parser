@@ -227,14 +227,45 @@ function jumpToFlag(f) {
   if (sel) sel.scrollIntoView({ block: "center", behavior: "smooth" });
 }
 
-// Jump to the first flag positionally AFTER (si, bi, ei), wrapping to the
-// start — used by "use + next" where the current entry's flag just cleared.
-function nextFlaggedAfter(si, bi, ei) {
-  const flags = state.flags;
-  if (!flags.length) { showView("review"); return; }
-  const next = flags.find((f) =>
-    f.si > si || (f.si === si && (f.bi > bi || (f.bi === bi && f.ei > ei))));
-  jumpToFlag(next || flags[0]);
+// ---- sequential chord review (the primary navigation) ----
+// A full manual pass walks EVERY chord, not just flagged ones. ]/[ step
+// through all non-'%' entries in document order, opening the editor on each.
+
+// Ordered coords of every reviewable chord entry ('%' continuations carry no
+// name/voicing to verify, so they are skipped).
+function entryCoords() {
+  const out = [];
+  song().sections.forEach((sec, si) =>
+    (sec.bars || []).forEach((bar, bi) =>
+      bar.forEach((e, ei) => {
+        if (e.chord !== "%") out.push({ si, bi, ei });
+      })));
+  return out;
+}
+
+function jumpToEntry(c) {
+  showView("bars");
+  openEditor(c.si, c.bi, c.ei);
+  const sel = $("bars").querySelector(".chip.sel");
+  if (sel) sel.scrollIntoView({ block: "center", behavior: "smooth" });
+}
+
+// Step to the next (+1) / previous (-1) chord entry, wrapping. With no
+// selection, +1 starts at the first chord and -1 at the last.
+function stepEntry(dir) {
+  if (!state.doc) return;
+  const coords = entryCoords();
+  if (!coords.length) return;
+  let idx = -1;
+  if (state.sel) {
+    idx = coords.findIndex((c) =>
+      c.si === state.sel.si && c.bi === state.sel.bi && c.ei === state.sel.ei);
+  }
+  if (idx === -1) {
+    jumpToEntry(dir > 0 ? coords[0] : coords[coords.length - 1]);
+    return;
+  }
+  jumpToEntry(coords[(idx + dir + coords.length) % coords.length]);
 }
 
 // Jump to the next flagged chord after the current selection (wrapping).

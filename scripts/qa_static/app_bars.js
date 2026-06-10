@@ -246,7 +246,7 @@ function openEditor(si, bi, ei) {
       e.voicing = e.voicing_printed;
       markDirty();
       renderBars();
-      nextFlaggedAfter(si, bi, ei);
+      stepEntry(+1); // full-review flow: advance to the NEXT CHORD, not next flag
     });
   }
   $("edName").addEventListener("input", () => { $("edErr").textContent = ""; refreshNaming(); });

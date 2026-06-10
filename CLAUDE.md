@@ -113,7 +113,8 @@ globals, explicit load order in index.html):
   lint with line·col + gutter marker; Apply parse-guards + is undoable, Format / Reload).
   **Lyrics** is a **prototype**: chords render above their anchored syllables; drag a chord token
   onto a syllable to re-anchor (per-bar chord↔syllable rebuild, within a single bar only).
-- **Keyboard:** ⌘S/Ctrl+S save, Esc close editor, `n`/`p` prev/next song, `]`/`[` next/prev-flagged, Enter
+- **Keyboard:** ⌘S/Ctrl+S save, Esc close editor, `n`/`p` prev/next song, `]`/`[` next/prev CHORD
+  (full sequential review; skips `%`), `}`/`{` next/prev flagged, Enter
   applies in the chord editor, ⌘Z/⌘⇧Z (Ctrl+Y) undo/redo.
 - `qa_server.py` (stdlib HTTP), exact routes in the `_ROUTES` table (one `_h_*` handler each):
   - `GET /api/albums`

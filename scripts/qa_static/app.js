@@ -184,8 +184,10 @@ function onKeydown(ev) {
   if (ev.key === "\\") { ev.preventDefault(); toggleLayoutPane("pages"); return; }
   if (ev.key === "n") { ev.preventDefault(); stepSong(+1); }
   else if (ev.key === "p") { ev.preventDefault(); stepSong(-1); }
-  else if (ev.key === "]") { ev.preventDefault(); nextFlagged(); }
-  else if (ev.key === "[") { ev.preventDefault(); prevFlagged(); }
+  else if (ev.key === "]") { ev.preventDefault(); stepEntry(+1); }
+  else if (ev.key === "[") { ev.preventDefault(); stepEntry(-1); }
+  else if (ev.key === "}") { ev.preventDefault(); nextFlagged(); }
+  else if (ev.key === "{") { ev.preventDefault(); prevFlagged(); }
 }
 
 init();
