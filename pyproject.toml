@@ -1,0 +1,29 @@
+# Not an installable package — scripts/ CLIs run via ./.venv/bin/python.
+# Dependencies are PEP 735 dependency groups: `pip install --group dev` (pip >= 25.1).
+
+[dependency-groups]
+core = [
+  "openai>=2.0",     # vision via Codex/ChatGPT subscription (default provider) and --provider openai
+  "pymupdf",         # extract_pages.py — PDF -> PNG (no poppler needed)
+  "pillow",          # image handling
+  "jsonschema>=4.0", # validate songsheet JSON against schema
+]
+dev = [
+  { include-group = "core" },
+  "pytest>=8.0",
+  "ruff>=0.8",
+]
+# Optional vision providers (install if you use them):
+claude = ["anthropic"]
+gemini = ["google-generativeai"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+# Defaults (E4/E7/E9 pycodestyle errors, F pyflakes) + import sorting.
+extend-select = ["I"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

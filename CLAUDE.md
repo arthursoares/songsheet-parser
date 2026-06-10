@@ -112,7 +112,7 @@ Single page end-to-end: render a PNG, run stage 2 then stage 3.
 ### Setup & auth
 
 ```bash
-python3 -m venv .venv && ./.venv/bin/pip install -r requirements.txt
+python3 -m venv .venv && ./.venv/bin/pip install --group dev
 # extract_pages.py renders PDFs via PyMuPDF (pymupdf) — no poppler needed.
 codex login                               # creates ~/.codex/auth.json (for default provider)
 ```

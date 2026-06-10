@@ -44,7 +44,7 @@ you review each song beside its scan and correct it before converting.
 ## Setup
 
 ```bash
-python3 -m venv .venv && ./.venv/bin/pip install -r requirements.txt
+python3 -m venv .venv && ./.venv/bin/pip install --group dev
 codex login          # default vision provider uses your ChatGPT/Codex subscription
 ./.venv/bin/python -m pytest    # run the test suite
 ```
