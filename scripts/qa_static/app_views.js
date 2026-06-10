@@ -251,6 +251,21 @@ function nextFlagged() {
   jumpToFlag(next);
 }
 
+// Jump to the previous flagged chord before the current selection (wrapping).
+function prevFlagged() {
+  if (!state.doc) return;
+  const flags = state.flags;
+  if (!flags.length) { showView("review"); return; }
+  let start = -1;
+  if (state.sel) {
+    start = flags.findIndex((f) =>
+      f.si === state.sel.si && f.bi === state.sel.bi && f.ei === state.sel.ei);
+  }
+  // start === -1 (no selection / not on a flag) wraps to the last flag
+  const prev = flags[(start - 1 + flags.length) % flags.length];
+  jumpToFlag(prev);
+}
+
 // Copy the generated ChordMark source (current in-memory edits) to the clipboard.
 function copyChordmark() {
   const ta = $("cmSource");
