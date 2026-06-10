@@ -155,6 +155,16 @@ test("reanchoredBar conserves chords, voicings, and syllables", () => {
   assert.deepEqual(voicings(rebuilt), voicings(bar));
 });
 
+test("reanchoredBar preserves extra entry fields like voicing_printed", () => {
+  const bar = [
+    { chord: "Dm7", voicing: "x,5,7,5,6,x", voicing_printed: "x,5,7,5,6,5", text: "Vai mi" },
+    { chord: "G7", text: "nha tris" },
+  ];
+  const rebuilt = DocOps.reanchoredBar(bar, 1, 1);
+  assert.equal(rebuilt[0].voicing_printed, "x,5,7,5,6,5");
+  assert.equal(rebuilt[0].voicing, "x,5,7,5,6,x");
+});
+
 test("reanchoredBar returns null for no-op or invalid moves", () => {
   const bar = makeSong().sections[0].bars[0];
   assert.equal(DocOps.reanchoredBar(bar, 1, 2), null); // already at syllable 2

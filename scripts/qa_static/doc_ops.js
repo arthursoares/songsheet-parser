@@ -103,7 +103,9 @@
     bar.forEach((e) => {
       const syls = lySyllables(e.text);
       const idx = syllables.length;
-      chords.push({ chord: e.chord, voicing: e.voicing, idx });
+      // carry the whole entry so rebuild preserves every field (voicing,
+      // voicing_printed, ...) and only re-derives text
+      chords.push({ chord: e.chord, voicing: e.voicing, entry: e, idx });
       syls.forEach((s) => syllables.push({ text: s }));
     });
     return { syllables, chords };
@@ -124,8 +126,10 @@
       const next = i + 1 < chords.length ? chords[i + 1].idx : model.syllables.length;
       const run = model.syllables.slice(start, Math.max(start, next))
         .map((s) => s.text).join(" ");
-      const entry = { chord: c.chord };
-      if (c.voicing) entry.voicing = c.voicing;
+      // preserve every original entry field; only text is re-derived
+      const entry = c.entry ? { ...c.entry } : { chord: c.chord };
+      if (!c.entry && c.voicing) entry.voicing = c.voicing;
+      delete entry.text;
       if (run) entry.text = run;
       return entry;
     });

@@ -21,6 +21,10 @@
           "description": "Chord name, or '%' for measure-repeat (continued chord)"
         },
         "voicing": { "$ref": "#/definitions/voicing" },
+        "voicing_printed": {
+          "$ref": "#/definitions/voicing",
+          "description": "What the PAGE prints (CV diagram reader) — kept separate from 'voicing' so editorial corrections don't overwrite the evidence"
+        },
         "text": {
           "type": "string",
           "description": "Syllables sung from this chord's onset, dashes stripped"

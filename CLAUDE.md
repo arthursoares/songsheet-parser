@@ -68,6 +68,13 @@ python scripts/eval_extraction.py reparse data/<artist>/songs/<album>/<song>.jso
 #   templates (scripts/diagram_digits.json) as tie-breaker.
 python scripts/diagram_reader.py "data/<artist>/pdf/Album.pdf" --page 1 [--names Am7,D7,...]
 
+# Corpus voicing audit: diff the CV reader against every stored voicing;
+#   --write persists what the page prints as `voicing_printed` on each entry
+#   (NEVER touches `voicing`). agree = two independent sources -> skip in
+#   review; differ = ranked worklist; the QA chord editor shows a
+#   "print reads ... [use]" hint wherever they differ.
+python scripts/audit_voicings.py --songs data/<artist>/songs --pdfs data/<artist>/pdf --write
+
 # Render a .chordmark to HTML via Arthur's fork (needs ../chordmark/chord-mark + node).
 node scripts/render_chordmark.js in.chordmark out.html [--chordmark-repo PATH]
 ```
@@ -172,6 +179,10 @@ document → songs[] → sections[] → bars[]
 - **`voicing` is per-occurrence** — 6 comma-separated strings low-E→high-e, each `x` (muted) or a
   fret number 0–24 (e.g. `x,5,7,5,6,x`). The same chord name recurs with different diagrams, so
   voicing lives on the entry. The converter renders it inline as `Name[...]` (frets 10–24 → `a`–`o`).
+- **`voicing_printed`** (optional, same format) — what the PAGE prints, written by the CV diagram
+  reader via `audit_voicings.py`. Kept separate from `voicing` by design: hand corrections are
+  editorial (the books omit markings — unmarked opens, unprinted barre dots), and the print
+  evidence must survive them. Renderers ignore it; the QA editor surfaces it as a hint.
 - **`text`** = syllables sung from that chord's onset, source dashes stripped. Omitted for instrumental bars.
 - **No durations in the JSON** — timing is interpreter-derived. `chordmark_render.render_chord_line`
   distributes a bar's beats across its chords (largest-remainder, earliest-wins) and emits `.` dots.

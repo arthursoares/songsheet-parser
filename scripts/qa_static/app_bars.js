@@ -206,6 +206,10 @@ function openEditor(si, bi, ei) {
     <input type="text" id="edText" value="${esc(e.text || "")}">
     <label>Voicing</label>
     <div id="edFb"></div>
+    ${e.voicing_printed && e.voicing_printed !== (e.voicing || "")
+      ? `<div class="printhint">print reads <b>${esc(e.voicing_printed)}</b>
+           <button id="edUsePrint" title="set the voicing to what the page prints">use</button></div>`
+      : ""}
     <label>Suggestions</label>
     <div class="suggest" id="edSuggest"></div>
     <div class="ed-actions">
@@ -218,6 +222,14 @@ function openEditor(si, bi, ei) {
     refreshNaming();
   });
   fb.set(curVoicing);
+  const usePrint = $("edUsePrint");
+  if (usePrint) {
+    usePrint.addEventListener("click", () => {
+      curVoicing = parseVoicing(e.voicing_printed);
+      fb.set(curVoicing);
+      refreshNaming();
+    });
+  }
   $("edName").addEventListener("input", () => { $("edErr").textContent = ""; refreshNaming(); });
   // Enter in the name field applies; Esc cancels (handled here so it works
   // even though the global Esc handler also closes the editor).
