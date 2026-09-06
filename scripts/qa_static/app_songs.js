@@ -108,6 +108,7 @@ function showEmpty() {
 }
 
 async function loadSong() {
+  $("saveStatus").textContent = "";
   state.album = $("albumSel").value;
   state.file = $("songSel").value;
   state.dictSel.clear();
@@ -139,26 +140,70 @@ async function loadSong() {
   $("editor").classList.remove("open");
 }
 
-async function save() {
-  if (!state.doc) return;
+let savePromise = null;
+
+async function saveOnce() {
   const status = $("saveStatus");
+  const submittedDoc = state.doc;
+  const submittedJson = JSON.stringify(submittedDoc);
+  const submittedAlbum = state.album;
+  const submittedFile = state.file;
+  const submittedStatus =
+    (submittedDoc.document && submittedDoc.document.status) || "pending";
   status.textContent = "saving…"; status.style.color = "var(--muted)";
-  const res = await api(`/api/song/${state.album}/${state.file}`,
-    { method: "POST", body: JSON.stringify(state.doc) });
+  let res;
+  try {
+    res = await api(`/api/song/${submittedAlbum}/${submittedFile}`,
+      { method: "POST", body: submittedJson });
+  } catch (error) {
+    if (state.doc === submittedDoc) {
+      status.textContent = "✗ " + String(error); status.style.color = "var(--bad)";
+    }
+    return { ok: false, error: String(error) };
+  }
   if (res.ok) {
-    status.textContent = "✓ saved"; status.style.color = "var(--ok)";
-    state.dirty = false;
+    const sameDocument = state.doc === submittedDoc;
+    const unchanged = sameDocument && JSON.stringify(state.doc) === submittedJson;
+    if (unchanged) {
+      status.textContent = "✓ saved";
+      state.dirty = false;
+    } else if (sameDocument) {
+      status.textContent = "✓ submitted version saved · newer edits unsaved";
+    }
+    if (sameDocument) status.style.color = "var(--ok)";
     // reflect the saved status in the local album cache → progress count + dropdown label
-    const a = albums.find((x) => x.album === state.album);
-    const s = a && a.songs && a.songs.find((x) => x.file === state.file);
+    const a = albums.find((x) => x.album === submittedAlbum);
+    const s = a && a.songs && a.songs.find((x) => x.file === submittedFile);
     if (s) {
-      s.status = (state.doc.document && state.doc.document.status) || "pending";
-      const opt = [...$("songSel").options].find((o) => o.value === state.file);
+      s.status = submittedStatus;
+      const sameSelection = state.album === submittedAlbum && state.file === submittedFile;
+      const opt = sameSelection
+        ? [...$("songSel").options].find((o) => o.value === submittedFile)
+        : null;
       if (opt) opt.textContent = `${STATUS_LABEL[s.status] || "○"}  ${s.file}`;
-      renderSongList();
-      updateProgress();
+      if (sameSelection) {
+        renderSongList();
+        updateProgress();
+      }
     }
     // refresh the preview (it renders the in-memory doc, so this just re-syncs)
-    if (state.activeView === "preview") renderPreview();
-  } else { status.textContent = "✗ " + res.error; status.style.color = "var(--bad)"; }
+    if (sameDocument && state.activeView === "preview") renderPreview();
+  } else if (state.doc === submittedDoc) {
+    status.textContent = "✗ " + res.error; status.style.color = "var(--bad)";
+  }
+  return res;
 }
+
+function save() {
+  if (!state.doc) return Promise.resolve();
+  if (savePromise) return savePromise;
+  const button = $("saveBtn");
+  if (button) button.disabled = true;
+  savePromise = saveOnce().finally(() => {
+    savePromise = null;
+    if (button) button.disabled = false;
+  });
+  return savePromise;
+}
+
+if (typeof module === "object" && module.exports) module.exports = { save };
