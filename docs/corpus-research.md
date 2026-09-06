@@ -78,3 +78,9 @@ Each HTML comparison labels absolute harmonic matches and gaps separately from c
 matches and gaps, and includes the underlying records for both views. The review queue ranks missing
 evidence and observed disagreements with deterministic priority points. Those points are triage
 weights, not confidence estimates or probabilities.
+
+Reports record hashes of the analysis implementations as well as input revisions. Unsupported
+chord syntax remains an uninterpreted literal and is excluded from Roman analysis, with explicit
+counts. Schema-invalid source files are listed alongside malformed JSON. Output files must be
+outside the source corpus and cannot replace the work manifest. The HTML leads with comparisons;
+the full catalog, candidate groups, and review queue remain available in expandable sections.

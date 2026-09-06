@@ -78,6 +78,64 @@ def test_normalization_suggests_candidates_but_never_assigns(tmp_path):
     assert "candidate only" in catalog["candidate_groups"][0]["note"]
 
 
+def test_semantically_invalid_source_is_reported_without_aborting_catalog(tmp_path):
+    _write_song(tmp_path, "album-a/song.json")
+    (tmp_path / "invalid.json").write_text("[]")
+    report = C.build_report(tmp_path, _manifest())
+    summary = report["catalog"]["summary"]
+    assert summary["source_files_attempted"] == 2
+    assert summary["source_files_invalid"] == 1
+    assert "invalid.json" in C.render_html(report)
+
+
+def test_invalid_assigned_source_remains_visible_in_report(tmp_path):
+    source = _write_song(tmp_path, "album-a/song.json")
+    source.write_text("[]")
+    report = C.build_report(tmp_path, _manifest())
+    assert report["catalog"]["invalid_assignments"] == ["album-a/song.json"]
+    assert report["catalog"]["summary"]["source_files_invalid"] == 1
+    assert report["comparisons"] == []
+    assert "album-a/song.json" in C.render_html(report)
+
+
+def test_uninterpreted_suffixes_cannot_enter_roman_comparison(tmp_path):
+    _write_song(tmp_path, "a/one.json", entries=[_entry("Cgarbage")])
+    _write_song(tmp_path, "b/two.json", entries=[_entry("C")])
+    assignment = {
+        "work_id": "work:eclipse",
+        "confirmed_key": {"tonic": "C", "mode": "major", "evidence": "reviewed cadence"},
+    }
+    manifest = _manifest({"a/one.json": assignment, "b/two.json": assignment})
+    report = C.build_report(tmp_path, manifest)
+    comparison = report["comparisons"][0]
+    assert comparison["counts"]["harmonically_aligned"] == 0
+    assert comparison["roman_comparison"]["enabled"] is False
+    assert comparison["roman_comparison"]["uninterpreted_left"] == 1
+
+
+def test_report_outputs_cannot_overwrite_corpus_or_manifest(tmp_path):
+    corpus = tmp_path / "corpus"
+    source = _write_song(corpus, "album-a/song.json")
+    manifest = tmp_path / "manifest.json"
+    manifest.write_text(json.dumps(_manifest()))
+    before = source.read_bytes()
+    for target in (source, manifest):
+        with pytest.raises(ValueError, match="outside the source corpus"):
+            C.main(
+                [
+                    "--corpus",
+                    str(corpus),
+                    "--manifest",
+                    str(manifest),
+                    "--json",
+                    str(target),
+                    "--html",
+                    str(tmp_path / "report.html"),
+                ]
+            )
+    assert source.read_bytes() == before
+
+
 def test_printed_comparison_keeps_missing_values_missing(tmp_path):
     a = _entry("Cmaj7", "x,3,5,4,5,3", None)
     b = _entry("C7M", "8,x,9,9,8,x", "8,x,9,9,8,x")
