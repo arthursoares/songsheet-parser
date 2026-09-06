@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 from harmony import (
     _build_moves,
+    _symbol_to_intervals,
     analyze_chord,
     analyze_song,
     classify_function,
@@ -184,6 +185,26 @@ class TestQualityFromPitches:
 
 
 class TestParseSymbol:
+    @pytest.mark.parametrize(
+        "symbol,intervals",
+        [
+            ("A9sus4", {0, 2, 5, 7, 10}),
+            ("A9sus", {0, 2, 5, 7, 10}),
+            ("A749", {0, 2, 5, 7, 10}),
+            ("A7sus4(9)", {0, 2, 5, 7, 10}),
+            ("A9/4", {0, 2, 5, 7, 10}),
+            ("A4/9", {0, 2, 5, 7, 10}),
+            ("A6sus4", {0, 5, 7, 9}),
+            ("A46", {0, 5, 7, 9}),
+            ("A6/9sus4", {0, 2, 5, 7, 9}),
+            ("Asus4(6/9)", {0, 2, 5, 7, 9}),
+            ("Amaj9sus4", {0, 2, 5, 7, 11}),
+        ],
+    )
+    def test_suspension_extensions_preserve_explicit_sixth_or_seventh(self, symbol, intervals):
+        # Standard sus examples were checked against the local chord-symbol vendor.
+        assert _symbol_to_intervals(parse_symbol(symbol)["qtext"]) == intervals
+
     @pytest.mark.parametrize(
         "symbol,root,quality,bass",
         [

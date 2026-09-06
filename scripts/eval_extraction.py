@@ -61,7 +61,7 @@ def _norm_text(t):
 
 
 def harm_key(name):
-    """Harmonic identity of a chord name: (root_pc, quality, bass_pc).
+    """Harmonic identity of a chord name: (root_pc, full interval tuple, bass_pc).
 
     'Amaj7' and 'A7+' are the same chord in different spelling conventions —
     the golden corpus uses Brazilian forms while songbooks print others, so
