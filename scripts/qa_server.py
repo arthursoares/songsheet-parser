@@ -15,7 +15,8 @@ import re
 import threading
 from pathlib import Path
 
-from songsheet_io import DocumentError, save_document
+from review_state import record_review, review_summary
+from songsheet_io import DocumentError, save_document, validate_document
 
 SCRIPTS = Path(__file__).resolve().parent
 ROOT = SCRIPTS.parent
@@ -276,6 +277,35 @@ def _h_chordmark_doc(req):
     return 200, "text/plain; charset=utf-8", text.encode()
 
 
+def _h_review_doc(req):
+    """Summarize or record field review on an in-memory document. Never writes."""
+    payload, err = _load_doc(req.body)
+    if err is not None:
+        return err
+    if not isinstance(payload, dict) or not isinstance(payload.get("doc"), dict):
+        return _json(422, {"ok": False, "error": "body needs a document object in 'doc'"})
+    doc = payload["doc"]
+    try:
+        validate_document(doc)
+        if "field" in payload or "status" in payload:
+            if "field" not in payload or "status" not in payload:
+                raise ValueError("field and status must be supplied together")
+            reviewed = record_review(
+                doc,
+                payload["field"],
+                payload["status"],
+                payload.get("reviewer", ""),
+                payload.get("evidence", ""),
+            )
+        else:
+            reviewed = doc
+        validate_document(reviewed)
+        summary = review_summary(reviewed)
+    except (DocumentError, TypeError, ValueError) as exc:
+        return _json(422, {"ok": False, "error": str(exc)})
+    return _json(200, {"ok": True, "doc": reviewed, "review": summary})
+
+
 def _h_harmony(req, album, file):
     """Harmonic analysis of a saved song."""
     target, err = _existing_song(req.root, album, file)
@@ -505,6 +535,7 @@ _ROUTES = [
     ("GET", "/api/chordmark/{album}/{file}", _h_chordmark),
     ("POST", "/api/render-doc", _h_render_doc),
     ("POST", "/api/chordmark-doc", _h_chordmark_doc),
+    ("POST", "/api/review-doc", _h_review_doc),
     ("GET", "/api/harmony/{album}/{file}", _h_harmony),
     ("POST", "/api/harmony-doc", _h_harmony_doc),
     ("POST", "/api/convert", _h_convert),

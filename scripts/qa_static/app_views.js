@@ -195,29 +195,6 @@ function jsonApply() {
   jsonMsg("applied ✓ — Save to persist", "ok");
 }
 
-// Review tab: worklist of every flagged chord in the current song. Click an
-// item to jump to its chip (Bars view) and open the editor.
-function renderReview() {
-  const root = $("review");
-  if (!state.doc) { root.innerHTML = `<div class="empty">No song loaded.</div>`; return; }
-  const flags = state.flags;
-  if (!flags.length) {
-    root.innerHTML = `<div class="review-empty">No flagged chords ✓</div>`;
-    return;
-  }
-  root.innerHTML = "";
-  flags.forEach((f) => {
-    const row = document.createElement("div");
-    row.className = "rev-row";
-    row.innerHTML =
-      `<span class="rnm">${esc(f.chord || "—")}</span>` +
-      `<span class="rwhere">${esc(f.label)} · bar ${f.bi + 1}</span>` +
-      `<span class="rwhy">${esc(f.reason)}</span>`;
-    row.addEventListener("click", () => jumpToFlag(f));
-    root.appendChild(row);
-  });
-}
-
 // Switch to Bars, select the flagged chip, and open its editor.
 function jumpToFlag(f) {
   showView("bars");

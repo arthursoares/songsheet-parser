@@ -75,6 +75,7 @@ async function init() {
   $("jsonApply").addEventListener("click", jsonApply);
   $("jsonReload").addEventListener("click", jsonReload);
   $("jsonFormat").addEventListener("click", jsonFormat);
+  $("reviewRecord").addEventListener("click", ReviewUI.recordSelected);
   $("cmCopy").addEventListener("click", copyChordmark);
   ["pvStyle", "pvDict", "pvInline", "pvBars"].forEach((id) =>
     $(id).addEventListener("change", () => {

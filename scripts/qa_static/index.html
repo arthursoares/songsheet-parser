@@ -79,6 +79,19 @@
   .rev-row .rnm{font-weight:600}
   .rev-row .rwhere{color:var(--muted);font-size:12px}
   .rev-row .rwhy{margin-left:auto;font-size:11px;padding:2px 8px;border-radius:20px;background:var(--bad-bg);color:var(--bad)}
+  .review-controls{display:grid;grid-template-columns:minmax(140px,1fr) minmax(130px,1fr) minmax(150px,1fr) 2fr auto;gap:8px;align-items:end;background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:12px}
+  .review-controls label{display:flex;flex-direction:column;gap:4px;color:var(--muted);font-size:11px}
+  .review-controls select,.review-controls input,.review-controls textarea{box-sizing:border-box;width:100%;min-height:32px;background:var(--field);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:6px 8px;font:inherit;font-size:13px;line-height:1.35}
+  .review-controls textarea{height:34px;resize:vertical}
+  .review-message{min-height:18px;color:var(--muted);font-size:12px;margin-bottom:8px}
+  .review-table{width:100%;border-collapse:collapse;margin-bottom:18px;background:var(--panel)}
+  .review-table th,.review-table td{text-align:left;border:1px solid var(--border);padding:7px 9px;font-size:12px;max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .review-table th{font-weight:600}
+  .review-state{display:inline-block;border-radius:12px;padding:2px 8px;background:var(--panel-2);color:var(--muted)}
+  .review-state.verified{background:var(--ok-bg);color:var(--ok)}
+  .review-state.stale,.review-state.invalid{background:var(--bad-bg);color:var(--bad)}
+  .review-flags-title{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:7px}
+  @media (max-width:1100px){.review-controls{grid-template-columns:1fr 1fr}.review-controls button{align-self:end}}
   .kbdhint{cursor:help;color:var(--muted);font-size:12px;border:1px solid var(--border);border-radius:50%;width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center}
   .col.left img{width:100%;border:1px solid var(--border);border-radius:8px;margin-bottom:6px;background:var(--paper)}
   .pagecap{color:var(--muted);font-size:12px;margin-bottom:12px}
@@ -333,7 +346,37 @@
     </div>
     <div id="bars"></div>
     <div id="lyrics" class="hidden"></div>
-    <div id="review" class="hidden"></div>
+    <div id="review" class="hidden">
+      <div class="review-controls">
+        <label>Field
+          <select id="reviewField">
+            <option value="structure">Structure</option>
+            <option value="chords">Chord names</option>
+            <option value="lyrics">Lyrics</option>
+            <option value="voicing">Editorial voicings</option>
+            <option value="voicing_printed">Printed diagrams</option>
+            <option value="key">Key</option>
+          </select>
+        </label>
+        <label>Status
+          <select id="reviewStatus">
+            <option value="pending">Pending</option>
+            <option value="in_progress">In progress</option>
+            <option value="verified">Verified</option>
+          </select>
+        </label>
+        <label>Reviewer <input id="reviewReviewer" type="text" autocomplete="name"></label>
+        <label>Evidence <textarea id="reviewEvidence" placeholder="What was checked, and against which source?"></textarea></label>
+        <button id="reviewRecord" class="btn-primary">Record review</button>
+      </div>
+      <div id="reviewMsg" class="review-message"></div>
+      <table class="review-table">
+        <thead><tr><th>Field</th><th>Status</th><th>Reviewer</th><th>Evidence</th></tr></thead>
+        <tbody id="reviewStatusBody"></tbody>
+      </table>
+      <div class="review-flags-title">Flagged chords</div>
+      <div id="reviewFlags"></div>
+    </div>
     <div id="dict" class="hidden"></div>
     <div id="harmony" class="hidden">
       <div id="hmHead" class="hm-head"></div>
@@ -436,6 +479,7 @@
 <script src="app_bars.js"></script>
 <script src="app_lyrics.js"></script>
 <script src="app_views.js"></script>
+<script src="app_review.js"></script>
 <script src="app_dict.js"></script>
 <script src="app.js"></script>
 </body>
