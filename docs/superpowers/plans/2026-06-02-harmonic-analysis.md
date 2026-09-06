@@ -1,7 +1,5 @@
 # Harmonic Analysis & Visualization — Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: use superpowers:subagent-driven-development (or executing-plans) to implement this task-by-task. Steps use `- [ ]` checkboxes.
->
 > **Revision 2 (2026-06-02):** hardened after a Codex review — added an event-normalization task (A0) and a dedicated voicing→pitch decoder (A1), made **confidence a first-class, early output**, added slash-bass reconciliation + key-spelling preservation + ambiguity handling, a stable per-entry index, multi-song-doc behavior, beat-distribution edge cases, and re-sequenced (C7 key-confirm before the D1 functional corpus report; audio/circle-of-fifths/sentiment deferred until the engine + core tab are stable). The single biggest correctness threat is **root/quality identification from sparse/rootless guitar voicings** — everything downstream cascades from it, so A1–A3 carry the most test weight.
 
 **Goal:** Build a harmonic-analysis layer over the chord-anchored corpus and a live, interactive **Harmony** tab in the QA tool that shows harmony aligned to the lyrics — turning the digitized songs into *analyzable, audible, queryable* harmonic data, and laying the groundwork for chord-progression prediction later. This is the project's original purpose (the João Gilberto harmonic-analysis project).

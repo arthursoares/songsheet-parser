@@ -1,7 +1,5 @@
 # Chord Dictionary & Batch Edit Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
-
 **Goal:** Add a per-song chord dictionary to the QA tool that groups chord occurrences by exact (name + voicing), lets you batch-edit a group's name/voicing across all occurrences, and manually merge groups that are the same chord misread two ways.
 
 **Architecture:** A new pure client-side module `chord_dictionary.js` (build the derived dictionary; apply batch edits/merges to the in-memory song — no server or schema change). A new "Dictionary" view in `app.js` renders the groups and wires edit/merge using the existing `Fretboard` and `ChordNaming`. Persistence reuses the existing validated Save.

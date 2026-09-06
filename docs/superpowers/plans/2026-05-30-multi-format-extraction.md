@@ -1,7 +1,5 @@
 # Multi-Format Extraction Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: use superpowers:subagent-driven-development (or executing-plans) to implement this task-by-task. Steps use `- [ ]` checkboxes.
-
 > **STATUS UPDATE 2026-06-10:** still not started as a whole, but one building block landed
 > ahead of schedule and changes the architecture assumptions below: **`scripts/diagram_reader.py`**
 > reads chord diagrams DETERMINISTICALLY from page rasters (~98% print-faithful vs the vision
