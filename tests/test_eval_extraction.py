@@ -84,6 +84,61 @@ def test_wrong_chord_name_lowers_chord_acc_only_for_that_entry():
     assert s["voicing_acc"] == 1.0  # the aligned ones are right
 
 
+def test_end_to_end_metrics_count_wrong_chords_against_field_recovery():
+    cand = _song(
+        [
+            [
+                [
+                    {"chord": "Em7", "voicing": "x,5,7,5,6,x", "text": "Vai mi"},
+                    {"chord": "G7", "text": "nha"},
+                ],
+                [{"chord": "Cmaj7", "voicing": "x,3,5,4,5,3", "text": "teza"}],
+                [{"chord": "%"}],
+                [{"chord": "A7"}],
+            ]
+        ]
+    )
+    s = E.score_song(TRUTH, cand)
+    assert s["chord_precision"] == 0.6
+    assert s["chord_recall"] == 0.75
+    assert s["chord_acc"] == s["chord_recall"]  # compatibility alias
+    assert s["voicing_acc"] == 1.0  # conditional on matching chords
+    assert s["voicing_recovery"] == 0.5  # all truth voicing events
+    assert s["text_acc"] == 1.0  # conditional on matching chords
+    assert s["text_recovery"] == round(2 / 3, 4)  # all truth text events
+    assert s["metric_denominators"]["voicing_acc"] == "matched_chords_with_reference_voicing"
+    assert s["metric_denominators"]["voicing_recovery"] == "truth_voicing_events"
+
+
+def test_printed_and_editorial_voicing_references_are_explicit():
+    truth = _song([[[{"chord": "C", "voicing": "editorial", "voicing_printed": "printed"}]]])
+    cand = _song([[[{"chord": "C", "voicing": "printed"}]]])
+    editorial = E.score_song(truth, cand, voicing_reference_field="voicing")
+    printed = E.score_song(truth, cand, voicing_reference_field="voicing_printed")
+    assert editorial["voicing_reference_field"] == "voicing"
+    assert editorial["voicing_recovery"] == 0.0
+    assert printed["voicing_reference_field"] == "voicing_printed"
+    assert printed["voicing_recovery"] == 1.0
+
+
+def test_missing_song_is_a_miss_and_extra_candidates_are_reported():
+    empty = _song([])
+    r = E.score_corpus(
+        [("present.json", TRUTH, TRUTH), ("missing.json", TRUTH, empty)],
+        missing_songs=["missing.json"],
+        extra_candidate_songs=["extra.json"],
+    )
+    assert r["aggregate"]["songs"] == 2
+    assert r["aggregate"]["chord_recall"] == 0.5
+    assert r["coverage"] == {
+        "truth_songs": 2,
+        "candidate_songs_found": 1,
+        "song_recall": 0.5,
+        "missing_songs": ["missing.json"],
+        "extra_candidate_songs": ["extra.json"],
+    }
+
+
 def test_wrong_voicing_and_text_detected_on_aligned_entries():
     cand = _song(
         [

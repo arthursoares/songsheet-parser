@@ -94,8 +94,13 @@ def _frac(num, den):
     return round(num / den, 4) if den else None
 
 
-def _song_counts(truth_song, cand_song):
+VOICING_REFERENCE_FIELDS = {"editorial": "voicing", "printed": "voicing_printed"}
+
+
+def _song_counts(truth_song, cand_song, voicing_reference_field="voicing"):
     """Raw alignment counters for one song pair (the basis of all fractions)."""
+    if voicing_reference_field not in VOICING_REFERENCE_FIELDS.values():
+        raise ValueError(f"unsupported voicing reference field: {voicing_reference_field}")
     t, c = flat_entries(truth_song), flat_entries(cand_song)
     pairs = aligned_pairs([e["chord"] for e in t], [e["chord"] for e in c])
     n = {
@@ -104,44 +109,73 @@ def _song_counts(truth_song, cand_song):
         "c": len(c),
         "s_ok": 0,
         "v_ok": 0,
-        "v_tot": 0,
+        "v_cond_tot": 0,
+        "v_truth_tot": sum(bool(e.get(voicing_reference_field)) for e in t),
         "x_ok": 0,
-        "x_tot": 0,
+        "x_cond_tot": 0,
+        "x_truth_tot": sum(bool(e.get("text")) for e in t),
         "a_ok": 0,
     }
     for ti, ci in pairs:
         te, ce = t[ti], c[ci]
         n["s_ok"] += te["chord"] == ce["chord"]
-        if te.get("voicing"):
-            n["v_tot"] += 1
-            n["v_ok"] += te["voicing"] == ce.get("voicing")
+        if te.get(voicing_reference_field):
+            n["v_cond_tot"] += 1
+            n["v_ok"] += te[voicing_reference_field] == ce.get("voicing")
         if te.get("text"):
-            n["x_tot"] += 1
+            n["x_cond_tot"] += 1
             n["x_ok"] += _norm_text(te["text"]) == _norm_text(ce.get("text"))
         n["a_ok"] += (te["si"], te["bi"]) == (ce["si"], ce["bi"])
     return n
 
 
-def score_song(truth_song, cand_song):
+def score_song(truth_song, cand_song, voicing_reference_field="voicing"):
     """Per-field accuracy of a candidate song against a hand-corrected truth.
 
-    chord_acc    harmonically-equal aligned entries / truth entries
+    chord_acc    compatibility alias for chord_recall
+    chord_precision harmonically-equal aligned entries / candidate entries
+    chord_recall harmonically-equal aligned entries / truth entries
     spelling_acc of aligned pairs, fraction with the IDENTICAL printed name
                  (convention agreement — Amaj7 vs A7+ counts here, not above)
-    voicing_acc  of aligned pairs where truth has a voicing, fraction equal
+    voicing_acc  of aligned pairs where truth has a reference voicing, fraction equal
+    voicing_recovery equal voicings / all truth reference-voicing events
     text_acc     of aligned pairs where truth has text, fraction equal (normed)
+    text_recovery equal text / all truth text events
     anchor_acc   of aligned pairs, fraction in the same (section, bar) position
     bar counts   truth vs candidate totals (structure drift at a glance)
     """
-    n = _song_counts(truth_song, cand_song)
+    n = _song_counts(truth_song, cand_song, voicing_reference_field)
     t_bars = sum(len(s.get("bars", [])) for s in truth_song.get("sections", []))
     c_bars = sum(len(s.get("bars", [])) for s in cand_song.get("sections", []))
     return {
         "chord_acc": _frac(n["pairs"], n["t"]),
+        "chord_precision": _frac(n["pairs"], n["c"]),
+        "chord_recall": _frac(n["pairs"], n["t"]),
         "spelling_acc": _frac(n["s_ok"], n["pairs"]),
-        "voicing_acc": _frac(n["v_ok"], n["v_tot"]),
-        "text_acc": _frac(n["x_ok"], n["x_tot"]),
+        "voicing_acc": _frac(n["v_ok"], n["v_cond_tot"]),
+        "voicing_recovery": _frac(n["v_ok"], n["v_truth_tot"]),
+        "text_acc": _frac(n["x_ok"], n["x_cond_tot"]),
+        "text_recovery": _frac(n["x_ok"], n["x_truth_tot"]),
         "anchor_acc": _frac(n["a_ok"], n["pairs"]),
+        "voicing_reference_field": voicing_reference_field,
+        "metric_denominators": {
+            "chord_acc": "truth_entries",
+            "chord_precision": "candidate_entries",
+            "chord_recall": "truth_entries",
+            "spelling_acc": "matched_chords",
+            "voicing_acc": "matched_chords_with_reference_voicing",
+            "voicing_recovery": "truth_voicing_events",
+            "text_acc": "matched_chords_with_text",
+            "text_recovery": "truth_text_events",
+            "anchor_acc": "matched_chords",
+        },
+        "matched_chords": n["pairs"],
+        "voicing_matches": n["v_ok"],
+        "matched_chords_with_reference_voicing": n["v_cond_tot"],
+        "truth_voicing_events": n["v_truth_tot"],
+        "text_matches": n["x_ok"],
+        "matched_chords_with_text": n["x_cond_tot"],
+        "truth_text_events": n["x_truth_tot"],
         "truth_entries": n["t"],
         "cand_entries": n["c"],
         "truth_bars": t_bars,
@@ -149,7 +183,13 @@ def score_song(truth_song, cand_song):
     }
 
 
-def score_corpus(song_pairs):
+def score_corpus(
+    song_pairs,
+    *,
+    voicing_reference_field="voicing",
+    missing_songs=None,
+    extra_candidate_songs=None,
+):
     """Aggregate over [(name, truth_song, cand_song)] pairs.
 
     Aggregates are computed from summed raw counters (weighted by entry
@@ -157,22 +197,70 @@ def score_corpus(song_pairs):
     proportionally.
     """
     per_song = {}
-    tot = {"pairs": 0, "t": 0, "s_ok": 0, "v_ok": 0, "v_tot": 0, "x_ok": 0, "x_tot": 0, "a_ok": 0}
+    tot = {
+        "pairs": 0,
+        "t": 0,
+        "c": 0,
+        "s_ok": 0,
+        "v_ok": 0,
+        "v_cond_tot": 0,
+        "v_truth_tot": 0,
+        "x_ok": 0,
+        "x_cond_tot": 0,
+        "x_truth_tot": 0,
+        "a_ok": 0,
+    }
     for name, truth, cand in song_pairs:
-        per_song[name] = score_song(truth, cand)
-        n = _song_counts(truth, cand)
+        per_song[name] = score_song(truth, cand, voicing_reference_field)
+        n = _song_counts(truth, cand, voicing_reference_field)
         for k in tot:
             tot[k] += n[k]
+    missing = sorted(missing_songs or [])
+    extras = sorted(extra_candidate_songs or [])
+    truth_song_count = len(per_song)
+    candidate_song_count = truth_song_count - len(missing)
+    metric_denominators = {
+        "chord_acc": "truth_entries",
+        "chord_precision": "candidate_entries",
+        "chord_recall": "truth_entries",
+        "spelling_acc": "matched_chords",
+        "voicing_acc": "matched_chords_with_reference_voicing",
+        "voicing_recovery": "truth_voicing_events",
+        "text_acc": "matched_chords_with_text",
+        "text_recovery": "truth_text_events",
+        "anchor_acc": "matched_chords",
+    }
     return {
         "songs": per_song,
         "aggregate": {
             "songs": len(per_song),
             "chord_acc": _frac(tot["pairs"], tot["t"]),
+            "chord_precision": _frac(tot["pairs"], tot["c"]),
+            "chord_recall": _frac(tot["pairs"], tot["t"]),
             "spelling_acc": _frac(tot["s_ok"], tot["pairs"]),
-            "voicing_acc": _frac(tot["v_ok"], tot["v_tot"]),
-            "text_acc": _frac(tot["x_ok"], tot["x_tot"]),
+            "voicing_acc": _frac(tot["v_ok"], tot["v_cond_tot"]),
+            "voicing_recovery": _frac(tot["v_ok"], tot["v_truth_tot"]),
+            "text_acc": _frac(tot["x_ok"], tot["x_cond_tot"]),
+            "text_recovery": _frac(tot["x_ok"], tot["x_truth_tot"]),
             "anchor_acc": _frac(tot["a_ok"], tot["pairs"]),
+            "voicing_reference_field": voicing_reference_field,
+            "metric_denominators": metric_denominators,
+            "matched_chords": tot["pairs"],
             "truth_entries": tot["t"],
+            "candidate_entries": tot["c"],
+            "voicing_matches": tot["v_ok"],
+            "matched_chords_with_reference_voicing": tot["v_cond_tot"],
+            "truth_voicing_events": tot["v_truth_tot"],
+            "text_matches": tot["x_ok"],
+            "matched_chords_with_text": tot["x_cond_tot"],
+            "truth_text_events": tot["x_truth_tot"],
+        },
+        "coverage": {
+            "truth_songs": truth_song_count,
+            "candidate_songs_found": candidate_song_count,
+            "song_recall": _frac(candidate_song_count, truth_song_count),
+            "missing_songs": missing,
+            "extra_candidate_songs": extras,
         },
     }
 
@@ -275,35 +363,56 @@ def cmd_score(args):
         print("No golden songs found (none marked status=done; use --all-statuses to override).")
         return 1
     pairs, missing = [], []
+    selected = {str(g.relative_to(args.golden)) for g in golden}
     for g in golden:
         rel = g.relative_to(args.golden)
         cand = args.candidate / rel
         if not cand.exists():
             missing.append(str(rel))
-            continue
-        pairs.append((str(rel), _load_song(g)[0], _load_song(cand)[0]))
+            cand_song = {"sections": []}
+        else:
+            cand_song = _load_song(cand)[0]
+        pairs.append((str(rel), _load_song(g)[0], cand_song))
+    candidate_files = {str(p.relative_to(args.candidate)) for p in args.candidate.glob("*/*.json")}
+    extras = sorted(candidate_files - selected)
     if missing:
-        print(f"skipped {len(missing)} golden song(s) with no candidate: {missing}")
+        print(f"missing {len(missing)} candidate song(s), counted as misses: {missing}")
+    if extras:
+        print(f"extra {len(extras)} candidate song(s), excluded from accuracy: {extras}")
     if not pairs:
         print("Nothing to score.")
         return 1
 
-    report = score_corpus(pairs)
-    print(f"{'song':<50} {'chord':>8} {'spell':>8} {'voicing':>8} {'text':>8} {'anchor':>8}  bars")
+    reference_field = VOICING_REFERENCE_FIELDS[args.voicing_reference]
+    report = score_corpus(
+        pairs,
+        voicing_reference_field=reference_field,
+        missing_songs=missing,
+        extra_candidate_songs=extras,
+    )
+    print(
+        f"voicing reference: {args.voicing_reference} ({reference_field}); "
+        "recovery denominators include all truth events"
+    )
+    print(
+        f"{'song':<42} {'chord R':>8} {'chord P':>8} {'voice R':>8}"
+        f" {'text R':>8} {'spell*':>8} {'anchor*':>8}  bars"
+    )
     for name, s in report["songs"].items():
         print(
-            f"{name:<50} {_fmt_pct(s['chord_acc']):>8} {_fmt_pct(s['spelling_acc']):>8}"
-            f" {_fmt_pct(s['voicing_acc']):>8}"
-            f" {_fmt_pct(s['text_acc']):>8} {_fmt_pct(s['anchor_acc']):>8}"
+            f"{name:<42} {_fmt_pct(s['chord_recall']):>8} {_fmt_pct(s['chord_precision']):>8}"
+            f" {_fmt_pct(s['voicing_recovery']):>8} {_fmt_pct(s['text_recovery']):>8}"
+            f" {_fmt_pct(s['spelling_acc']):>8} {_fmt_pct(s['anchor_acc']):>8}"
             f"  {s['cand_bars']}/{s['truth_bars']}"
         )
     a = report["aggregate"]
     print(
-        f"\n{'AGGREGATE (' + str(a['songs']) + ' songs)':<50}"
-        f" {_fmt_pct(a['chord_acc']):>8} {_fmt_pct(a['spelling_acc']):>8}"
-        f" {_fmt_pct(a['voicing_acc']):>8}"
-        f" {_fmt_pct(a['text_acc']):>8} {_fmt_pct(a['anchor_acc']):>8}"
+        f"\n{'AGGREGATE (' + str(a['songs']) + ' songs)':<42}"
+        f" {_fmt_pct(a['chord_recall']):>8} {_fmt_pct(a['chord_precision']):>8}"
+        f" {_fmt_pct(a['voicing_recovery']):>8} {_fmt_pct(a['text_recovery']):>8}"
+        f" {_fmt_pct(a['spelling_acc']):>8} {_fmt_pct(a['anchor_acc']):>8}"
     )
+    print("* spelling/anchor are conditional on harmonically matched chords")
     if args.report_json:
         args.report_json.write_text(json.dumps(report, ensure_ascii=False, indent=2))
         print(f"report written to {args.report_json}")
@@ -410,6 +519,12 @@ def main():
         "--all-statuses",
         action="store_true",
         help="treat every golden song as truth, not just status=done",
+    )
+    sp.add_argument(
+        "--voicing-reference",
+        choices=sorted(VOICING_REFERENCE_FIELDS),
+        default="editorial",
+        help="truth field for voicing scores: editorial=voicing, printed=voicing_printed",
     )
     sp.add_argument("--report-json", type=Path)
     sp.set_defaults(fn=cmd_score)
