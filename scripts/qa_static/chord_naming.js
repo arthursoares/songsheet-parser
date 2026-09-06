@@ -112,7 +112,12 @@
   // Parse a name with chord-symbol (the ChordMark parser). Returns the result
   // object on success (with .normalized.notes), or null if not a valid ChordMark chord.
   function _parseChordmark(name) {
-    const res = _parse(name);
+    // Keep the source spelling in the model. The validator understands compact
+    // 79/711/713 forms, equivalent to the renderer's tension-slash rewrites.
+    // Anchor the whole form so malformed prefixes/suffixes are not repaired.
+    const source = /^([A-G][#b♯♭]?(?:m|maj|M)?)7\/(9|11|13)(\/[A-G][#b♯♭]?)?$/.exec(name);
+    const parsedName = source ? `${source[1]}7${source[2]}${source[3] || ""}` : name;
+    const res = _parse(parsedName);
     return res && !res.error ? res : null;
   }
 

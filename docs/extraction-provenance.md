@@ -14,6 +14,8 @@ keeps the relevant observations and their source contexts. Imported older page r
 labelled `legacy_page_result`; missing model/input details are not invented.
 
 An editorial edit changes an entry, not its observation. Moving an entry preserves its link.
+Provider-supplied review metadata/status claims are retained only as opaque source metadata;
+new vision extractions are always Pending and cannot declare a human review complete.
 Corpus saves check hashes and links, and reject deletion or alteration of evidence already
 on disk. Even `materialize_songs --overwrite` cannot discard existing source evidence: use a
 fresh candidate directory when re-extracting. Raw source readings are evidence of the page

@@ -110,10 +110,14 @@ def _frac(num, den):
 VOICING_REFERENCE_FIELDS = {"editorial": "voicing", "printed": "voicing_printed"}
 
 
-def _song_counts(truth_song, cand_song, voicing_reference_field="voicing"):
+def _song_counts(
+    truth_song, cand_song, voicing_reference_field="voicing", candidate_voicing_field="voicing"
+):
     """Raw alignment counters for one song pair (the basis of all fractions)."""
     if voicing_reference_field not in VOICING_REFERENCE_FIELDS.values():
         raise ValueError(f"unsupported voicing reference field: {voicing_reference_field}")
+    if candidate_voicing_field not in VOICING_REFERENCE_FIELDS.values():
+        raise ValueError(f"unsupported candidate voicing field: {candidate_voicing_field}")
     t, c = flat_entries(truth_song), flat_entries(cand_song)
     pairs = aligned_pairs([e["chord"] for e in t], [e["chord"] for e in c])
     n = {
@@ -134,7 +138,7 @@ def _song_counts(truth_song, cand_song, voicing_reference_field="voicing"):
         n["s_ok"] += te["chord"] == ce["chord"]
         if te.get(voicing_reference_field):
             n["v_cond_tot"] += 1
-            n["v_ok"] += te[voicing_reference_field] == ce.get("voicing")
+            n["v_ok"] += te[voicing_reference_field] == ce.get(candidate_voicing_field)
         if te.get("text"):
             n["x_cond_tot"] += 1
             n["x_ok"] += _norm_text(te["text"]) == _norm_text(ce.get("text"))
@@ -142,7 +146,9 @@ def _song_counts(truth_song, cand_song, voicing_reference_field="voicing"):
     return n
 
 
-def score_song(truth_song, cand_song, voicing_reference_field="voicing"):
+def score_song(
+    truth_song, cand_song, voicing_reference_field="voicing", *, candidate_voicing_field="voicing"
+):
     """Per-field accuracy of a candidate song against a hand-corrected truth.
 
     chord_acc    compatibility alias for chord_recall
@@ -157,7 +163,7 @@ def score_song(truth_song, cand_song, voicing_reference_field="voicing"):
     anchor_acc   of aligned pairs, fraction in the same (section, bar) position
     bar counts   truth vs candidate totals (structure drift at a glance)
     """
-    n = _song_counts(truth_song, cand_song, voicing_reference_field)
+    n = _song_counts(truth_song, cand_song, voicing_reference_field, candidate_voicing_field)
     t_bars = sum(len(s.get("bars", [])) for s in truth_song.get("sections", []))
     c_bars = sum(len(s.get("bars", [])) for s in cand_song.get("sections", []))
     return {
@@ -171,6 +177,7 @@ def score_song(truth_song, cand_song, voicing_reference_field="voicing"):
         "text_recovery": _frac(n["x_ok"], n["x_truth_tot"]),
         "anchor_acc": _frac(n["a_ok"], n["pairs"]),
         "voicing_reference_field": voicing_reference_field,
+        "candidate_voicing_field": candidate_voicing_field,
         "metric_denominators": {
             "chord_acc": "truth_entries",
             "chord_precision": "candidate_entries",
@@ -200,6 +207,7 @@ def score_corpus(
     song_pairs,
     *,
     voicing_reference_field="voicing",
+    candidate_voicing_field="voicing",
     missing_songs=None,
     extra_candidate_songs=None,
 ):
@@ -224,8 +232,10 @@ def score_corpus(
         "a_ok": 0,
     }
     for name, truth, cand in song_pairs:
-        per_song[name] = score_song(truth, cand, voicing_reference_field)
-        n = _song_counts(truth, cand, voicing_reference_field)
+        per_song[name] = score_song(
+            truth, cand, voicing_reference_field, candidate_voicing_field=candidate_voicing_field
+        )
+        n = _song_counts(truth, cand, voicing_reference_field, candidate_voicing_field)
         for k in tot:
             tot[k] += n[k]
     missing = sorted(missing_songs or [])
@@ -257,6 +267,7 @@ def score_corpus(
             "text_recovery": _frac(tot["x_ok"], tot["x_truth_tot"]),
             "anchor_acc": _frac(tot["a_ok"], tot["pairs"]),
             "voicing_reference_field": voicing_reference_field,
+            "candidate_voicing_field": candidate_voicing_field,
             "metric_denominators": metric_denominators,
             "matched_chords": tot["pairs"],
             "truth_entries": tot["t"],
@@ -400,6 +411,7 @@ def cmd_score(args):
     report = score_corpus(
         pairs,
         voicing_reference_field=reference_field,
+        candidate_voicing_field=getattr(args, "candidate_voicing_field", "voicing"),
         missing_songs=missing,
         extra_candidate_songs=extras,
     )
@@ -540,6 +552,12 @@ def main():
         help="truth field for voicing scores: editorial=voicing, printed=voicing_printed",
     )
     sp.add_argument("--report-json", type=Path)
+    sp.add_argument(
+        "--candidate-voicing-field",
+        choices=["voicing", "voicing_printed"],
+        default="voicing",
+        help="candidate field to score; choose voicing_printed for fresh CV proposals",
+    )
     sp.set_defaults(fn=cmd_score)
 
     dp = sub.add_parser("diff", help="bar-level disagreements between two parses")

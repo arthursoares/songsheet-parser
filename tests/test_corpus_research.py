@@ -7,6 +7,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 import corpus_research as C
+from review_state import record_review
 
 
 def _entry(chord, voicing=None, printed=None):
@@ -96,6 +97,36 @@ def test_invalid_assigned_source_remains_visible_in_report(tmp_path):
     assert report["catalog"]["summary"]["source_files_invalid"] == 1
     assert report["comparisons"] == []
     assert "album-a/song.json" in C.render_html(report)
+
+
+def test_stale_field_review_excludes_a_done_document(tmp_path):
+    path = _write_song(tmp_path, "album-a/song.json")
+    doc = record_review(
+        json.loads(path.read_text()), "chords", "verified", "Reviewer", "scan checked"
+    )
+    doc["songs"][0]["sections"][0]["bars"][0][0]["chord"] = "G"
+    path.write_text(json.dumps(doc))
+    catalog = C.build_catalog(tmp_path, _manifest())
+    assert catalog["summary"]["arrangements_included"] == 0
+    assert catalog["arrangements"][0]["field_review"]["chords"]["status"] == "stale"
+
+
+def test_current_key_field_review_can_confirm_key_but_conflicts_disable_it(tmp_path):
+    path = _write_song(tmp_path, "album-a/song.json", key="C")
+    doc = record_review(
+        json.loads(path.read_text()), "key", "verified", "Reviewer", "cadence checked"
+    )
+    path.write_text(json.dumps(doc))
+    catalog = C.build_catalog(tmp_path, _manifest())
+    assert catalog["arrangements"][0]["keys"]["confirmed"]["tonic"] == "C"
+    manifest = _manifest()
+    manifest["assignments"]["album-a/song.json"]["confirmed_key"] = {
+        "tonic": "D",
+        "mode": "major",
+        "evidence": "other confirmation",
+    }
+    keys = C.build_catalog(tmp_path, manifest)["arrangements"][0]["keys"]
+    assert keys["confirmation_conflict"] is True and keys["confirmed"] is None
 
 
 def test_uninterpreted_suffixes_cannot_enter_roman_comparison(tmp_path):

@@ -30,7 +30,7 @@ per-occurrence. Lyrics carry word-continuation dashes (`tris- te- za e`). Schema
 
 ### Done
 - Vision parsing on **OpenAI gpt-5.5** via the ChatGPT/Codex subscription (`codex_client.py`).
-- Full corpus parsed: **15 PDFs / 662 pages / ~195 songs** (validation run complete; report at
+- Full corpus parsed: **15 PDFs / 662 pages / 185 materialized song documents** (validation run complete; report at
   `/tmp/ssv/full-report.json`). Materialized per-song under `data/joao-gilberto/songs/<album>/`
   (git-ignored — copyrighted scans + personal-use song data).
 - Comma fret-number voicing format (fixes up-the-neck chords); migration built into materialize.
@@ -130,7 +130,20 @@ per-occurrence. Lyrics carry word-continuation dashes (`tris- te- za e`). Schema
   and materialization. All parser entry points use fingerprinted caches and append-only JSON
   snapshots with a reserved `.snapshot` suffix. Corpus saves reject removal/alteration of
   existing evidence. See `docs/extraction-provenance.md`.
-- Test suite: **341 pytest + 51 node tests** passing; CI runs both plus ruff.
+- **Research workflow (2026-09-06):** all five implementation stages are integrated in a
+  branch stack through `feat/field-review-workflow`; see `docs/research-workflow.md`.
+  Evaluation uses complete interval identities, maximum ordered matching, explicit field
+  denominators, and frozen split manifests. Native diagram proposals retain fingerprints,
+  source crops and mismatch diagnostics. Curated work/arrangement comparisons report coverage
+  and uncertainty. The Review tab records current field checks, detects stale values, and
+  preserves newer edits across asynchronous responses.
+- **Local Eclipse proof packet:** `.local/research/eclipse/index.html` links two candidate
+  arrangements, four scans, 56 tracked CV proposals, two unpaired-page diagnostics, and three
+  assistant correction proposals. Original corpus JSON and PDFs remain unchanged. The packet
+  is provisional: no new human-reviewed golden songs or confirmed keys were asserted.
+- Verification: **701 Python tests + 69 JavaScript tests**, Ruff lint/format, independent
+  reviews, and browser checks of recording/undo/redo/stale review/save/reload and real source
+  crops. Live provider calls and completed human musical review remain outside these checks.
 
 ### In progress / next
 - **Full manual review of the corpus** — the active campaign, now instrumented: the audit ranks
@@ -139,9 +152,10 @@ per-occurrence. Lyrics carry word-continuation dashes (`tris- te- za e`). Schema
   Lyrics text mode fixes words/splits as plain typing (each fused word also upgrades the corpus
   to proper hyphenation — same gesture). Songs marked **done** grow the golden eval set
   (currently 1) which feeds the eval and the reader's digit templates.
-- **Wire the diagram reader into fresh parses** (enrich step in `validate_extraction.py`):
-  override vision voicings with reader voicings at parse time — fresh extractions jump from
-  ~40% to ~95%+ voicing accuracy. The corpus audit already proved the pairing.
+- **Measure the new hybrid path on reviewed held-out material.** The reader is now wired into
+  `validate_extraction.py` as unreviewed, conservatively paired evidence. Its historical
+  calibration-song figures are not a held-out accuracy estimate; the new benchmark gates
+  refuse unreviewed references. Do not claim a 95%+ fresh-parse rate without that measurement.
 - **10 unalignable songs** from the audit (diagram/entry counts differ by 4–9) need structural
   attention (likely missing/extra bars).
 - Continuation-song splits: a song spanning pages can appear as two entries when the title-page name
