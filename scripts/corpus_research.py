@@ -14,8 +14,10 @@ import re
 import unicodedata
 from pathlib import Path
 
+from chord_identity import strict_harm_key
 from eval_extraction import aligned_pairs, flat_entries
 from harmony import note_to_pc, parse_symbol, roman, voicing_to_pitches
+from songsheet_io import publish_bytes, validate_document, write_json_artifact
 
 SCHEMA_VERSION = 1
 VOICING_FIELDS = ("voicing", "voicing_printed")
@@ -38,6 +40,8 @@ def _candidate_key(arrangement):
 
 
 def _validate_manifest(manifest):
+    if not isinstance(manifest, dict):
+        raise ValueError("work manifest must be an object")
     if manifest.get("schema_version") != SCHEMA_VERSION:
         raise ValueError(f"manifest schema_version must be {SCHEMA_VERSION}")
     works = manifest.get("works")
@@ -110,7 +114,8 @@ def build_catalog(corpus_root, manifest, include_unreviewed=False):
         try:
             raw = path.read_bytes()
             document = json.loads(raw)
-        except (OSError, json.JSONDecodeError) as exc:
+            validate_document(document)
+        except (OSError, ValueError) as exc:
             invalid_files.append(
                 {"source_path": path.relative_to(corpus_root).as_posix(), "error": str(exc)}
             )
@@ -156,7 +161,11 @@ def build_catalog(corpus_root, manifest, include_unreviewed=False):
             )
 
     known_ids = {a["arrangement_id"] for a in arrangements}
-    unknown_assignments = sorted(set(assignments) - known_ids)
+    invalid_paths = {item["source_path"] for item in invalid_files}
+    invalid_assignments = sorted(
+        key for key in set(assignments) - known_ids if key.split("#song-", 1)[0] in invalid_paths
+    )
+    unknown_assignments = sorted(set(assignments) - known_ids - set(invalid_assignments))
     if unknown_assignments:
         raise ValueError(f"manifest assignments not found in corpus: {unknown_assignments}")
 
@@ -203,6 +212,7 @@ def build_catalog(corpus_root, manifest, include_unreviewed=False):
             "source_files_attempted": valid_files + len(invalid_files),
             "source_files_valid": valid_files,
             "source_files_invalid": len(invalid_files),
+            "assigned_invalid_sources": len(invalid_assignments),
             "arrangements_discovered": len(arrangements),
             "arrangements_included": len(included),
             "arrangements_excluded": len(arrangements) - len(included),
@@ -220,6 +230,7 @@ def build_catalog(corpus_root, manifest, include_unreviewed=False):
         "arrangements": arrangements,
         "candidate_groups": suggestions,
         "invalid_files": invalid_files,
+        "invalid_assignments": invalid_assignments,
     }
 
 
@@ -242,7 +253,7 @@ def _event_view(entry, index):
 
 
 def _roman_for(entry, confirmed_key):
-    if not confirmed_key:
+    if not confirmed_key or strict_harm_key(entry.get("chord"))[0] != "h":
         return None
     parsed = parse_symbol(entry.get("chord"))
     if parsed is None:
@@ -456,6 +467,12 @@ def compare_arrangements(corpus_root, left, right, voicing_field="voicing"):
             ),
             "left_events": len(left_roman_events),
             "right_events": len(right_roman_events),
+            "uninterpreted_left": sum(
+                strict_harm_key(e.get("chord"))[0] != "h" for e in left_entries
+            ),
+            "uninterpreted_right": sum(
+                strict_harm_key(e.get("chord"))[0] != "h" for e in right_entries
+            ),
             "aligned_events": len(roman_pairs),
             "aligned_event_pairs": roman_matches,
             "unaligned_spans": roman_spans,
@@ -527,7 +544,25 @@ def build_report(corpus_root, manifest, include_unreviewed=False, voicing_field=
     for work_group in by_work.values():
         for left, right in itertools.combinations(work_group, 2):
             comparisons.append(compare_arrangements(corpus_root, left, right, voicing_field))
-    report = {"catalog": catalog, "comparisons": comparisons}
+    scripts = Path(__file__).resolve().parent
+    report = {
+        "catalog": catalog,
+        "comparisons": comparisons,
+        "analysis": {
+            "alignment": "maximum ordered chord matching (LCS), not musical-form alignment",
+            "voicing_field": voicing_field,
+            "bass_assumption": "standard six-string guitar tuning",
+            "implementation_sha256": {
+                name: hashlib.sha256((scripts / name).read_bytes()).hexdigest()
+                for name in (
+                    "corpus_research.py",
+                    "eval_extraction.py",
+                    "chord_identity.py",
+                    "harmony.py",
+                )
+            },
+        },
+    }
     report["review_queue"] = _review_queue(catalog, comparisons)
     report["catalog"]["summary"]["same_work_comparisons"] = len(comparisons)
     return report
@@ -540,6 +575,10 @@ def render_html(report):
         return html.escape(str(value), quote=True)
 
     summary = report["catalog"]["summary"]
+    work_titles = {work["work_id"]: work["title"] for work in report["catalog"]["works"]}
+    album_titles = {
+        a["arrangement_id"]: a["observed_album"]["title"] for a in report["catalog"]["arrangements"]
+    }
     rows = []
     for arrangement in report["catalog"]["arrangements"]:
         confirmed_key = arrangement["keys"]["confirmed"]
@@ -580,16 +619,19 @@ def render_html(report):
             else f"Confirmed-key Roman alignment: {roman_result['reason']}."
         )
         comparison_sections.append(
-            f"<section><h2>{esc(comparison['left_arrangement_id'])} ↔ "
-            f"{esc(comparison['right_arrangement_id'])}</h2>"
+            f"<section><h2>{esc(work_titles[comparison['work_id']])}</h2>"
+            f"<p>{esc(album_titles[comparison['left_arrangement_id']])} ↔ "
+            f"{esc(album_titles[comparison['right_arrangement_id']])}</p>"
             f"<p>{'PROVISIONAL · ' if comparison['provisional'] else ''}"
-            f"field: <code>{esc(comparison['voicing_field'])}</code>; "
+            f"{'Printed diagram readings' if comparison['voicing_field'] == 'voicing_printed' else 'Editorial voicings'}; "
             f"voicing differences: {esc(counts['voicing_differences'])}; "
             f"physical bass differences: {esc(counts['physical_bass_differences'])}.</p>"
             f"<p>Absolute harmonic alignment: {esc(counts['harmonically_aligned'])} match"
             f"{'es' if counts['harmonically_aligned'] != 1 else ''}; {esc(absolute_gaps)} gap span"
             f"{'s' if absolute_gaps != 1 else ''}.</p>"
             f"<p>{esc(roman_summary)}</p>"
+            f"<p>Uninterpreted chord symbols excluded from Roman analysis: "
+            f"{roman_result['uninterpreted_left']} left, {roman_result['uninterpreted_right']} right.</p>"
             f"<details><summary>Absolute harmonic matches</summary><pre>"
             f"{esc(json.dumps(comparison['aligned_events'], ensure_ascii=False, indent=2))}"
             "</pre></details>"
@@ -621,19 +663,21 @@ def render_html(report):
     return f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width">
 <title>Cross-album corpus research</title><style>
-body{{font:15px/1.45 system-ui,sans-serif;max-width:1180px;margin:auto;padding:2rem;color:#222}}
-table{{border-collapse:collapse;width:100%;margin:1rem 0}}th,td{{border:1px solid #bbb;padding:.45rem;text-align:left;vertical-align:top}}
+body{{font:15px/1.45 system-ui,sans-serif;max-width:1180px;margin:auto;padding:2rem;color:#222;overflow-wrap:anywhere}}
+table{{border-collapse:collapse;width:100%;table-layout:fixed;margin:1rem 0}}th,td{{border:1px solid #bbb;padding:.45rem;text-align:left;vertical-align:top}}
 th{{background:#eee}}code,pre{{font:12px ui-monospace,monospace}}pre{{white-space:pre-wrap;overflow-wrap:anywhere}}
 .notice{{padding:.7rem;background:#fff4ce;border-left:4px solid #c48b00}}</style></head><body>
 <h1>Cross-album corpus research</h1>
 <p class="notice">This report describes songbook documents and curated work assignments. It makes no recording or release-date claims. Priority points rank missing evidence and disagreements; they are not probabilities.</p>
 <p>Sources attempted {esc(summary["source_files_attempted"])}: {esc(summary["source_files_valid"])} valid, {esc(summary["source_files_invalid"])} invalid.</p>
-<p>Included {esc(summary["arrangements_included"])} of {esc(summary["arrangements_discovered"])} arrangements; excluded {esc(summary["arrangements_excluded"])} ({esc(summary["excluded_by_status"])}); comparisons {esc(summary["same_work_comparisons"])}.</p>
-<h2>Invalid source files</h2><table><thead><tr><th>Source path</th><th>Error</th></tr></thead><tbody>{invalid_rows}</tbody></table>
-<h2>Catalog and coverage</h2><table><thead><tr><th>Arrangement/source</th><th>Observed album</th><th>Observed song</th><th>Work</th><th>Status</th><th>Included</th><th>Stored key</th><th>Confirmed key evidence</th><th>Editorial voicings</th><th>Printed voicings</th><th>Revision SHA-256</th></tr></thead><tbody>{"".join(rows)}</tbody></table>
-<h2>Candidate groups</h2><p>Normalization suggestions require manifest review and do not merge works.</p><table><thead><tr><th>Normalized title</th><th>Normalized composers</th><th>Arrangements</th><th>Identity status</th></tr></thead><tbody>{candidate_rows}</tbody></table>
-<h2>Review queue</h2><table><thead><tr><th>Points</th><th>Arrangement</th><th>Evidence needed</th></tr></thead><tbody>{queue_rows}</tbody></table>
+<p>Included {esc(summary["arrangements_included"])} of {esc(summary["arrangements_discovered"])} arrangements; excluded {esc(summary["arrangements_excluded"])}; comparisons {esc(summary["same_work_comparisons"])}.</p>
+<p>Included arrangements with incomplete review: {esc(summary["included_provisional"])}. These results remain provisional.</p>
 {"".join(comparison_sections) or "<p>No eligible assigned same-work pair to compare.</p>"}
+<details><summary>Analysis method and implementation fingerprints</summary><pre>{esc(json.dumps(report.get("analysis", {}), ensure_ascii=False, indent=2))}</pre></details>
+{"<h2>Invalid source files</h2><table><thead><tr><th>Source path</th><th>Error</th></tr></thead><tbody>" + invalid_rows + "</tbody></table>" if invalid_rows else "<p>No invalid source files.</p>"}
+<details><summary>Catalog and coverage</summary><table><thead><tr><th>Arrangement/source</th><th>Observed album</th><th>Observed song</th><th>Work</th><th>Status</th><th>Included</th><th>Stored key</th><th>Confirmed key evidence</th><th>Editorial voicings</th><th>Printed voicings</th><th>Revision SHA-256</th></tr></thead><tbody>{"".join(rows)}</tbody></table></details>
+<details><summary>Candidate groups</summary><p>Normalization suggestions require manifest review and do not merge works.</p><table><thead><tr><th>Normalized title</th><th>Normalized composers</th><th>Arrangements</th><th>Identity status</th></tr></thead><tbody>{candidate_rows}</tbody></table></details>
+<details><summary>Review queue</summary><table><thead><tr><th>Points</th><th>Arrangement</th><th>Evidence needed</th></tr></thead><tbody>{queue_rows}</tbody></table></details>
 </body></html>"""
 
 
@@ -657,10 +701,18 @@ def main(argv=None):
         help="compare editorial voicing or literal printed evidence",
     )
     args = parser.parse_args(argv)
+    for output in (args.json, args.html):
+        if (
+            output.resolve().is_relative_to(args.corpus.resolve())
+            or output.resolve() == args.manifest.resolve()
+        ):
+            raise ValueError("research outputs must be outside the source corpus and work manifest")
+    if args.json.resolve() == args.html.resolve():
+        raise ValueError("JSON and HTML outputs must have different paths")
     manifest = load_manifest(args.manifest)
     report = build_report(args.corpus, manifest, args.include_unreviewed, args.voicing_field)
-    args.json.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    args.html.write_text(render_html(report), encoding="utf-8")
+    write_json_artifact(args.json, report, overwrite=True)
+    publish_bytes(args.html, render_html(report).encode("utf-8"), overwrite=True)
     print(
         f"wrote {args.json} and {args.html}: "
         f"{report['catalog']['summary']['arrangements_included']} arrangements, "
