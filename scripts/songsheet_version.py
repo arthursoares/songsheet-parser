@@ -18,9 +18,13 @@ def stamp(doc: dict) -> dict:
     return doc
 
 
-def version_error(doc: dict) -> str | None:
-    """Return an error message if the doc was written by a newer schema, else None."""
+def version_error(doc) -> str | None:
+    """Reject non-documents and invalid or unsupported schema version markers."""
+    if not isinstance(doc, dict):
+        return "document must be a JSON object"
     v = doc.get("schema_version", SCHEMA_VERSION)
-    if isinstance(v, int) and v > SCHEMA_VERSION:
+    if type(v) is not int or v < 1:
+        return "document schema_version must be a positive integer"
+    if v > SCHEMA_VERSION:
         return f"document schema_version {v} is newer than supported version {SCHEMA_VERSION}"
     return None
