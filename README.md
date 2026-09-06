@@ -87,9 +87,10 @@ python scripts/validate_extraction.py "data/<artist>/pdf/Album.pdf" \
 ### Extraction evaluation
 
 For a reproducible benchmark, freeze explicit whole-song development and held-out splits. Each
-reference records its content hash, label type, and review provenance. Scoring verifies every hash
-and refuses references not labelled `human_reviewed`, so a changed or unreviewed corpus cannot be
-used silently as ground truth.
+reference records its content hash, label type, and review provenance. Creation and scoring require
+every `human_reviewed` reference to have canonical `document.status=done`, verify every hash, and
+refuse other label types. The CLI label flag therefore cannot promote a pending song to ground
+truth.
 
 ```bash
 python scripts/extraction_benchmark.py create \
@@ -111,6 +112,9 @@ python scripts/extraction_benchmark.py score \
 
 Repeat `--development` or `--held-out` for each song. `printed` scores candidate `voicing` values
 against the reference's explicit `voicing_printed` field; `editorial` scores against `voicing`.
+The `done` status is the editorial song-review gate; it does not independently certify that the
+CV-derived `voicing_printed` values were checked by a person. Record that separate review in the
+manifest's `--review-provenance` text before treating printed-voicing scores as validated evidence.
 The report includes chord precision and recall plus voicing and text recovery over all applicable
 truth events. Compatibility keys (`chord_acc`, `voicing_acc`, `text_acc`, `spelling_acc`, and
 `anchor_acc`) remain, with their conditional denominators named in `metric_denominators`. Missing

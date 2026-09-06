@@ -64,6 +64,17 @@ def test_harm_key_equates_conventions():
     assert E.harm_key("Adim7") == E.harm_key("A°7")
     assert E.harm_key("Cmaj7") != E.harm_key("C7")
     assert E.harm_key("%") == ("raw", "%")
+    assert E.harm_key("Cgarbage") != E.harm_key("C")
+
+
+def test_alignment_finds_maximum_ordered_harmonic_matches():
+    # SequenceMatcher only found one match for this repeated-token shape.
+    assert E.aligned_pairs(["C", "D", "C"], ["D", "G", "C"]) == [(1, 0), (2, 2)]
+    truth = _song([[[{"chord": "C"}, {"chord": "D"}, {"chord": "C"}]]])
+    candidate = _song([[[{"chord": "D"}, {"chord": "G"}, {"chord": "C"}]]])
+    score = E.score_song(truth, candidate)
+    assert score["chord_recall"] == round(2 / 3, 4)
+    assert score["chord_precision"] == round(2 / 3, 4)
 
 
 def test_wrong_chord_name_lowers_chord_acc_only_for_that_entry():
