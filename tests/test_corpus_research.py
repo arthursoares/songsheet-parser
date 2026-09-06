@@ -167,6 +167,11 @@ def test_confirmed_keys_enable_transposed_roman_alignment(tmp_path):
     assert result["counts"]["harmonically_aligned"] == 0
     assert result["roman_comparison"]["aligned_events"] == 1
     assert result["roman_comparison"]["unaligned_spans"] == []
+    output = C.render_html(C.build_report(tmp_path, _manifest(assignments)))
+    assert "Absolute harmonic alignment: 0 matches; 1 gap span" in output
+    assert "Confirmed-key Roman alignment: 1 match; 0 gap spans" in output
+    assert "Confirmed-key Roman matches and gaps" in output
+    assert "&quot;roman&quot;: &quot;Imaj7&quot;" in output
 
 
 def test_manifest_rejects_key_confirmation_without_evidence(tmp_path):
@@ -174,12 +179,47 @@ def test_manifest_rejects_key_confirmation_without_evidence(tmp_path):
     manifest["assignments"]["album-a/song.json"]["confirmed_key"] = {"tonic": "C"}
     path = tmp_path / "manifest.json"
     path.write_text(json.dumps(manifest), encoding="utf-8")
-    with pytest.raises(ValueError, match="tonic and evidence"):
+    with pytest.raises(ValueError, match="non-blank evidence"):
         C.load_manifest(path)
+
+
+@pytest.mark.parametrize(
+    "confirmed,match",
+    [
+        ({"tonic": "H", "evidence": "reviewed page"}, "invalid tonic"),
+        ({"tonic": "C", "evidence": "   \t"}, "non-blank evidence"),
+    ],
+)
+def test_manifest_rejects_invalid_confirmed_key_evidence(tmp_path, confirmed, match):
+    manifest = _manifest()
+    manifest["assignments"]["album-a/song.json"]["confirmed_key"] = confirmed
+    path = tmp_path / "manifest.json"
+    path.write_text(json.dumps(manifest), encoding="utf-8")
+    with pytest.raises(ValueError, match=match):
+        C.load_manifest(path)
+    with pytest.raises(ValueError, match=match):
+        C.build_catalog(tmp_path, manifest)
+
+
+def test_confirmed_keys_do_not_enable_empty_roman_comparison(tmp_path):
+    _write_song(tmp_path, "a/one.json", status="done", entries=[_entry("not-a-chord")])
+    _write_song(tmp_path, "b/two.json", status="done", entries=[_entry("also-not-a-chord")])
+    assignments = {
+        path: {
+            "work_id": "work:eclipse",
+            "confirmed_key": {"tonic": "C", "evidence": "reviewed page"},
+        }
+        for path in ("a/one.json", "b/two.json")
+    }
+    left, right = C.build_catalog(tmp_path, _manifest(assignments))["arrangements"]
+    roman_result = C.compare_arrangements(tmp_path, left, right)["roman_comparison"]
+    assert roman_result["enabled"] is False
+    assert "no comparable Roman events" in roman_result["reason"]
 
 
 def test_html_escapes_data_and_explains_priority_points(tmp_path):
     _write_song(tmp_path, "album-a/song.json", status="done")
+    (tmp_path / "bad<script>.json").write_text("{", encoding="utf-8")
     report = C.build_report(tmp_path, _manifest())
     output = C.render_html(report)
     assert "Unsafe &lt;song&gt;" in output
@@ -187,3 +227,6 @@ def test_html_escapes_data_and_explains_priority_points(tmp_path):
     assert "<script>" not in output
     assert "not probabilities" in output
     assert "album-a/song.json" in output
+    assert "Sources attempted 2: 1 valid, 1 invalid" in output
+    assert "bad&lt;script&gt;.json" in output
+    assert "Expecting property name" in output

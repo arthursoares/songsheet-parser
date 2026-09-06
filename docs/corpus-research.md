@@ -69,6 +69,12 @@ comparison. That comparison requires a reviewed key with explicit evidence in ea
 ```
 
 The summary reports included and excluded arrangements, status exclusions, assignment coverage,
-invalid files, and the number of comparable pairs. The review queue ranks missing evidence and
-observed disagreements with deterministic priority points. Those points are triage weights, not
-confidence estimates or probabilities.
+attempted, valid, and invalid source files, and the number of comparable pairs. Invalid JSON paths
+and parse errors are also listed in the HTML, so skipped sources remain visible. Confirmed-key
+tonics must be valid note spellings accepted by the harmony engine, and their evidence text must
+contain a non-whitespace character.
+
+Each HTML comparison labels absolute harmonic matches and gaps separately from confirmed-key Roman
+matches and gaps, and includes the underlying records for both views. The review queue ranks missing
+evidence and observed disagreements with deterministic priority points. Those points are triage
+weights, not confidence estimates or probabilities.
