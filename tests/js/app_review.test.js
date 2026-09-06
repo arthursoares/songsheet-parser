@@ -5,6 +5,12 @@ const assert = require("node:assert/strict");
 
 const ReviewUI = require("../../scripts/qa_static/app_review.js");
 
+function deferred() {
+  let resolve;
+  const promise = new Promise((done) => { resolve = done; });
+  return { promise, resolve };
+}
+
 test("rows always expose the six field labels in workflow order", () => {
   const rows = ReviewUI.rows({ fields: {} });
   assert.deepEqual(rows.map((row) => row.label), [
@@ -75,4 +81,91 @@ test("recording applies the returned document through undo and dirty state", asy
   for (const name of ["state", "$", "esc", "api", "pushUndo", "markDirty", "renderProvenance"]) {
     delete global[name];
   }
+});
+
+test("deferred record response never replaces an intervening in-place edit", async () => {
+  const pending = deferred();
+  const doc = {
+    document: { title: "T" },
+    songs: [{ sections: [{ bars: [[{ chord: "C" }]] }] }],
+  };
+  const staleResponse = {
+    document: { title: "T" },
+    songs: [{ sections: [{ bars: [[{ chord: "C" }]] }] }],
+    _meta: { review: { version: 1, fields: {} } },
+  };
+  const elements = {
+    reviewRecord: { disabled: false },
+    reviewMsg: { textContent: "" },
+    reviewField: { value: "chords" },
+    reviewStatus: { value: "verified" },
+    reviewReviewer: { value: "AS" },
+    reviewEvidence: { value: "page 1" },
+    reviewStatusBody: { innerHTML: "" },
+  };
+  global.state = { doc };
+  global.$ = (id) => elements[id];
+  global.esc = (value) => String(value);
+  let requests = 0;
+  global.api = async () => {
+    requests += 1;
+    if (requests === 1) return pending.promise;
+    return { ok: true, review: { fields: {} } };
+  };
+  let undos = 0;
+  global.pushUndo = () => { undos += 1; };
+  global.markDirty = () => {};
+  global.renderProvenance = () => {};
+
+  const recording = ReviewUI.recordSelected();
+  doc.songs[0].sections[0].bars[0][0].chord = "Dm";
+  pending.resolve({ ok: true, doc: staleResponse, review: { fields: {} } });
+  await recording;
+  await new Promise((done) => setImmediate(done));
+
+  assert.equal(global.state.doc, doc);
+  assert.equal(global.state.doc.songs[0].sections[0].bars[0][0].chord, "Dm");
+  assert.equal(undos, 0);
+  assert.equal(requests, 2); // stale response discarded, current summary requested
+  for (const name of ["state", "$", "esc", "api", "pushUndo", "markDirty", "renderProvenance"]) {
+    delete global[name];
+  }
+});
+
+test("deferred summary response is discarded and recomputed after an in-place edit", async () => {
+  const pending = deferred();
+  const doc = {
+    document: { title: "T" },
+    songs: [{ sections: [{ bars: [[{ chord: "C" }]] }] }],
+  };
+  const elements = {
+    reviewMsg: { textContent: "" },
+    reviewStatusBody: { innerHTML: "untouched" },
+  };
+  global.state = { doc };
+  global.$ = (id) => elements[id];
+  global.esc = (value) => String(value);
+  let requests = 0;
+  global.api = async () => {
+    requests += 1;
+    if (requests === 1) return pending.promise;
+    return {
+      ok: true,
+      review: { fields: { chords: { status: "in_progress", reviewer: "Fresh" } } },
+    };
+  };
+
+  const refreshing = ReviewUI.refresh();
+  doc.songs[0].sections[0].bars[0][0].chord = "Dm";
+  pending.resolve({
+    ok: true,
+    review: { fields: { chords: { status: "verified", reviewer: "Stale" } } },
+  });
+  await refreshing;
+  await new Promise((done) => setImmediate(done));
+
+  assert.equal(requests, 2);
+  assert.match(elements.reviewStatusBody.innerHTML, /Fresh/);
+  assert.doesNotMatch(elements.reviewStatusBody.innerHTML, /Stale/);
+  for (const name of ["state", "$", "esc", "api"]) delete global[name];
 });

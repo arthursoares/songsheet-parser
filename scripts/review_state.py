@@ -168,7 +168,8 @@ def review_summary(doc: dict) -> dict:
         return {"version": REVIEW_VERSION, "fields": fields}
     if (
         not isinstance(review, dict)
-        or review.get("version") != REVIEW_VERSION
+        or type(review.get("version")) is not int
+        or review["version"] != REVIEW_VERSION
         or not isinstance(review.get("fields"), dict)
         or any(field not in REVIEW_FIELDS for field in review.get("fields", {}))
     ):
@@ -223,7 +224,8 @@ def record_review(doc: dict, field: str, status: str, reviewer="", evidence="") 
         existing = meta["review"]
         if (
             not isinstance(existing, dict)
-            or existing.get("version") != REVIEW_VERSION
+            or type(existing.get("version")) is not int
+            or existing["version"] != REVIEW_VERSION
             or not isinstance(existing.get("fields"), dict)
             or any(name not in REVIEW_FIELDS for name in existing.get("fields", {}))
         ):

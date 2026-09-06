@@ -135,6 +135,15 @@ def test_malformed_or_dangling_metadata_never_reports_verified():
     assert review_summary(dangling)["fields"]["lyrics"]["status"] == "invalid"
 
 
+@pytest.mark.parametrize("version", [True, 1.0])
+def test_non_integer_review_version_is_invalid_and_cannot_be_extended(version):
+    doc = _doc()
+    doc["_meta"]["review"] = {"version": version, "fields": {}}
+    assert {item["status"] for item in review_summary(doc)["fields"].values()} == {"invalid"}
+    with pytest.raises(ValueError, match="existing review metadata is malformed"):
+        record_review(doc, "lyrics", "pending")
+
+
 def test_record_review_returns_copy_and_preserves_source_observations_exactly():
     doc = _doc()
     source_meta = json.dumps(doc["_meta"], ensure_ascii=False, separators=(",", ":"))
