@@ -19,6 +19,7 @@ import shutil
 import unicodedata
 from pathlib import Path
 
+from extraction_provenance import metadata_for_song, preserve_evidence
 from songsheet_io import DocumentError, check_destination, save_document, validate_document
 from songsheet_version import stamp, version_error
 
@@ -92,6 +93,8 @@ def split_songs(assembled: dict) -> list[dict]:
     for i, song in enumerate(assembled.get("songs", [])):
         _migrate_song_voicings(song)
         doc = stamp({"document": document, "songs": [song]})
+        if "_meta" in assembled:
+            doc["_meta"] = metadata_for_song(assembled["_meta"], song)
         validate_document(doc)
         out.append(
             {
@@ -114,7 +117,9 @@ def materialize_one(assembled_path: Path, out_root: Path, *, overwrite: bool = F
     # Fail before writing any song or replacing its page images when a known
     # collision, invalid candidate, or unsupported destination is present.
     for entry in entries:
-        check_destination(album_dir / entry["filename"], overwrite=overwrite)
+        existing = check_destination(album_dir / entry["filename"], overwrite=overwrite)
+        if existing is not None:
+            preserve_evidence(existing, entry["doc"])
     page_copies = []
     for entry in entries:
         slug = entry["filename"][:-5]  # drop ".json"
