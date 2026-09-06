@@ -59,6 +59,22 @@
       `</tr>`).join("");
   }
 
+  function sourceIssues(doc) {
+    const diagnostics = doc && doc._meta && doc._meta.diagram_diagnostics;
+    if (!diagnostics || typeof diagnostics !== "object") return [];
+    return Object.values(diagnostics).map((wrapper) => wrapper && wrapper.record)
+      .filter((record) => record && Number.isInteger(record.page) && record.page > 0)
+      .map((record) => {
+        const diagrams = Array.isArray(record.diagrams) ? record.diagrams.length : null;
+        const entries = Number.isInteger(record.page_eligible_observation_count)
+          ? record.page_eligible_observation_count
+          : Array.isArray(record.eligible_observation_ids) ? record.eligible_observation_ids.length : null;
+        const counts = diagrams !== null && entries !== null
+          ? ` (${diagrams} detected diagrams, ${entries} chord occurrences)` : "";
+        return `Page ${record.page}: automatic diagram pairing needs review${counts}. Inspect the scan before accepting fingerings.`;
+      });
+  }
+
   function paintFlags() {
     const list = $("reviewFlags");
     if (!list) return;
@@ -110,6 +126,12 @@
     ["reviewField", "reviewStatus", "reviewReviewer", "reviewEvidence", "reviewRecord"].forEach(
       (id) => { const el = $(id); if (el) el.disabled = disabled; });
     $("reviewMsg").textContent = disabled ? "No song loaded." : "";
+    const sourceBox = $("reviewSourceIssues");
+    if (sourceBox) {
+      const issues = sourceIssues(state.doc);
+      sourceBox.classList.toggle("hidden", !issues.length);
+      sourceBox.innerHTML = issues.map((message) => `<p>${esc(message)}</p>`).join("");
+    }
     paintFlags();
     refresh().catch((error) => {
       $("reviewMsg").textContent = `Could not read review: ${String(error)}`;
@@ -162,6 +184,7 @@
     FIELD_LABELS,
     STATUS_LABELS,
     rows,
+    sourceIssues,
     documentStillCurrent,
     render,
     refresh,

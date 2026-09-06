@@ -126,9 +126,7 @@ def test_verified_requires_attributed_evidence_and_invalid_inputs_are_rejected()
 def test_malformed_or_dangling_metadata_never_reports_verified():
     malformed = _doc()
     malformed["_meta"]["review"] = {"version": 1, "fields": {"tempo": {}}}
-    assert {item["status"] for item in review_summary(malformed)["fields"].values()} == {
-        "invalid"
-    }
+    assert {item["status"] for item in review_summary(malformed)["fields"].values()} == {"invalid"}
 
     dangling = record_review(_doc(), "lyrics", "verified", "AS", "checked scan")
     del dangling["_meta"]["review"]["fields"]["lyrics"]["fingerprint"]

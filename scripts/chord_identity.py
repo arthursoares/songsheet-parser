@@ -17,7 +17,7 @@ _TENSION = re.compile(r"sus4?|#5|b5|#9|b9|#11|b13|13|11|9|7|6|4")
 
 
 def _recognized_quality(text):
-    """Consume the engine's dialect tokens, separators, and one-level groups."""
+    """Consume distinct dialect tokens, separators, and one-level groups."""
     # Keep parentheses intact for validation. Match the engine's other
     # normalization order: 7+5 is an altered fifth, while 7+ is a major seventh.
     for source, target in (
@@ -38,6 +38,15 @@ def _recognized_quality(text):
     prefix = _PREFIX.match(text)
     pos = prefix.end() if prefix else 0
     previous = "token" if prefix else "start"
+    # Count explicit notation, including tokens consumed by a quality prefix.
+    # Sus / sus4 / 4 are one qualifier; accidentals were normalized above.
+    # Do not count implied tones: aug#5 and dim(b5) are valid restatements.
+    seen = set()
+    if prefix:
+        if prefix.group() in ("sus", "sus4", "4"):
+            seen.add("sus")
+        elif prefix.group().endswith("7"):
+            seen.add("7")
     in_group = False
     while pos < len(text):
         char = text[pos]
@@ -59,6 +68,11 @@ def _recognized_quality(text):
             token = _TENSION.match(text, pos)
             if token is None:
                 return False
+            value = token.group()
+            value = "sus" if value in ("sus", "sus4", "4") else value
+            if value in seen:
+                return False
+            seen.add(value)
             pos = token.end()
             previous = "token"
             continue

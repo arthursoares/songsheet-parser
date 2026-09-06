@@ -107,14 +107,20 @@ python scripts/extraction_benchmark.py score \
   --candidate /tmp/fresh-parse/songs \
   --split held_out \
   --voicing-reference printed \
+  --candidate-voicing-field voicing_printed \
   --report-json /tmp/held-out-report.json
 ```
 
-Repeat `--development` or `--held-out` for each song. `printed` scores candidate `voicing` values
-against the reference's explicit `voicing_printed` field; `editorial` scores against `voicing`.
+Repeat `--development` or `--held-out` for each song. `printed` selects the reference's explicit
+`voicing_printed` field; `editorial` selects `voicing`. Candidate scoring defaults to `voicing`;
+choose `--candidate-voicing-field voicing_printed` for fresh CV proposals. Both selected fields
+are recorded in the report, and missing CV proposals count against recovery.
 The `done` status is the editorial song-review gate; it does not independently certify that the
-CV-derived `voicing_printed` values were checked by a person. Record that separate review in the
-manifest's `--review-provenance` text before treating printed-voicing scores as validated evidence.
+CV-derived `voicing_printed` values were checked by a person. Printed scoring requires a current
+**Printed diagrams** field review in the gold document's Review tab; manifest provenance text
+alone is insufficient. Explicit stale or incomplete required field checks also prevent a `done`
+document from becoming benchmark ground truth. Manifests are create-only and belong outside the
+golden corpus.
 The report includes chord precision and recall plus voicing and text recovery over all applicable
 truth events. Compatibility keys (`chord_acc`, `voicing_acc`, `text_acc`, `spelling_acc`, and
 `anchor_acc`) remain, with their conditional denominators named in `metric_denominators`. Missing
@@ -247,8 +253,9 @@ cells with Roman numerals and lyrics, tension/bass/tonicization lanes, device br
 explanatory tooltips, spotlight chips that dim everything but one function or device, and a
 click panel (chord diagram, why, confidence) with an **Edit chord →** jump straight into the
 Bars editor. An inline bar proposes the estimated key (**Confirm key** stores it on the song,
-undoably). A **player** (▶ + tempo) plays the actual voicings beat-accurately with a gliding
-playhead. **Export** buttons download the analysis as **JSON**, **CSV** (one row per chord
+undoably). A **player** (▶ + tempo) plays the voicings using inferred timing with a gliding
+playhead (four beats per bar by default; this is not recorded-performance timing).
+**Export** buttons download the analysis as **JSON**, **CSV** (one row per chord
 event), a standalone **HTML** snapshot of the view, or **PDF**.
 
 Server endpoints: `GET /api/harmony/<album>/<file>`, `POST /api/harmony-doc` (in-memory doc),

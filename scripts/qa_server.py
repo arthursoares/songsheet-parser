@@ -10,13 +10,15 @@ Usage:
 """
 
 import argparse
+import hashlib
 import json
 import re
 import threading
 from pathlib import Path
 
+from extraction_provenance import file_sha256
 from review_state import record_review, review_summary
-from songsheet_io import DocumentError, save_document, validate_document
+from songsheet_io import DocumentError, load_document, save_document, validate_document
 
 SCRIPTS = Path(__file__).resolve().parent
 ROOT = SCRIPTS.parent
@@ -431,50 +433,80 @@ def _h_export_album(req, album):
     return _json(400, {"error": f"unknown fmt: {fmt}"})
 
 
-# entry-keyed cache of rendered crops (song mtime in the key invalidates)
+# Source- and document-fingerprinted crops; observation IDs survive unsaved moves.
 _CROP_CACHE: dict = {}
 
 
 def _h_diagram_crop(req, album, file):
     """?si=&bi=&ei= — magnified PNG of the PRINTED diagram for one chord entry.
 
-    Pairs the song's entries with the CV reader's diagram boxes (same
-    alignment as audit_voicings) and crops the PDF's native page image.
+    Prefer recorded observation-linked boxes. Legacy documents without source
+    links retain the audit pairing fallback; unpaired new observations do not.
     """
     if PDF_DIR is None or not PDF_DIR.is_dir():
         return _json(404, {"error": "no pdf directory configured"})
     target, err = _existing_song(req.root, album, file)
     if err is not None:
         return err
+    observation_id = req.params.get("observation_id")
+    if observation_id is not None and not re.fullmatch(r"[0-9a-f]{64}", observation_id):
+        return _json(400, {"error": "invalid observation id"})
     try:
-        si, bi, ei = (int(req.params[k]) for k in ("si", "bi", "ei"))
-    except (KeyError, ValueError):
-        return _json(400, {"error": "si/bi/ei query params required"})
+        doc = load_document(target)
+    except (ValueError, OSError) as exc:
+        return _json(422, {"error": str(exc)})
+    song = doc["songs"][0] if doc["songs"] else {}
+    entry, coordinates = None, None
+    if observation_id is None:
+        try:
+            si, bi, ei = (int(req.params[k]) for k in ("si", "bi", "ei"))
+        except (KeyError, ValueError):
+            return _json(400, {"error": "si/bi/ei query params required"})
+        if min(si, bi, ei) < 0:
+            return _json(404, {"error": "no such entry"})
+        try:
+            entry = song["sections"][si]["bars"][bi][ei]
+        except (IndexError, KeyError, TypeError):
+            return _json(404, {"error": "no such entry"})
+        observation_id = entry.get("observation_id")
+        coordinates = (si, bi, ei)
+    record = None
+    if observation_id:
+        wrapper = doc.get("_meta", {}).get("diagram_evidence", {}).get(observation_id)
+        if wrapper is None:
+            return _json(404, {"error": "no recorded diagram pairing; inspect the source page"})
+        record = wrapper["record"]
+        pdf = (PDF_DIR / record["source_pdf"]["name"]).resolve()
+        if not pdf.is_relative_to(PDF_DIR.resolve()) or pdf.suffix.lower() != ".pdf":
+            return _json(400, {"error": "invalid source PDF path"})
+        if not pdf.is_file():
+            return _json(404, {"error": "recorded source PDF is unavailable"})
+        if file_sha256(pdf) != record["source_pdf"]["sha256"]:
+            return _json(409, {"error": "source PDF changed; regenerate candidate evidence"})
+        page_num, box = record["page"], record["crop_box"]
+    else:
+        import audit_voicings as av
 
-    key = (album, file, si, bi, ei, target.stat().st_mtime)
+        pdf = av.pdf_for_album(album, PDF_DIR)
+        if pdf is None:
+            return _json(404, {"error": f"no PDF for album {album}"})
+        try:
+            diagrams = av.song_diagram_data(song, pdf, CV_CACHE_DIR)
+            pairs, _mode = av.pair_song(song, diagrams)
+        except Exception as exc:  # noqa: BLE001
+            return _json(500, {"error": f"diagram pairing failed: {exc}"})
+        hit = next((data for paired, data in pairs if paired is entry), None)
+        if hit is None:
+            return _json(404, {"error": "entry has no paired diagram"})
+        _voicing, _error, page_num, box = hit
+    key = (
+        str(target.resolve()),
+        file_sha256(target),
+        observation_id or coordinates,
+        file_sha256(pdf),
+    )
     if key in _CROP_CACHE:
         return 200, "image/png", _CROP_CACHE[key]
-
-    import audit_voicings as av
-
-    pdf = av.pdf_for_album(album, PDF_DIR)
-    if pdf is None:
-        return _json(404, {"error": f"no PDF for album {album}"})
-    doc = json.loads(target.read_text())
-    song = doc["songs"][0]
-    try:
-        entry = song["sections"][si]["bars"][bi][ei]
-    except (IndexError, KeyError, TypeError):
-        return _json(404, {"error": "no such entry"})
-    try:
-        diagrams = av.song_diagram_data(song, pdf, CV_CACHE_DIR)
-        pairs, _mode = av.pair_song(song, diagrams)
-    except Exception as e:  # noqa: BLE001
-        return _json(500, {"error": f"diagram pairing failed: {e}"})
-    hit = next((d for e2, d in pairs if e2 is entry), None)
-    if hit is None:
-        return _json(404, {"error": "entry has no paired diagram"})
-    _v, _derr, page_num, box = hit
 
     import io
 
@@ -482,12 +514,19 @@ def _h_diagram_crop(req, album, file):
     from diagram_reader import load_page_image
     from PIL import Image
 
-    page = load_page_image(pdf, page_num)
+    try:
+        page = load_page_image(pdf, page_num)
+    except (Exception, SystemExit) as exc:  # noqa: BLE001
+        return _json(500, {"error": f"source image unavailable: {exc}"})
+    if record and (
+        tuple(page.shape) != (record["native_image"]["height"], record["native_image"]["width"])
+        or hashlib.sha256(page.astype("uint8").tobytes()).hexdigest()
+        != record["native_image"]["sha256"]
+    ):
+        return _json(409, {"error": "native source image no longer matches recorded evidence"})
     x0, y0, x1, y1 = box
-    m = 4
-    crop = np.asarray(page[max(0, y0 - m) : y1 + m + 1, max(0, x0 - m) : x1 + m + 1]).astype(
-        "uint8"
-    )
+    # Include the printed chord label and the fret-position glyph below the grid.
+    crop = np.asarray(page[max(0, y0 - 12) : y1 + 13, max(0, x0 - 8) : x1 + 9]).astype("uint8")
     im = Image.fromarray(crop).resize((crop.shape[1] * 8, crop.shape[0] * 8), Image.LANCZOS)
     buf = io.BytesIO()
     im.save(buf, "PNG")

@@ -14,6 +14,7 @@ Offline usage (the input is never modified and OUTPUT must not exist):
 import argparse
 import copy
 import hashlib
+from importlib import metadata
 from pathlib import Path
 
 from chord_identity import strict_harm_key
@@ -175,6 +176,16 @@ def validate_diagram_metadata(document: dict) -> None:
         if wrapper["record"].get("observation_id") != observation_id:
             raise DiagramEvidenceError("diagram evidence observation link mismatch")
         record = wrapper["record"]
+        pdf = record.get("source_pdf")
+        if (
+            not isinstance(pdf, dict)
+            or not isinstance(pdf.get("name"), str)
+            or not pdf["name"]
+            or not _valid_digest(pdf.get("sha256"))
+        ):
+            raise DiagramEvidenceError("diagram evidence needs a named, fingerprinted source PDF")
+        if type(record.get("page")) is not int or record["page"] < 1:
+            raise DiagramEvidenceError("diagram evidence needs a positive source page")
         observation = observations[observation_id]
         if not isinstance(observation, dict) or not isinstance(observation.get("value"), dict):
             raise DiagramEvidenceError("diagram source observation must contain a reading")
@@ -195,6 +206,8 @@ def validate_diagram_metadata(document: dict) -> None:
             type(image.get(k)) is not int or image[k] <= 0 for k in ("width", "height")
         ):
             raise DiagramEvidenceError("diagram native image dimensions must be positive integers")
+        if not _valid_digest(image.get("sha256")):
+            raise DiagramEvidenceError("diagram native image needs a pixel fingerprint")
         if not isinstance(box, list) or len(box) != 4 or any(type(n) is not int for n in box):
             raise DiagramEvidenceError("diagram crop must be four integer coordinates")
         if not (
@@ -237,6 +250,12 @@ def _load_native_page(pdf_path: Path, page_number: int):
         return diagram_reader.load_page_image(pdf_path, page_number)
     except SystemExit as exc:
         raise RuntimeError(str(exc)) from exc
+
+
+def _valid_digest(value):
+    return (
+        isinstance(value, str) and len(value) == 64 and all(c in "0123456789abcdef" for c in value)
+    )
 
 
 def enrich_page_result(
@@ -361,6 +380,12 @@ def enrich_page_result(
             file_sha256(DIGIT_TEMPLATES_PATH) if DIGIT_TEMPLATES_PATH.is_file() else None
         ),
     }
+    reader["runtime_versions"] = {}
+    for package in ("numpy", "pymupdf"):
+        try:
+            reader["runtime_versions"][package] = metadata.version(package)
+        except metadata.PackageNotFoundError:
+            reader["runtime_versions"][package] = None
     evidence = result.setdefault("_meta", {}).setdefault("diagram_evidence", {})
     for diagram_index, (item, reading) in enumerate(zip(eligible, readings)):
         entry = item["entry"]
