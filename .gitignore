@@ -24,6 +24,9 @@ draft-post-charts/
 # Throwaway prototypes / experiments (embed copyrighted song data — never commit)
 experiments/
 
+# Local extraction candidates and research artifacts can contain copyrighted source material.
+.local/
+
 # Python
 __pycache__/
 *.pyc

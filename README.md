@@ -70,6 +70,10 @@ python scripts/parse_songsheet.py data/<artist>/png/*.png --output data/<artist>
 python scripts/json_to_chordmark.py data/<artist>/json/ --output data/<artist>/chordmark/
 ```
 
+Extraction retains immutable source readings beside editable entries. All parsing commands
+share content/settings-based cache checks and preserve historical JSON snapshots; `--force`
+requests a new attempt. See [provenance and candidate runs](docs/extraction-provenance.md).
+
 ### Validating a whole PDF
 
 `validate_extraction.py` renders → parses → assembles a PDF's pages into songs, schema-validates,

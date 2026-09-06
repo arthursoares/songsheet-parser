@@ -13,6 +13,7 @@ import stat
 from pathlib import Path
 
 import jsonschema
+from extraction_provenance import preserve_evidence, validate_observations
 from songsheet_version import stamp, version_error
 
 SCHEMA_PATH = Path(__file__).resolve().parent.parent / "schemas" / "songsheet.schema.json"
@@ -32,6 +33,10 @@ def validate_document(doc) -> None:
         _VALIDATOR.validate(doc)
     except jsonschema.ValidationError as exc:
         raise DocumentError(f"{list(exc.absolute_path)}: {exc.message}") from exc
+    try:
+        validate_observations(doc)
+    except (ValueError, TypeError) as exc:
+        raise DocumentError(str(exc)) from exc
 
 
 def _read_json(path: Path):
@@ -48,7 +53,7 @@ def load_document(path: Path) -> dict:
     return doc
 
 
-def check_destination(path: Path, *, overwrite: bool = False) -> None:
+def check_destination(path: Path, *, overwrite: bool = False) -> dict | None:
     """Preflight a destination; create-only publication also checks atomically."""
     path = Path(path)
     if not path.exists():
@@ -57,9 +62,11 @@ def check_destination(path: Path, *, overwrite: bool = False) -> None:
         raise FileExistsError(f"{path} already exists; use a new output directory or --overwrite")
     # Permit repairing schema-invalid content, but never downgrade a future or
     # malformed version marker, nor silently replace an unreadable document.
-    err = version_error(_read_json(path))
+    existing = _read_json(path)
+    err = version_error(existing)
     if err:
         raise DocumentError(f"{path}: {err}")
+    return existing
 
 
 def save_document(path: Path, doc: dict, *, overwrite: bool = False) -> None:
@@ -75,7 +82,24 @@ def save_document(path: Path, doc: dict, *, overwrite: bool = False) -> None:
         payload = payload.encode("utf-8")
     except (TypeError, ValueError, UnicodeEncodeError) as exc:
         raise DocumentError(f"document is not serializable as JSON: {exc}") from exc
-    check_destination(path, overwrite=overwrite)
+    existing = check_destination(path, overwrite=overwrite)
+    if existing is not None:
+        try:
+            preserve_evidence(existing, doc)
+        except (ValueError, TypeError) as exc:
+            raise DocumentError(str(exc)) from exc
+    publish_bytes(path, payload, overwrite=overwrite)
+
+
+def write_json_artifact(path: Path, value, *, overwrite: bool = False) -> None:
+    """Publish a cache/report/manifest; editable songs must use save_document."""
+    payload = json.dumps(value, ensure_ascii=False, indent=2, allow_nan=False).encode("utf-8")
+    publish_bytes(Path(path), payload, overwrite=overwrite)
+
+
+def publish_bytes(path: Path, payload: bytes, *, overwrite: bool = False) -> None:
+    """Atomically publish bytes for an artifact on the same filesystem."""
+    path = Path(path)
     mode = stat.S_IMODE(path.stat().st_mode) if path.exists() else None
     temporary = path.with_name(f".{path.name}.{secrets.token_hex(8)}.tmp")
     # Exclusive creation honors the normal umask for new documents without

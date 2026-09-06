@@ -125,7 +125,12 @@ per-occurrence. Lyrics carry word-continuation dashes (`tris- te- za e`). Schema
   use a fresh `--out` directory for extraction candidates. Existing file permissions are preserved.
   Audit load/save errors are reported per song without stopping the remaining songs. Atomicity
   is per JSON file, not an album transaction or concurrent-edit conflict resolution.
-- Test suite: **326 pytest + 51 node tests** passing; CI runs both plus ruff.
+- **Extraction provenance (2026-09-06):** schema v3 adds optional observation links; immutable
+  source readings, effective parser settings, image/PDF hashes and page context survive assembly
+  and materialization. All parser entry points use fingerprinted caches and append-only JSON
+  snapshots with a reserved `.snapshot` suffix. Corpus saves reject removal/alteration of
+  existing evidence. See `docs/extraction-provenance.md`.
+- Test suite: **341 pytest + 51 node tests** passing; CI runs both plus ruff.
 
 ### In progress / next
 - **Full manual review of the corpus** — the active campaign, now instrumented: the audit ranks
