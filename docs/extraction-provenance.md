@@ -71,3 +71,9 @@ python scripts/materialize_songs.py --workdir .local/candidates/run-001 \
 `.local/` is git-ignored. The corrected corpus is not modified by these commands. Fingerprints
 make runs attributable and prevent stale cache reuse; they do not make a remote model
 deterministic. Provider response IDs are currently unavailable and recorded as null.
+
+Diagram records are also checked and preserved by corpus saves. Pairing uses the original
+observation order, so later editorial reordering cannot move evidence to another chord.
+Metadata includes native pixel and transitive decision-code hashes; name-conditioned readings
+remain proposals. Multi-song page diagnostics become per-song subsets with a parent fingerprint.
+Reports explicitly distinguish disabled diagram extraction from unreviewed hybrid proposals.
