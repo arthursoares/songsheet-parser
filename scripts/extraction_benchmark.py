@@ -31,12 +31,23 @@ def _canonical_path(golden_root, selection):
 
 def _reference(golden_root, selection, label_type, review_provenance):
     path, relative = _canonical_path(golden_root, selection)
+    if label_type == GROUND_TRUTH_LABEL:
+        _require_done(path, relative)
     return {
         "path": relative,
         "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
         "label_type": label_type,
         "review_provenance": review_provenance,
     }
+
+
+def _require_done(path, relative):
+    status = json.loads(path.read_text()).get("document", {}).get("status")
+    if status != "done":
+        raise ValueError(
+            f"{relative} cannot be human-reviewed ground truth without document.status=done "
+            f"(found {status!r})"
+        )
 
 
 def create_manifest(
@@ -114,6 +125,7 @@ def _verified_references(manifest, golden_root, split):
             )
         if not str(ref.get("review_provenance", "")).strip():
             raise ValueError(f"{ref.get('path')} has no review provenance")
+        _require_done(path, relative)
         digest = hashlib.sha256(path.read_bytes()).hexdigest()
         if digest != ref.get("sha256"):
             raise ValueError(f"gold reference hash mismatch: {relative}")

@@ -1,3 +1,4 @@
+import hashlib
 import json
 import subprocess
 import sys
@@ -9,13 +10,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 import extraction_benchmark as B
 
 
-def _write_song(root, rel, chord="C"):
+def _write_song(root, rel, chord="C", status="done"):
     path = root / rel
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
         json.dumps(
             {
-                "document": {"status": "done"},
+                "document": {"status": status},
                 "songs": [
                     {
                         "title": path.stem,
@@ -76,6 +77,20 @@ def test_manifest_rejects_duplicates_and_split_overlap(tmp_path):
         )
 
 
+def test_human_reviewed_manifest_rejects_pending_document(tmp_path):
+    golden = tmp_path / "golden"
+    _write_song(golden, "album/pending.json", status="pending")
+    _write_song(golden, "album/done.json")
+    with pytest.raises(ValueError, match="document.status=done"):
+        B.create_manifest(
+            golden,
+            ["album/pending.json"],
+            ["album/done.json"],
+            "human_reviewed",
+            "manual review",
+        )
+
+
 def test_score_rejects_changed_or_unreviewed_gold(tmp_path):
     golden, candidate = tmp_path / "golden", tmp_path / "candidate"
     gold = _write_song(golden, "album/a.json")
@@ -97,6 +112,26 @@ def test_score_rejects_changed_or_unreviewed_gold(tmp_path):
     )
     with pytest.raises(ValueError, match="not eligible as ground truth"):
         B.score_split(unreviewed, golden, candidate, "development")
+
+
+def test_score_rechecks_done_status_even_when_manifest_hash_matches(tmp_path):
+    golden, candidate = tmp_path / "golden", tmp_path / "candidate"
+    gold = _write_song(golden, "album/a.json")
+    _write_song(golden, "album/b.json")
+    _write_song(candidate, "album/a.json")
+    manifest = B.create_manifest(
+        golden,
+        ["album/a.json"],
+        ["album/b.json"],
+        "human_reviewed",
+        "manual review",
+    )
+    doc = json.loads(gold.read_text())
+    doc["document"]["status"] = "pending"
+    gold.write_text(json.dumps(doc))
+    manifest["splits"]["development"][0]["sha256"] = hashlib.sha256(gold.read_bytes()).hexdigest()
+    with pytest.raises(ValueError, match="document.status=done"):
+        B.score_split(manifest, golden, candidate, "development")
 
 
 def test_score_split_counts_missing_and_extra_candidates(tmp_path):
