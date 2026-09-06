@@ -97,7 +97,7 @@ function syncNote() {
   ta.value = song().note || "";
 }
 
-// Read-only provenance line: song page numbers + any top-level _meta keys.
+// Read-only provenance line: page span and durable source/reading counts.
 function renderProvenance() {
   const el = $("provenance");
   if (!el) return;
@@ -110,8 +110,16 @@ function renderProvenance() {
   }
   const meta = state.doc._meta;
   if (meta && typeof meta === "object") {
-    const keys = Object.keys(meta);
-    if (keys.length) parts.push("meta: " + keys.map((k) => `${k}=${meta[k]}`).join(", "));
+    const sources = meta.extraction_sources;
+    const readings = meta.observations;
+    if (sources && typeof sources === "object" && !Array.isArray(sources)) {
+      const n = Object.keys(sources).length;
+      parts.push(`${n} source${n === 1 ? "" : "s"}`);
+    }
+    if (readings && typeof readings === "object" && !Array.isArray(readings)) {
+      const n = Object.keys(readings).length;
+      parts.push(`${n} reading${n === 1 ? "" : "s"}`);
+    }
   }
   el.textContent = parts.join(" · ");
   el.title = el.textContent;

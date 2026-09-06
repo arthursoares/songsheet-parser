@@ -154,7 +154,8 @@ the **editor tabs** (right).
 The **sidebar** lists every song in the current album with a status badge, a search box, and a
 status filter (All / Pending / In progress / Done). Click a song to load it (guarded by an
 unsaved-changes confirm); the current song is highlighted. The sidebar footer shows the song's
-**provenance** (source page numbers) and a free-text **per-song note** that persists with the song.
+**provenance** (source pages plus source/reading counts) and a free-text **per-song note** that
+persists with the song.
 
 The right column has seven tabs:
 
@@ -169,9 +170,13 @@ The right column has seven tabs:
   syllable, per section. **Drag a chord token onto a different syllable to re-anchor it** (per-bar
   rebuild, wired into undo / dirty-state / Save). Known prototype limits: re-anchoring is scoped to
   **within a single bar** (cross-bar drops no-op), and syllable splitting is whitespace-based.
-- **Review** — a worklist of the current song's flagged chords (name↔voicing mismatch or invalid
-  name) with section·bar·reason. Click a row to jump to the chip and open its editor; a header
-  **Next-flagged** action steps through them.
+- **Review** — records separate whole-song review states for **Structure**, **Chord names**,
+  **Lyrics**, **Editorial voicings**, **Printed diagrams**, and **Key**, with reviewer and evidence.
+  Verification is bound to the reviewed field values and their structural positions; later edits
+  display that field as stale. A key can be verified only when a supported major/minor key is
+  explicitly stored. Recording is undoable and remains in memory until **Save song**. This does
+  not automatically mark the legacy document status done. The flagged-chord worklist remains
+  below the field table; click a row to jump to its editor.
 - **Dictionary** — the song's distinct chords grouped by (name + voicing), alphabetical or by
   count; batch-edit a chord across all its occurrences, or merge two groups that are the same
   chord misread two ways.

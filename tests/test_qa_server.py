@@ -164,6 +164,86 @@ def test_save_invalid_song_rejected(tmp_path):
     assert on_disk["songs"][0]["sections"][0]["bars"][0][0]["chord"] == "Dm7"
 
 
+def test_review_doc_records_in_memory_without_mutating_disk(tmp_path):
+    root = _corpus(tmp_path)
+    target = root / "1-album" / "01-song-one.json"
+    original = target.read_bytes()
+    doc = json.loads(original)
+    request = {
+        "doc": doc,
+        "field": "chords",
+        "status": "verified",
+        "reviewer": "AS",
+        "evidence": "compared every chord with page 1",
+    }
+
+    status, _, body = S.handle("POST", "/api/review-doc", json.dumps(request).encode(), root)
+
+    assert status == 200
+    response = json.loads(body)
+    assert response["ok"] is True
+    assert response["review"]["fields"]["chords"]["status"] == "verified"
+    assert response["doc"]["_meta"]["review"]["fields"]["chords"]["reviewer"] == "AS"
+    assert target.read_bytes() == original
+
+
+def test_review_doc_summary_does_not_infer_verification_from_legacy_done(tmp_path):
+    root = _corpus(tmp_path)
+    target = root / "1-album" / "01-song-one.json"
+    doc = json.loads(target.read_text())
+    doc["document"]["status"] = "done"
+
+    status, _, body = S.handle(
+        "POST", "/api/review-doc", json.dumps({"doc": doc}).encode(), root
+    )
+
+    assert status == 200
+    fields = json.loads(body)["review"]["fields"]
+    assert {item["status"] for item in fields.values()} == {"pending"}
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        None,
+        {},
+        {"doc": []},
+        {"doc": {"document": {"title": "x"}, "songs": []}, "field": "lyrics"},
+    ],
+)
+def test_review_doc_rejects_invalid_request_without_disk_writes(tmp_path, payload):
+    root = _corpus(tmp_path)
+    target = root / "1-album" / "01-song-one.json"
+    original = target.read_bytes()
+
+    status, _, body = S.handle(
+        "POST", "/api/review-doc", json.dumps(payload).encode(), root
+    )
+
+    assert status == 422
+    assert json.loads(body)["ok"] is False
+    assert target.read_bytes() == original
+
+
+def test_review_doc_refuses_verified_key_without_stored_key(tmp_path):
+    root = _corpus(tmp_path)
+    target = root / "1-album" / "01-song-one.json"
+    original = target.read_bytes()
+    request = {
+        "doc": json.loads(original),
+        "field": "key",
+        "status": "verified",
+        "reviewer": "AS",
+        "evidence": "cadence review",
+    }
+
+    status, _, body = S.handle("POST", "/api/review-doc", json.dumps(request).encode(), root)
+
+    assert status == 422
+    assert "valid nonempty stored key" in json.loads(body)["error"]
+    assert target.read_bytes() == original
+
+
 @pytest.mark.parametrize("payload", [None, [], "song", 1, True])
 def test_save_non_object_rejected_without_touching_file(tmp_path, payload):
     root = _corpus(tmp_path)
