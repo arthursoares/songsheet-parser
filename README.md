@@ -92,6 +92,17 @@ python scripts/materialize_songs.py --workdir /tmp/ssv --out data/<artist>/songs
 python scripts/qa_server.py --songs data/<artist>/songs
 ```
 
+Materialization refuses to replace existing song files or copied page images. For a new
+extraction, use a fresh `--out` directory so the candidates can be compared with your corrections.
+Add `--overwrite`
+only when intentionally replacing existing songs and their copied page images; unsupported
+schema versions are refused even with this flag.
+
+QA saves, materialization, the voicing audit, and lyric migration share schema/version
+validation and atomic JSON writes. A failed write leaves the previous JSON intact. This is
+per-file protection: an album is not saved as one transaction, and simultaneous edits are
+not merged.
+
 The window has three columns: a **song-list sidebar** (left), the **scanned pages** (middle), and
 the **editor tabs** (right).
 

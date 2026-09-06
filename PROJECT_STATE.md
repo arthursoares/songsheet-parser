@@ -1,6 +1,6 @@
 # Songsheet Parser — Project State
 
-**Last updated:** 2026-06-10
+**Last updated:** 2026-09-06
 
 ## What this is
 
@@ -118,7 +118,14 @@ per-occurrence. Lyrics carry word-continuation dashes (`tris- te- za e`). Schema
   (default): free-form ChordMark lyric lines — read-only chord line above, editable `_`-marker
   line below; gluing a marker mid-word (`tris_te`) stores the continuation dash, marker count
   validated on commit; grid mode (drag + dblclick syllable edit) kept as toggle.
-- Test suite: **289 pytest + 51 node tests** passing; CI runs both plus ruff.
+- **Corpus persistence hardening (2026-09-06):** QA saves, materialization, the voicing audit,
+  and lyric migration share `songsheet_io.py` for schema/version validation and atomic JSON
+  writes. Unsupported versions are checked before stamping or CV/LLM work. Materialization
+  preflights each album and refuses existing songs or copied pages unless `--overwrite` is explicit;
+  use a fresh `--out` directory for extraction candidates. Existing file permissions are preserved.
+  Audit load/save errors are reported per song without stopping the remaining songs. Atomicity
+  is per JSON file, not an album transaction or concurrent-edit conflict resolution.
+- Test suite: **326 pytest + 51 node tests** passing; CI runs both plus ruff.
 
 ### In progress / next
 - **Full manual review of the corpus** — the active campaign, now instrumented: the audit ranks

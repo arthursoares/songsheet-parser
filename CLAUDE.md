@@ -41,6 +41,7 @@ python scripts/validate_extraction.py "data/<artist>/pdf/Album.pdf" --workdir /t
 
 # Promote assembled docs (from a validation run's workdir) into a per-song corpus + page PNGs.
 #   Migrates old 6-char voicings → comma form; this is what the QA tool reads/writes.
+#   Refuses existing songs; use a fresh --out for candidates, or explicitly --overwrite.
 python scripts/materialize_songs.py --workdir /tmp/ssv --out data/<artist>/songs [--only "<pdf stem>"]
 
 # QA correction tool: review songs beside scans; song-list sidebar + Bars / Lyrics / Review /
@@ -134,6 +135,14 @@ globals, explicit load order in index.html):
   - `GET /api/export-album/<album>?fmt=pdf|html&...` — whole-album songbook (one document)
   - `GET /api/page/<album>/<file>/<n>` — page PNG
   (`style=target` extras: `dict=per_voicing|per_name`, `inline=0|1`; `bars` is 4/6/8, default 4.)
+- **Corpus persistence:** `scripts/songsheet_io.py` is the shared boundary for QA saves,
+  materialization, voicing-audit writes, and lyric migration. `load_document` validates before
+  editing; `save_document` checks version/schema before stamping a copy and publishing complete
+  UTF-8 JSON atomically. Creation refuses collisions; replacement is explicit and checks the
+  existing version too. The materializer alone migrates legacy six-character voicings and
+  preflights every song in an album before writing. Keep all editable-corpus writers on this
+  boundary. Atomicity is per JSON file; it does not provide album rollback or concurrent-edit
+  conflict resolution.
 - **Live preview & export:** the Preview tab renders the *in-memory* edits via `/api/render-doc`
   (and `/api/chordmark-doc` for Source) — no Save needed. Export buttons hit `/api/export…`;
   PDF/PNG are produced by headless Chrome on the server (`render_song_doc`/`_chrome_convert`).

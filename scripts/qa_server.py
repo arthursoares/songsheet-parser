@@ -15,12 +15,10 @@ import re
 import threading
 from pathlib import Path
 
-import jsonschema  # imported at startup so a save never fails on a lazy import
-from songsheet_version import stamp, version_error
+from songsheet_io import DocumentError, save_document
 
 SCRIPTS = Path(__file__).resolve().parent
 ROOT = SCRIPTS.parent
-SCHEMA_PATH = ROOT / "schemas" / "songsheet.schema.json"
 STATIC_DIR = SCRIPTS / "qa_static"
 PDF_DIR: Path | None = None  # set in main(); sibling pdf/ of --songs by default
 CV_CACHE_DIR = Path("/tmp/cv-cache")  # shared with audit_voicings runs
@@ -568,21 +566,15 @@ def handle(method: str, path: str, body: bytes, root: Path):
 def save_song(target: Path, body: bytes):
     try:
         doc = json.loads(body)
-    except json.JSONDecodeError as e:
+    except (json.JSONDecodeError, UnicodeDecodeError) as e:
         return _json(400, {"ok": False, "error": f"invalid JSON: {e}"})
 
-    err = version_error(doc)
-    if err:
-        return _json(422, {"ok": False, "error": err})
-
-    schema = json.loads(SCHEMA_PATH.read_text())
     try:
-        jsonschema.validate(doc, schema)
-    except jsonschema.ValidationError as e:
-        loc = list(e.absolute_path)
-        return _json(422, {"ok": False, "error": f"{loc}: {e.message}"})
-
-    target.write_text(json.dumps(stamp(doc), ensure_ascii=False, indent=2))
+        save_document(target, doc, overwrite=True)
+    except DocumentError as e:
+        return _json(422, {"ok": False, "error": str(e)})
+    except OSError as e:
+        return _json(500, {"ok": False, "error": f"could not save song: {e}"})
     return _json(200, {"ok": True})
 
 
