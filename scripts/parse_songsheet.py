@@ -300,7 +300,11 @@ def parse_songsheet(image_path: Path, provider: str = "codex", model: str = None
         "openai": parse_with_openai,
     }[provider]
     result = parser_fn(image_path, settings["model"])
-    result.setdefault("_meta", {})
+    # Provider output is evidence, never authority to mark a human review done.
+    provider_metadata = result.pop("_meta", None)
+    provider_status = result.get("document", {}).get("status")
+    result["document"]["status"] = "pending"
+    result["_meta"] = {}
     result["_meta"]["source"] = image_path.name
     result["_meta"]["parsed_at"] = datetime.now(timezone.utc).isoformat()
     result["_meta"]["model"] = f"{provider}/{settings['model']}"
@@ -310,6 +314,8 @@ def parse_songsheet(image_path: Path, provider: str = "codex", model: str = None
         "extraction": settings,
         "parsed_at": result["_meta"]["parsed_at"],
         "response_id": None,
+        "provider_metadata": provider_metadata,
+        "provider_status_claim": provider_status,
     }
     return stamp(attach_observations(result, source))
 

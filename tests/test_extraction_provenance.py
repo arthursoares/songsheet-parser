@@ -102,6 +102,21 @@ def test_parse_cache_tracks_image_and_prompt_and_preserves_snapshots(tmp_path, m
     assert any(json.loads(p.read_text()) == first for p in snapshots)
 
 
+def test_provider_cannot_declare_human_review_complete(tmp_path, monkeypatch):
+    image = tmp_path / "page.png"
+    image.write_bytes(b"image")
+    claimed = page()
+    claimed["document"]["status"] = "done"
+    claimed["_meta"]["review"] = {"version": 1, "fields": {"key": {"status": "verified"}}}
+    monkeypatch.setattr(parser, "parse_with_codex", lambda *_: copy.deepcopy(claimed))
+    result = parser.parse_songsheet(image)
+    assert result["document"]["status"] == "pending"
+    assert "review" not in result["_meta"]
+    source = next(iter(result["_meta"]["extraction_sources"].values()))
+    assert source["provider_status_claim"] == "done"
+    assert source["provider_metadata"]["review"] == claimed["_meta"]["review"]
+
+
 def test_cache_rejects_edited_results_and_force_keeps_previous_snapshot(tmp_path, monkeypatch):
     png = tmp_path / "page.png"
     png.write_bytes(b"image")

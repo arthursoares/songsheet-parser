@@ -210,7 +210,7 @@ function openEditor(si, bi, ei) {
     <div id="edFb"></div>
     ${e.voicing_printed
       ? `<img class="printcrop" id="edPrintCrop" alt="" title="the printed diagram"
-             src="/api/diagram-crop/${encodeURIComponent(state.album)}/${encodeURIComponent(state.file)}?si=${si}&bi=${bi}&ei=${ei}">`
+             src="/api/diagram-crop/${encodeURIComponent(state.album)}/${encodeURIComponent(state.file)}?si=${si}&bi=${bi}&ei=${ei}${e.observation_id ? '&observation_id=' + encodeURIComponent(e.observation_id) : ''}">`
       : ""}
     ${e.voicing_printed && e.voicing_printed !== (e.voicing || "")
       ? `<div class="printhint">print reads <b>${esc(e.voicing_printed)}</b>

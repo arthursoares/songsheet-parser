@@ -29,7 +29,8 @@ in `candidate_groups`, but candidates remain unassigned until the manifest says 
 }
 ```
 
-Generate the conservative report, which includes only documents whose status is `done`:
+Generate the conservative report, which requires `done` status and no stale or incomplete
+explicit checks for the fields being compared:
 
 ```bash
 ./.venv/bin/python scripts/corpus_research.py \
@@ -57,8 +58,9 @@ ordered harmonic chord alignment, then report exact symbol matches, equivalent s
 spans, voicing differences, and physical-bass differences separately. Every source path and revision
 hash is retained in the output.
 
-A stored `song.key` is reported with its document provenance but does not enable Roman-numeral
-comparison. That comparison requires a reviewed key with explicit evidence in each assignment:
+A stored `song.key` alone does not enable Roman-numeral comparison. A current verified **Key**
+field review (with reviewer and evidence) can confirm it. Alternatively, record an explicit key
+confirmation in the curated assignment:
 
 ```json
 "confirmed_key": {
@@ -67,6 +69,12 @@ comparison. That comparison requires a reviewed key with explicit evidence in ea
   "evidence": "reviewed against printed key signature and final cadence"
 }
 ```
+
+If both forms of confirmation exist and disagree, Roman comparison is disabled until the
+conflict is resolved. Printed-mode reports additionally require a current **Printed diagrams**
+field review for conservative inclusion. `--include-unreviewed` keeps incomplete arrangements
+visible as provisional. Legacy `done` documents retain their editorial completion status but
+do not acquire invented field verifications.
 
 The summary reports included and excluded arrangements, status exclusions, assignment coverage,
 attempted, valid, and invalid source files, and the number of comparable pairs. Invalid JSON paths

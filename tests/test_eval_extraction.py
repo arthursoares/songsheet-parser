@@ -37,6 +37,33 @@ def test_perfect_candidate_scores_one():
     assert s["truth_bars"] == s["cand_bars"] == 3
 
 
+def test_cv_candidate_field_is_explicit_and_missing_proposals_count_as_misses():
+    truth = _song(
+        [
+            [
+                [{"chord": "C", "voicing_printed": "x,3,2,0,1,0"}],
+                [{"chord": "G", "voicing_printed": "3,2,0,0,0,3"}],
+            ]
+        ]
+    )
+    candidate = _song(
+        [
+            [
+                [{"chord": "C", "voicing": "1,1,1,1,1,1", "voicing_printed": "x,3,2,0,1,0"}],
+                [{"chord": "G", "voicing": "1,1,1,1,1,1"}],
+            ]
+        ]
+    )
+    assert E.score_song(truth, candidate, "voicing_printed")["voicing_recovery"] == 0
+    result = E.score_corpus(
+        [("song", truth, candidate)],
+        voicing_reference_field="voicing_printed",
+        candidate_voicing_field="voicing_printed",
+    )
+    assert result["aggregate"]["voicing_recovery"] == 0.5
+    assert result["aggregate"]["candidate_voicing_field"] == "voicing_printed"
+
+
 def test_spelling_convention_counts_as_correct_chord():
     # Golden says Cmaj7 (Brazilian corpus might say C7+); candidate prints C7M.
     # Harmonically identical -> chord_acc stays 1.0, spelling_acc drops.

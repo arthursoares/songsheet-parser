@@ -7,6 +7,8 @@ import json
 from pathlib import Path
 
 import eval_extraction
+from review_state import review_gaps
+from songsheet_io import load_document, write_json_artifact
 
 MANIFEST_VERSION = 1
 SPLITS = ("development", "held_out")
@@ -23,7 +25,7 @@ def _canonical_path(golden_root, selection):
         raise ValueError(f"reference is outside golden root: {selection}") from exc
     if path.suffix != ".json" or not path.is_file():
         raise ValueError(f"reference is not a song JSON file: {selection}")
-    doc = json.loads(path.read_text())
+    doc = load_document(path)
     if len(doc.get("songs", [])) != 1:
         raise ValueError(f"reference must contain exactly one whole song: {relative}")
     return path, relative.as_posix()
@@ -41,13 +43,21 @@ def _reference(golden_root, selection, label_type, review_provenance):
     }
 
 
-def _require_done(path, relative):
-    status = json.loads(path.read_text()).get("document", {}).get("status")
+def _require_done(path, relative, reference_field="voicing"):
+    doc = load_document(path)
+    status = doc.get("document", {}).get("status")
     if status != "done":
         raise ValueError(
             f"{relative} cannot be human-reviewed ground truth without document.status=done "
             f"(found {status!r})"
         )
+    gaps = review_gaps(
+        doc,
+        ("structure", "chords", "lyrics", reference_field),
+        require_explicit=("voicing_printed",) if reference_field == "voicing_printed" else (),
+    )
+    if gaps:
+        raise ValueError(f"{relative} reference review is not current: {', '.join(gaps)}")
 
 
 def create_manifest(
@@ -78,7 +88,7 @@ def create_manifest(
 
 
 def write_manifest(path, manifest):
-    path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True) + "\n")
+    write_json_artifact(path, manifest)
 
 
 def load_manifest(path):
@@ -94,7 +104,7 @@ def _validate_manifest_shape(manifest):
         raise ValueError("manifest must contain exactly development and held_out splits")
 
 
-def _verified_references(manifest, golden_root, split):
+def _verified_references(manifest, golden_root, split, reference_field="voicing"):
     _validate_manifest_shape(manifest)
     if split not in SPLITS:
         raise ValueError(f"unknown split: {split}")
@@ -125,7 +135,7 @@ def _verified_references(manifest, golden_root, split):
             )
         if not str(ref.get("review_provenance", "")).strip():
             raise ValueError(f"{ref.get('path')} has no review provenance")
-        _require_done(path, relative)
+        _require_done(path, relative, reference_field)
         digest = hashlib.sha256(path.read_bytes()).hexdigest()
         if digest != ref.get("sha256"):
             raise ValueError(f"gold reference hash mismatch: {relative}")
@@ -139,9 +149,11 @@ def score_split(
     candidate_root,
     split,
     voicing_reference_field="voicing",
+    *,
+    candidate_voicing_field="voicing",
 ):
     """Verify a frozen split, then score it with missing songs treated as empty parses."""
-    refs = _verified_references(manifest, golden_root, split)
+    refs = _verified_references(manifest, golden_root, split, voicing_reference_field)
     pairs = []
     missing = []
     selected = {relative for relative, _path in refs}
@@ -160,6 +172,7 @@ def score_split(
     report = eval_extraction.score_corpus(
         pairs,
         voicing_reference_field=voicing_reference_field,
+        candidate_voicing_field=candidate_voicing_field,
         missing_songs=missing,
         extra_candidate_songs=sorted(candidate_files - selected),
     )
@@ -172,6 +185,8 @@ def score_split(
 
 
 def cmd_create(args):
+    if args.output.resolve().is_relative_to(args.golden.resolve()):
+        raise ValueError("benchmark manifest must be outside the golden corpus")
     manifest = create_manifest(
         args.golden,
         args.development,
@@ -188,9 +203,24 @@ def cmd_create(args):
 
 
 def cmd_score(args):
+    if args.report_json and (
+        args.report_json.resolve() == args.manifest.resolve()
+        or any(
+            args.report_json.resolve().is_relative_to(root.resolve())
+            for root in (args.golden, args.candidate)
+        )
+    ):
+        raise ValueError("benchmark report must be outside its inputs")
     manifest = load_manifest(args.manifest)
     reference_field = eval_extraction.VOICING_REFERENCE_FIELDS[args.voicing_reference]
-    report = score_split(manifest, args.golden, args.candidate, args.split, reference_field)
+    report = score_split(
+        manifest,
+        args.golden,
+        args.candidate,
+        args.split,
+        reference_field,
+        candidate_voicing_field=getattr(args, "candidate_voicing_field", "voicing"),
+    )
     aggregate = report["aggregate"]
     coverage = report["coverage"]
     print(
@@ -205,7 +235,7 @@ def cmd_score(args):
         f"extra={len(coverage['extra_candidate_songs'])}"
     )
     if args.report_json:
-        args.report_json.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n")
+        write_json_artifact(args.report_json, report, overwrite=True)
         print(f"report written to {args.report_json}")
     return 0
 
@@ -237,6 +267,12 @@ def main():
         default="editorial",
     )
     score.add_argument("--report-json", type=Path)
+    score.add_argument(
+        "--candidate-voicing-field",
+        choices=["voicing", "voicing_printed"],
+        default="voicing",
+        help="choose voicing_printed to evaluate fresh CV proposals",
+    )
     score.set_defaults(fn=cmd_score)
     args = parser.parse_args()
     raise SystemExit(args.fn(args))
