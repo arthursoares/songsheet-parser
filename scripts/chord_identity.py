@@ -8,7 +8,7 @@ spellings (including add/omit/alt and power chords) retain exact raw identity.
 
 import re
 
-from harmony import parse_symbol
+from harmony import _symbol_to_intervals, parse_symbol
 
 # Match only prefixes that the interpreter actually consumes. In particular,
 # its diminished prefix is case-sensitive even though its detection is not.
@@ -67,10 +67,12 @@ def _recognized_quality(text):
 
 
 def strict_harm_key(name):
-    """Return ('h', root_pc, quality, bass_pc), or ('raw', original_name).
+    """Return ('h', root_pc, intervals, bass_pc), or ('raw', original_name).
 
     Recognized names preserve harmony.py's existing Brazilian semantics,
     including its documented differences from other chord interpreters.
+    Intervals are a sorted tuple relative to the root: the analyzer's display
+    quality can omit explicit extensions, so it cannot determine identity.
     Outer whitespace is tolerated for recognized symbols. Unsupported names,
     empty values, and repeat signs match only the identical original value.
     """
@@ -82,4 +84,5 @@ def strict_harm_key(name):
     parsed = parse_symbol(symbol)
     if parsed is None or not _recognized_quality(parsed["qtext"]):
         return ("raw", name)
-    return ("h", parsed["root_pc"], parsed["quality"], parsed["bass_pc"])
+    intervals = tuple(sorted(_symbol_to_intervals(parsed["qtext"])))
+    return ("h", parsed["root_pc"], intervals, parsed["bass_pc"])

@@ -385,8 +385,11 @@ def _symbol_to_intervals(qtext):
     if 2 in iv and minorish and not seen_seventh and 11 not in iv and 9 not in iv:
         # m9 implies m7/9 unless it's an m6/9 or m(add9) form — corpus writes m79/m7/9
         pass  # keep as add9; the explicit corpus forms always carry the 7
-    if susish and (2 in iv or 10 in iv) and 10 not in iv and 2 in iv:
-        iv.add(10)  # 479-style: sus with a 9 implies the ♭7
+    # Suspension can occur after the extension (9sus4 / 9/4), so inspect the
+    # completed intervals. Like the major branch above, an explicit sixth or
+    # major seventh suppresses an implied ♭7 (sus4(6/9), maj9sus4).
+    if 5 in iv and 3 not in iv and 4 not in iv and 2 in iv and not seen_seventh:
+        iv.add(10)
     return iv
 
 
