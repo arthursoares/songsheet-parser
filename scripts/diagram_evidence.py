@@ -13,8 +13,10 @@ Offline usage (the input is never modified and OUTPUT must not exist):
 
 import argparse
 import copy
+import hashlib
 from pathlib import Path
 
+from chord_identity import strict_harm_key
 from extraction_provenance import file_sha256, json_sha256, validate_observations
 from songsheet_io import load_document, save_document
 from songsheet_version import version_error
@@ -41,6 +43,8 @@ def _entries(document: dict):
 def _eligible_entries(document: dict) -> list[dict]:
     observations = document.get("_meta", {}).get("observations", {})
     eligible = []
+    source_ids = set()
+    seen_ids = set()
     for position, entry in _entries(document):
         observation_id = entry.get("observation_id")
         observation = observations.get(observation_id)
@@ -49,6 +53,17 @@ def _eligible_entries(document: dict) -> list[dict]:
         value = observation.get("value")
         if not isinstance(value, dict):
             raise DiagramEvidenceError("diagram candidate observation value must be an object")
+        source_position = observation.get("position")
+        if (
+            not isinstance(source_position, list)
+            or len(source_position) != 4
+            or any(type(n) is not int or n < 0 for n in source_position)
+        ):
+            raise DiagramEvidenceError("diagram candidate needs an original source position")
+        if observation_id in seen_ids:
+            raise DiagramEvidenceError("duplicate source observation in page candidate")
+        seen_ids.add(observation_id)
+        source_ids.add(observation["source_id"])
         symbol = value.get("chord")
         if (
             symbol != "%"
@@ -61,9 +76,12 @@ def _eligible_entries(document: dict) -> list[dict]:
                     "entry": entry,
                     "observation_id": observation_id,
                     "original_symbol": symbol,
+                    "source_position": source_position,
                 }
             )
-    return eligible
+    if len(source_ids) > 1:
+        raise DiagramEvidenceError("diagram candidate must refer to one page extraction source")
+    return sorted(eligible, key=lambda item: item["source_position"])
 
 
 def _hashed(payload: dict) -> dict:
@@ -136,7 +154,16 @@ def validate_diagram_metadata(document: dict) -> None:
     observations = meta.get("observations", {})
     evidence = meta.get("diagram_evidence", {})
     diagnostics = meta.get("diagram_diagnostics", {})
-    if not isinstance(evidence, dict) or not isinstance(diagnostics, dict):
+    contexts = meta.get("page_sources", {})
+    if not isinstance(contexts, dict) or any(
+        not isinstance(value, dict) for value in contexts.values()
+    ):
+        raise DiagramEvidenceError("diagram page contexts must contain objects")
+    if (
+        not isinstance(observations, dict)
+        or not isinstance(evidence, dict)
+        or not isinstance(diagnostics, dict)
+    ):
         raise DiagramEvidenceError("diagram evidence and diagnostics must be objects")
     for observation_id, wrapper in evidence.items():
         if observation_id not in observations:
@@ -147,12 +174,60 @@ def validate_diagram_metadata(document: dict) -> None:
             raise DiagramEvidenceError("diagram evidence fingerprint mismatch")
         if wrapper["record"].get("observation_id") != observation_id:
             raise DiagramEvidenceError("diagram evidence observation link mismatch")
+        record = wrapper["record"]
+        observation = observations[observation_id]
+        if not isinstance(observation, dict) or not isinstance(observation.get("value"), dict):
+            raise DiagramEvidenceError("diagram source observation must contain a reading")
+        if record.get("original_symbol") != observation.get("value", {}).get("chord"):
+            raise DiagramEvidenceError("diagram symbol differs from the original source reading")
+        contexts = meta.get("page_sources", {})
+        if not isinstance(contexts, dict):
+            raise DiagramEvidenceError("diagram page contexts must be an object")
+        context = contexts.get(observation.get("source_id"))
+        if context is not None and (
+            record.get("page") != context.get("page")
+            or record.get("source_pdf") != context.get("source_pdf")
+        ):
+            raise DiagramEvidenceError("diagram evidence refers to a different source page")
+        box = record.get("crop_box")
+        image = record.get("native_image", {})
+        if not isinstance(image, dict) or any(
+            type(image.get(k)) is not int or image[k] <= 0 for k in ("width", "height")
+        ):
+            raise DiagramEvidenceError("diagram native image dimensions must be positive integers")
+        if not isinstance(box, list) or len(box) != 4 or any(type(n) is not int for n in box):
+            raise DiagramEvidenceError("diagram crop must be four integer coordinates")
+        if not (
+            0 <= box[0] <= box[2] < image.get("width", 0)
+            and 0 <= box[1] <= box[3] < image.get("height", 0)
+        ):
+            raise DiagramEvidenceError("diagram crop is outside the native image")
     for diagnostic_id, wrapper in diagnostics.items():
         if not isinstance(wrapper, dict) or not isinstance(wrapper.get("record"), dict):
             raise DiagramEvidenceError("diagram diagnostic record must be an object")
         digest = json_sha256(wrapper["record"])
         if wrapper.get("record_sha256") != digest or diagnostic_id != digest:
             raise DiagramEvidenceError("diagram diagnostic fingerprint mismatch")
+        record = wrapper["record"]
+        ids = record.get("eligible_observation_ids", [])
+        if not isinstance(ids, list) or any(
+            not isinstance(i, str) or i not in observations for i in ids
+        ):
+            raise DiagramEvidenceError("diagram diagnostic refers to a missing observation")
+        if type(record.get("page")) is not int or record["page"] < 1:
+            raise DiagramEvidenceError("diagram diagnostic needs a positive source page")
+        if "page_sources" in meta:
+            contexts = meta["page_sources"]
+            if not isinstance(contexts, dict):
+                raise DiagramEvidenceError("diagram page contexts must be an object")
+            matching = {
+                source_id
+                for source_id, context in contexts.items()
+                if context.get("page") == record["page"]
+                and context.get("source_pdf") == record.get("source_pdf")
+            }
+            if not matching or any(observations[i]["source_id"] not in matching for i in ids):
+                raise DiagramEvidenceError("diagram diagnostic refers to a different source page")
 
 
 def _load_native_page(pdf_path: Path, page_number: int):
@@ -219,11 +294,21 @@ def enrich_page_result(
         "height": int(image.shape[0]),
         "coordinate_space": COORDINATE_SPACE,
         "selection": "first_embedded_page_image",
+        "sha256": hashlib.sha256(image.astype("uint8").tobytes()).hexdigest(),
     }
     try:
         boxes = detector(image)
         exact_slots = len(boxes) == len(eligible)
-        names = [item["original_symbol"] for item in eligible] if exact_slots else None
+        names = (
+            [
+                item["original_symbol"]
+                if strict_harm_key(item["original_symbol"])[0] == "h"
+                else None
+                for item in eligible
+            ]
+            if exact_slots
+            else None
+        )
         readings = page_reader(image, names)
         if not isinstance(readings, list) or any(
             not isinstance(reading, dict) or "box" not in reading for reading in readings
@@ -267,6 +352,11 @@ def enrich_page_result(
 
     reader = {
         "implementation_sha256": file_sha256(READER_PATH),
+        "integration_sha256": file_sha256(Path(__file__)),
+        "dependencies_sha256": {
+            name: file_sha256(READER_PATH.with_name(name))
+            for name in ("harmony.py", "chord_identity.py")
+        },
         "digit_templates_sha256": (
             file_sha256(DIGIT_TEMPLATES_PATH) if DIGIT_TEMPLATES_PATH.is_file() else None
         ),
@@ -292,7 +382,7 @@ def enrich_page_result(
                 "harmonic_symbol" if reading.get("harmonic_base") else "nut_absolute"
             ),
             "harmonic_base": bool(reading.get("harmonic_base")),
-            "name_dependent": bool(reading.get("harmonic_base")),
+            "name_dependent": names[diagram_index] is not None,
             "original_symbol": item["original_symbol"],
             "reader": reader,
             "pairing": {

@@ -174,7 +174,7 @@ def assemble_document(
                 songs.append(song)
 
     seal_page_sources(meta)
-    return stamp(
+    assembled = stamp(
         {
             "document": {
                 "title": pdf_path.stem,
@@ -185,6 +185,8 @@ def assemble_document(
             "_meta": meta,
         }
     )
+    validate_observations(assembled)
+    return assembled
 
 
 def _bars(song: dict) -> list:
@@ -254,6 +256,7 @@ def validate_pdf(
 
     warns = heuristics(document)
     diagram_diagnostics = list(document.get("_meta", {}).get("diagram_diagnostics", {}).values())
+    diagram_count = len(document.get("_meta", {}).get("diagram_evidence", {}))
     return {
         "pdf": pdf_path.name,
         "pages": len(pages),
@@ -263,6 +266,11 @@ def validate_pdf(
         "schema_error": schema_error,
         "warnings": warns,
         "diagram_diagnostics": diagram_diagnostics,
+        "diagrams_enabled": diagrams,
+        "diagram_status": "disabled"
+        if not diagrams
+        else ("issues" if diagram_diagnostics else "unreviewed_proposals"),
+        "diagram_evidence_count": diagram_count,
         "passed": not parse_errors
         and schema_error is None
         and not warns
@@ -291,7 +299,9 @@ def main():
         rep = validate_pdf(pdf, args.workdir, args.dpi, args.force, diagrams=not args.no_diagrams)
         reports.append(rep)
         status = "✅ PASS" if rep["passed"] else "❌ ISSUES"
-        print(f"{status}  pages={rep['pages']} songs={rep['songs']}")
+        print(
+            f"{status}  pages={rep['pages']} songs={rep['songs']} diagrams={rep['diagram_status']}"
+        )
         for t in rep["song_titles"]:
             print(f"   • {t}")
         for e in rep["parse_errors"]:

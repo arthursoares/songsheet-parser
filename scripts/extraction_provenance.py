@@ -68,8 +68,6 @@ def validate_observations(doc: dict) -> None:
         if linked:
             raise ValueError("observation links require _meta evidence")
         return
-    if not linked and not any(k in meta for k in ("observations", "extraction_sources")):
-        return
     observations = meta.get("observations", {})
     sources = meta.get("extraction_sources", {})
     if not isinstance(observations, dict) or not isinstance(sources, dict):
@@ -100,6 +98,10 @@ def validate_observations(doc: dict) -> None:
         expected = json_sha256({"source_pdf": meta.get("source_pdf"), "page_sources": contexts})
         if meta.get("assembly_fingerprint") != expected:
             raise ValueError("assembly source/page fingerprint mismatch")
+    if any(key in meta for key in ("diagram_evidence", "diagram_diagnostics")):
+        from diagram_evidence import validate_diagram_metadata
+
+        validate_diagram_metadata(doc)
 
 
 def seal_page_sources(meta: dict) -> None:
@@ -118,7 +120,13 @@ def preserve_evidence(existing: dict, candidate: dict) -> None:
         not isinstance(new, dict) or new.get("source_pdf") != old.get("source_pdf")
     ):
         raise ValueError("cannot remove or alter the preserved source PDF")
-    for key in ("extraction_sources", "observations", "page_sources"):
+    for key in (
+        "extraction_sources",
+        "observations",
+        "page_sources",
+        "diagram_evidence",
+        "diagram_diagnostics",
+    ):
         records = old.get(key, {})
         if not isinstance(records, dict):
             raise ValueError("existing extraction evidence is malformed")
@@ -140,5 +148,26 @@ def metadata_for_song(meta: dict, song: dict) -> dict:
     for key in ("extraction_sources", "page_sources"):
         if key in result:
             result[key] = {k: v for k, v in result[key].items() if k in source_ids}
+    if "diagram_evidence" in result:
+        result["diagram_evidence"] = {
+            k: v for k, v in result["diagram_evidence"].items() if k in ids
+        }
+    if "diagram_diagnostics" in result:
+        pages = set(song.get("pages", []))
+        scoped = {}
+        for key, wrapper in result["diagram_diagnostics"].items():
+            record = wrapper["record"]
+            if record.get("page") not in pages:
+                continue
+            eligible = record.get("eligible_observation_ids", [])
+            if any(observation_id not in ids for observation_id in eligible):
+                record["parent_diagnostic_sha256"] = wrapper["record_sha256"]
+                record["page_eligible_observation_count"] = len(eligible)
+                record["eligible_observation_ids"] = [i for i in eligible if i in ids]
+                record["scope"] = "song_subset_of_page"
+                key = json_sha256(record)
+                wrapper["record_sha256"] = key
+            scoped[key] = wrapper
+        result["diagram_diagnostics"] = scoped
     seal_page_sources(result)
     return result
