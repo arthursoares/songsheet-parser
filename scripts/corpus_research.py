@@ -16,7 +16,8 @@ from pathlib import Path
 
 from chord_identity import strict_harm_key
 from eval_extraction import aligned_pairs, flat_entries
-from harmony import note_to_pc, parse_symbol, roman, voicing_to_pitches
+from harmony import note_to_pc, parse_key_name, parse_symbol, roman, voicing_to_pitches
+from review_state import REVIEW_FIELDS, review_gaps, review_summary
 from songsheet_io import publish_bytes, validate_document, write_json_artifact
 
 SCHEMA_VERSION = 1
@@ -87,20 +88,30 @@ def _song_records(path, corpus_root, document):
         yield arrangement_id, song
 
 
-def _coverage(song):
+def _coverage(song, document=None):
     entries = [e for e in flat_entries(song) if e.get("chord") != "%"]
     editorial = sum(e.get("voicing") is not None for e in entries)
     printed = sum(e.get("voicing_printed") is not None for e in entries)
+    meta = (document or {}).get("_meta", {})
+    diagrams = meta.get("diagram_evidence", {}) if isinstance(meta, dict) else {}
+    diagnostics = meta.get("diagram_diagnostics", {}) if isinstance(meta, dict) else {}
+    diagnostic_pages = {
+        wrapper["record"]["page"]
+        for wrapper in diagnostics.values()
+        if wrapper["record"]["page"] in song.get("pages", [])
+    }
     return {
         "non_percent_events": len(entries),
         "editorial_voicing_events": editorial,
         "editorial_voicing_fraction": _fraction(editorial, len(entries)),
         "printed_voicing_events": printed,
         "printed_voicing_fraction": _fraction(printed, len(entries)),
+        "tracked_diagram_events": sum(e.get("observation_id") in diagrams for e in entries),
+        "diagram_diagnostic_pages": len(diagnostic_pages),
     }
 
 
-def build_catalog(corpus_root, manifest, include_unreviewed=False):
+def build_catalog(corpus_root, manifest, include_unreviewed=False, *, voicing_field="voicing"):
     """Return a deterministic catalog without changing the source corpus."""
     manifest = _validate_manifest(manifest)
     corpus_root = Path(corpus_root)
@@ -122,12 +133,39 @@ def build_catalog(corpus_root, manifest, include_unreviewed=False):
             continue
         valid_files += 1
         status = document.get("document", {}).get("status") or "pending"
+        fields = review_summary(document)["fields"]
+        gaps = review_gaps(
+            document,
+            ("structure", "chords", voicing_field),
+            require_explicit=("voicing_printed",) if voicing_field == "voicing_printed" else (),
+        )
         for arrangement_id, song in _song_records(path, corpus_root, document):
-            eligible = status == "done"
+            eligible = status == "done" and not gaps
             included = eligible or include_unreviewed
             if not included:
-                excluded[status] = excluded.get(status, 0) + 1
+                reason = status if status != "done" else "done_with_incomplete_review"
+                excluded[reason] = excluded.get(reason, 0) + 1
             assignment = assignments.get(arrangement_id, {})
+            manifest_key = assignment.get("confirmed_key")
+            field_key = None
+            if fields["key"]["status"] == "verified":
+                tonic, mode = parse_key_name(song["key"])
+                field_key = {
+                    "tonic": tonic,
+                    "mode": mode,
+                    "evidence": fields["key"]["evidence"],
+                    "reviewer": fields["key"]["reviewer"],
+                    "source": "current_field_review",
+                }
+            conflict = bool(
+                manifest_key
+                and field_key
+                and (
+                    note_to_pc(manifest_key["tonic"]) != note_to_pc(field_key["tonic"])
+                    or manifest_key.get("mode", "major") != field_key["mode"]
+                )
+            )
+            confirmed_key = None if conflict else (manifest_key or field_key)
             album = document.get("document", {})
             arrangements.append(
                 {
@@ -138,6 +176,8 @@ def build_catalog(corpus_root, manifest, include_unreviewed=False):
                     "document_status": status,
                     "included": included,
                     "provisional": included and not eligible,
+                    "field_review": fields,
+                    "review_gaps": list(gaps),
                     "observed_album": {
                         "catalog_path": path.parent.relative_to(corpus_root).as_posix(),
                         "title": album.get("title"),
@@ -154,9 +194,12 @@ def build_catalog(corpus_root, manifest, include_unreviewed=False):
                     "keys": {
                         "stored": song.get("key"),
                         "stored_provenance": "document field; not treated as confirmed",
-                        "confirmed": assignment.get("confirmed_key"),
+                        "confirmed": confirmed_key,
+                        "manifest_confirmation": manifest_key,
+                        "field_confirmation": field_key,
+                        "confirmation_conflict": conflict,
                     },
-                    "coverage": _coverage(song),
+                    "coverage": _coverage(song, document),
                 }
             )
 
@@ -203,7 +246,8 @@ def build_catalog(corpus_root, manifest, include_unreviewed=False):
     return {
         "schema_version": SCHEMA_VERSION,
         "policy": {
-            "default_eligibility": "document.status == done",
+            "default_eligibility": "document.status == done with no incomplete explicit field checks",
+            "printed_evidence_policy": "explicit current printed-diagram review required",
             "include_unreviewed": include_unreviewed,
             "unreviewed_label": "provisional",
             "identity_authority": "curated manifest assignments",
@@ -457,12 +501,12 @@ def compare_arrangements(corpus_root, left, right, voicing_field="voicing"):
         "roman_comparison": {
             "enabled": roman_enabled,
             "reason": (
-                "both arrangements have manifest-confirmed keys"
+                "both arrangements have current explicit key confirmations"
                 if roman_enabled
                 else (
                     "disabled: confirmed keys produced no comparable Roman events"
                     if keys_confirmed
-                    else "disabled: both arrangements need manifest-confirmed keys"
+                    else "disabled: both arrangements need explicit key confirmations"
                 )
             ),
             "left_events": len(left_roman_events),
@@ -513,14 +557,28 @@ def _review_queue(catalog, comparisons):
         if arrangement["document_status"] != "done":
             reasons.append(f"document status is {arrangement['document_status']}")
             points += 40
+        if arrangement.get("review_gaps"):
+            reasons.append("field review needed: " + ", ".join(arrangement["review_gaps"]))
+            points += 10 * len(arrangement["review_gaps"])
+        if arrangement["keys"].get("confirmation_conflict"):
+            reasons.append("manifest and field-review key confirmations disagree")
+            points += 40
         if arrangement["keys"]["confirmed"] is None:
-            reasons.append("no manifest-confirmed key")
+            reasons.append("no usable explicit key confirmation")
             points += 20
         coverage = arrangement["coverage"]
         missing_printed = coverage["non_percent_events"] - coverage["printed_voicing_events"]
         if missing_printed:
             reasons.append(f"{missing_printed} events lack printed-voicing evidence")
             points += min(missing_printed, 20)
+        if (
+            coverage["diagram_diagnostic_pages"]
+            and arrangement["field_review"]["voicing_printed"]["status"] != "verified"
+        ):
+            reasons.append(
+                f"{coverage['diagram_diagnostic_pages']} source pages have diagram diagnostics"
+            )
+            points += 15 * coverage["diagram_diagnostic_pages"]
         if disagreements.get(arrangement["arrangement_id"]):
             reasons.append("same-work comparison has alignment or voicing disagreements")
         if reasons:
@@ -535,7 +593,7 @@ def _review_queue(catalog, comparisons):
 
 
 def build_report(corpus_root, manifest, include_unreviewed=False, voicing_field="voicing"):
-    catalog = build_catalog(corpus_root, manifest, include_unreviewed)
+    catalog = build_catalog(corpus_root, manifest, include_unreviewed, voicing_field=voicing_field)
     included = [a for a in catalog["arrangements"] if a["included"] and a["work_id"]]
     comparisons = []
     by_work = {}
@@ -559,6 +617,7 @@ def build_report(corpus_root, manifest, include_unreviewed=False, voicing_field=
                     "eval_extraction.py",
                     "chord_identity.py",
                     "harmony.py",
+                    "review_state.py",
                 )
             },
         },
@@ -595,8 +654,9 @@ def render_html(report):
             f"<td>{esc(arrangement['observed_song']['title'])}</td>"
             f"<td>{esc(arrangement['work_id'] or 'unassigned')}</td>"
             f"<td>{esc(arrangement['document_status'])}</td>"
+            f"<td>{sum(value['status'] == 'verified' for value in arrangement['field_review'].values())}/{len(REVIEW_FIELDS)}</td>"
             f"<td>{esc('provisional' if arrangement['provisional'] else ('yes' if arrangement['included'] else 'excluded'))}</td>"
-            f"<td>{esc(arrangement['keys']['stored'])} (document field; unconfirmed)</td>"
+            f"<td>{esc(arrangement['keys']['stored'])} (confirmation shown separately)</td>"
             f"<td>{esc(confirmed_label)}</td>"
             f"<td>{esc(arrangement['coverage']['editorial_voicing_events'])}/"
             f"{esc(arrangement['coverage']['non_percent_events'])}</td>"
@@ -630,6 +690,10 @@ def render_html(report):
             f"{'es' if counts['harmonically_aligned'] != 1 else ''}; {esc(absolute_gaps)} gap span"
             f"{'s' if absolute_gaps != 1 else ''}.</p>"
             f"<p>{esc(roman_summary)}</p>"
+            f"<p>Tracked diagram proposals: {comparison['field_coverage']['left']['tracked_diagram_events']} left, "
+            f"{comparison['field_coverage']['right']['tracked_diagram_events']} right. "
+            f"Pages with diagram diagnostics: {comparison['field_coverage']['left']['diagram_diagnostic_pages']} left, "
+            f"{comparison['field_coverage']['right']['diagram_diagnostic_pages']} right.</p>"
             f"<p>Uninterpreted chord symbols excluded from Roman analysis: "
             f"{roman_result['uninterpreted_left']} left, {roman_result['uninterpreted_right']} right.</p>"
             f"<details><summary>Absolute harmonic matches</summary><pre>"
@@ -675,7 +739,7 @@ th{{background:#eee}}code,pre{{font:12px ui-monospace,monospace}}pre{{white-spac
 {"".join(comparison_sections) or "<p>No eligible assigned same-work pair to compare.</p>"}
 <details><summary>Analysis method and implementation fingerprints</summary><pre>{esc(json.dumps(report.get("analysis", {}), ensure_ascii=False, indent=2))}</pre></details>
 {"<h2>Invalid source files</h2><table><thead><tr><th>Source path</th><th>Error</th></tr></thead><tbody>" + invalid_rows + "</tbody></table>" if invalid_rows else "<p>No invalid source files.</p>"}
-<details><summary>Catalog and coverage</summary><table><thead><tr><th>Arrangement/source</th><th>Observed album</th><th>Observed song</th><th>Work</th><th>Status</th><th>Included</th><th>Stored key</th><th>Confirmed key evidence</th><th>Editorial voicings</th><th>Printed voicings</th><th>Revision SHA-256</th></tr></thead><tbody>{"".join(rows)}</tbody></table></details>
+<details><summary>Catalog and coverage</summary><table><thead><tr><th>Arrangement/source</th><th>Observed album</th><th>Observed song</th><th>Work</th><th>Status</th><th>Current field checks</th><th>Included</th><th>Stored key</th><th>Confirmed key evidence</th><th>Editorial voicings</th><th>Printed voicings</th><th>Revision SHA-256</th></tr></thead><tbody>{"".join(rows)}</tbody></table></details>
 <details><summary>Candidate groups</summary><p>Normalization suggestions require manifest review and do not merge works.</p><table><thead><tr><th>Normalized title</th><th>Normalized composers</th><th>Arrangements</th><th>Identity status</th></tr></thead><tbody>{candidate_rows}</tbody></table></details>
 <details><summary>Review queue</summary><table><thead><tr><th>Points</th><th>Arrangement</th><th>Evidence needed</th></tr></thead><tbody>{queue_rows}</tbody></table></details>
 </body></html>"""

@@ -87,8 +87,7 @@ def _field_value(doc: dict, field: str):
         "voicing_printed": "voicing_printed",
     }[field]
     values = [
-        {"position": position, "value": entry.get(entry_key)}
-        for position, entry in _entries(doc)
+        {"position": position, "value": entry.get(entry_key)} for position, entry in _entries(doc)
     ]
     return {"positions": positions, "values": values}
 
@@ -242,3 +241,26 @@ def record_review(doc: dict, field: str, status: str, reviewer="", evidence="") 
         "fingerprint": field_fingerprint(doc, field),
     }
     return result
+
+
+def review_gaps(doc: dict, fields, *, require_explicit=()) -> list[str]:
+    """Explicit field checks override legacy completion; absent checks stay unknown.
+
+    Callers separately enforce document.status=done. A printed-evidence claim can
+    require an explicit current review even for a legacy completed document.
+    """
+    summary = review_summary(doc)["fields"]
+    meta = doc.get("_meta", {})
+    review = meta.get("review", {}) if isinstance(meta, dict) else {}
+    records = review.get("fields", {}) if isinstance(review, dict) else {}
+    records = records if isinstance(records, dict) else {}
+    gaps = []
+    for field in fields:
+        if field not in REVIEW_FIELDS:
+            raise ValueError(f"unknown review field: {field!r}")
+        status = summary[field]["status"]
+        if (
+            field in records or field in require_explicit or status in ("stale", "invalid")
+        ) and status != "verified":
+            gaps.append(f"{field}:{status}")
+    return gaps

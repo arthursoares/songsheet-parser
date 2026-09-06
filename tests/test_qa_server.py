@@ -83,6 +83,69 @@ def test_diagram_crop_requires_coords(tmp_path, monkeypatch):
     assert "no PDF" in json.loads(body)["error"]
 
 
+def test_recorded_crop_uses_observation_id_and_refuses_changed_pdf(tmp_path, monkeypatch):
+    import audit_voicings
+    import diagram_evidence
+    import diagram_reader
+    import numpy as np
+    from extraction_provenance import attach_observations
+    from songsheet_io import save_document
+
+    root = _corpus(tmp_path)
+    path = root / "1-album" / "01-song-one.json"
+    pdfs = tmp_path / "pdfs"
+    pdfs.mkdir()
+    pdf = pdfs / "source.pdf"
+    pdf.write_bytes(b"source PDF bytes")
+    image = np.zeros((32, 32), dtype=int)
+    doc = attach_observations(json.loads(path.read_text()), {"kind": "test"})
+    doc = diagram_evidence.enrich_page_result(
+        doc,
+        pdf,
+        1,
+        image_loader=lambda *_: image,
+        detector=lambda _: [(1, 1, 10, 10)],
+        page_reader=lambda *_: [
+            {
+                "box": [1, 1, 10, 10],
+                "voicing": "x,5,7,5,6,x",
+                "base": 5,
+                "harmonic_base": True,
+                "pattern": "MFFFFM",
+                "error": None,
+            }
+        ],
+    )
+    save_document(path, doc, overwrite=True)
+    observation_id = doc["songs"][0]["sections"][0]["bars"][0][0]["observation_id"]
+    monkeypatch.setattr(S, "PDF_DIR", pdfs)
+    monkeypatch.setattr(diagram_reader, "load_page_image", lambda *_: image)
+    monkeypatch.setattr(
+        audit_voicings, "song_diagram_data", lambda *_: pytest.fail("must not guess pairing")
+    )
+    route = f"/api/diagram-crop/1-album/01-song-one.json?observation_id={observation_id}"
+    status, ctype, body = S.handle("GET", route, b"", root)
+    assert status == 200 and ctype == "image/png" and body.startswith(b"\x89PNG")
+    pdf.write_bytes(b"changed source")
+    status, _, body = S.handle("GET", route, b"", root)
+    assert status == 409 and "source PDF changed" in json.loads(body)["error"]
+
+
+def test_unpaired_observation_does_not_fall_back_to_guessed_crop(tmp_path, monkeypatch):
+    from extraction_provenance import attach_observations
+    from songsheet_io import save_document
+
+    root = _corpus(tmp_path)
+    path = root / "1-album" / "01-song-one.json"
+    doc = attach_observations(json.loads(path.read_text()), {"kind": "test"})
+    save_document(path, doc, overwrite=True)
+    monkeypatch.setattr(S, "PDF_DIR", tmp_path)
+    status, _, body = S.handle(
+        "GET", "/api/diagram-crop/1-album/01-song-one.json?si=0&bi=0&ei=0", b"", root
+    )
+    assert status == 404 and "no recorded diagram" in json.loads(body)["error"]
+
+
 def test_list_albums_reads_status(tmp_path):
     root = _corpus(tmp_path)
     p = root / "1-album" / "01-song-one.json"
@@ -193,9 +256,7 @@ def test_review_doc_summary_does_not_infer_verification_from_legacy_done(tmp_pat
     doc = json.loads(target.read_text())
     doc["document"]["status"] = "done"
 
-    status, _, body = S.handle(
-        "POST", "/api/review-doc", json.dumps({"doc": doc}).encode(), root
-    )
+    status, _, body = S.handle("POST", "/api/review-doc", json.dumps({"doc": doc}).encode(), root)
 
     assert status == 200
     fields = json.loads(body)["review"]["fields"]
@@ -216,9 +277,7 @@ def test_review_doc_rejects_invalid_request_without_disk_writes(tmp_path, payloa
     target = root / "1-album" / "01-song-one.json"
     original = target.read_bytes()
 
-    status, _, body = S.handle(
-        "POST", "/api/review-doc", json.dumps(payload).encode(), root
-    )
+    status, _, body = S.handle("POST", "/api/review-doc", json.dumps(payload).encode(), root)
 
     assert status == 422
     assert json.loads(body)["ok"] is False

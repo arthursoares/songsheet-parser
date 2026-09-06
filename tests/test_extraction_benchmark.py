@@ -8,6 +8,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 import extraction_benchmark as B
+from review_state import record_review
 
 
 def _write_song(root, rel, chord="C", status="done"):
@@ -16,7 +17,7 @@ def _write_song(root, rel, chord="C", status="done"):
     path.write_text(
         json.dumps(
             {
-                "document": {"status": status},
+                "document": {"title": "Fixture album", "status": status},
                 "songs": [
                     {
                         "title": path.stem,
@@ -53,6 +54,28 @@ def test_manifest_is_deterministic_and_records_review_provenance(tmp_path):
         "manual scan comparison by AS"
     )
     assert len(first["splits"]["development"][0]["sha256"]) == 64
+
+
+def test_stale_field_review_cannot_be_frozen_as_human_truth(tmp_path):
+    golden = tmp_path / "golden"
+    first = _write_song(golden, "a/one.json")
+    _write_song(golden, "b/two.json")
+    doc = record_review(
+        json.loads(first.read_text()), "chords", "verified", "Reviewer", "scan checked"
+    )
+    doc["songs"][0]["sections"][0]["bars"][0][0]["chord"] = "G"
+    first.write_text(json.dumps(doc))
+    with pytest.raises(ValueError, match="stale"):
+        B.create_manifest(golden, ["a/one.json"], ["b/two.json"], "human_reviewed", "review")
+
+
+def test_printed_benchmark_requires_specific_print_review(tmp_path):
+    golden = tmp_path / "golden"
+    _write_song(golden, "a/one.json")
+    _write_song(golden, "b/two.json")
+    manifest = B.create_manifest(golden, ["a/one.json"], ["b/two.json"], "human_reviewed", "review")
+    with pytest.raises(ValueError, match="voicing_printed"):
+        B.score_split(manifest, golden, golden, "held_out", "voicing_printed")
 
 
 def test_manifest_rejects_duplicates_and_split_overlap(tmp_path):

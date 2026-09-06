@@ -5,6 +5,16 @@ const assert = require("node:assert/strict");
 
 const ReviewUI = require("../../scripts/qa_static/app_review.js");
 
+test("source issues keep unpaired page counts visible without granting verification", () => {
+  const issues = ReviewUI.sourceIssues({_meta:{diagram_diagnostics:{one:{record:{page:29,
+    diagrams:[{},{}], eligible_observation_ids:["a"], page_eligible_observation_count:3}}}}});
+  assert.equal(issues.length, 1);
+  assert.match(issues[0], /Page 29/);
+  assert.match(issues[0], /2 detected diagrams, 3 chord occurrences/);
+  assert.match(issues[0], /needs review/);
+  assert.deepEqual(ReviewUI.sourceIssues(null), []);
+});
+
 function deferred() {
   let resolve;
   const promise = new Promise((done) => { resolve = done; });

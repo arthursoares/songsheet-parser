@@ -328,6 +328,19 @@ def test_diagnostic_with_malformed_observation_is_a_document_error(tmp_path):
         save_document(tmp_path / "invalid.json", doc)
 
 
+@pytest.mark.parametrize("missing", ["pdf_name", "pixel_hash"])
+def test_incomplete_crop_record_is_rejected_before_serving(tmp_path, missing):
+    doc = enrich(candidate({"chord": "C"}), fake_pdf(tmp_path), [reading((1, 2, 3, 4))])
+    wrapper = next(iter(doc["_meta"]["diagram_evidence"].values()))
+    if missing == "pdf_name":
+        wrapper["record"]["source_pdf"].pop("name")
+    else:
+        wrapper["record"]["native_image"].pop("sha256")
+    wrapper["record_sha256"] = json_sha256(wrapper["record"])
+    with pytest.raises(DocumentError):
+        save_document(tmp_path / "invalid.json", doc)
+
+
 def test_validate_pdf_can_disable_diagram_enrichment(tmp_path, monkeypatch):
     pdf = fake_pdf(tmp_path)
     png = tmp_path / "page-001.png"
