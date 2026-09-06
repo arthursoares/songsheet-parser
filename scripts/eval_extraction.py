@@ -22,16 +22,17 @@ Two modes:
              python scripts/eval_extraction.py diff a.json b.json \\
                  [--report-json /tmp/diff.json]
 
-Scoring is alignment-based (difflib over the flat chord-name sequence), so a
+Scoring uses maximum ordered matching over the flat chord-name sequence, so a
 missing or extra bar doesn't cascade into "everything after it is wrong".
 All scoring functions are pure; only main() touches disk.
 """
 
 import argparse
-import difflib
 import json
 import re
 from pathlib import Path
+
+from chord_identity import strict_harm_key
 
 # ---------------------------------------------------------------------------
 # pure scoring
@@ -59,9 +60,6 @@ def _norm_text(t):
     return re.sub(r"\s+", " ", s).strip().casefold()
 
 
-PERCENT = "%"
-
-
 def harm_key(name):
     """Harmonic identity of a chord name: (root_pc, quality, bass_pc).
 
@@ -70,23 +68,38 @@ def harm_key(name):
     chord correctness must compare harmony, not strings. Unparseable names
     (and '%') fall back to the raw string.
     """
-    from harmony import parse_symbol
-
-    p = parse_symbol(name) if name and name != PERCENT else None
-    if p is None:
-        return ("raw", name)
-    return ("h", p["root_pc"], p["quality"], p["bass_pc"])
+    return strict_harm_key(name)
 
 
 def aligned_pairs(truth_names, cand_names):
-    """Index pairs (ti, ci) of harmonically-equal entries via difflib alignment."""
+    """Maximum ordered harmonic matches as deterministic LCS index pairs.
+
+    The O(truth*candidate) table is intentionally simple: songs contain only
+    hundreds of chord events, and maximum matching avoids SequenceMatcher's
+    non-optimal choices around repeated chords.
+    """
     t_keys = [harm_key(n) for n in truth_names]
     c_keys = [harm_key(n) for n in cand_names]
-    sm = difflib.SequenceMatcher(a=t_keys, b=c_keys, autojunk=False)
+    n, m = len(t_keys), len(c_keys)
+    lengths = [[0] * (m + 1) for _ in range(n + 1)]
+    for ti in range(n - 1, -1, -1):
+        for ci in range(m - 1, -1, -1):
+            if t_keys[ti] == c_keys[ci]:
+                lengths[ti][ci] = lengths[ti + 1][ci + 1] + 1
+            else:
+                lengths[ti][ci] = max(lengths[ti + 1][ci], lengths[ti][ci + 1])
+
     pairs = []
-    for op, t0, t1, c0, c1 in sm.get_opcodes():
-        if op == "equal":
-            pairs.extend((t0 + k, c0 + k) for k in range(t1 - t0))
+    ti = ci = 0
+    while ti < n and ci < m:
+        if t_keys[ti] == c_keys[ci] and lengths[ti][ci] == lengths[ti + 1][ci + 1] + 1:
+            pairs.append((ti, ci))
+            ti += 1
+            ci += 1
+        elif lengths[ti + 1][ci] >= lengths[ti][ci + 1]:
+            ti += 1
+        else:
+            ci += 1
     return pairs
 
 
