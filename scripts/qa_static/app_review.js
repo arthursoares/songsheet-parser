@@ -25,6 +25,10 @@
   };
   let requestToken = 0;
 
+  function documentStillCurrent(doc, serialized) {
+    return state.doc === doc && JSON.stringify(state.doc) === serialized;
+  }
+
   function rows(summary) {
     const fields = (summary && summary.fields) || {};
     return Object.keys(FIELD_LABELS).map((field) => {
@@ -78,6 +82,7 @@
 
   async function refresh() {
     const doc = state.doc;
+    const serialized = doc ? JSON.stringify(doc) : "";
     const token = ++requestToken;
     if (!doc) {
       paintSummary(null);
@@ -86,9 +91,13 @@
     const result = await api("/api/review-doc", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ doc }),
+      body: `{"doc":${serialized}}`,
     });
-    if (token !== requestToken || state.doc !== doc) return;
+    if (token !== requestToken) return;
+    if (!documentStillCurrent(doc, serialized)) {
+      void refresh();
+      return;
+    }
     if (!result.ok) {
       $("reviewMsg").textContent = `Could not read review: ${result.error || "unknown error"}`;
       return;
@@ -112,6 +121,7 @@
     const button = $("reviewRecord");
     const message = $("reviewMsg");
     const doc = state.doc;
+    const serialized = JSON.stringify(doc);
     button.disabled = true;
     message.textContent = "recording…";
     try {
@@ -119,15 +129,16 @@
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          doc,
+          doc: JSON.parse(serialized),
           field: $("reviewField").value,
           status: $("reviewStatus").value,
           reviewer: $("reviewReviewer").value,
           evidence: $("reviewEvidence").value,
         }),
       });
-      if (state.doc !== doc) {
+      if (!documentStillCurrent(doc, serialized)) {
         message.textContent = "Document changed while review was recording; try again.";
+        void refresh();
         return;
       }
       if (!result.ok) {
@@ -147,7 +158,15 @@
     }
   }
 
-  return { FIELD_LABELS, STATUS_LABELS, rows, render, refresh, recordSelected };
+  return {
+    FIELD_LABELS,
+    STATUS_LABELS,
+    rows,
+    documentStillCurrent,
+    render,
+    refresh,
+    recordSelected,
+  };
 });
 
 function renderReview() { ReviewUI.render(); }
