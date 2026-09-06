@@ -84,6 +84,47 @@ python scripts/validate_extraction.py "data/<artist>/pdf/Album.pdf" \
   --workdir /tmp/ssv --report-json /tmp/report.json
 ```
 
+### Extraction evaluation
+
+For a reproducible benchmark, freeze explicit whole-song development and held-out splits. Each
+reference records its content hash, label type, and review provenance. Creation and scoring require
+every `human_reviewed` reference to have canonical `document.status=done`, verify every hash, and
+refuse other label types. The CLI label flag therefore cannot promote a pending song to ground
+truth.
+
+```bash
+python scripts/extraction_benchmark.py create \
+  --golden data/<artist>/songs \
+  --development <album/dev-song.json> \
+  --held-out <album/held-out-song.json> \
+  --label-type human_reviewed \
+  --review-provenance "manual comparison with source scans by <reviewer>" \
+  --output benchmark.json
+
+python scripts/extraction_benchmark.py score \
+  --manifest benchmark.json \
+  --golden data/<artist>/songs \
+  --candidate /tmp/fresh-parse/songs \
+  --split held_out \
+  --voicing-reference printed \
+  --report-json /tmp/held-out-report.json
+```
+
+Repeat `--development` or `--held-out` for each song. `printed` scores candidate `voicing` values
+against the reference's explicit `voicing_printed` field; `editorial` scores against `voicing`.
+The `done` status is the editorial song-review gate; it does not independently certify that the
+CV-derived `voicing_printed` values were checked by a person. Record that separate review in the
+manifest's `--review-provenance` text before treating printed-voicing scores as validated evidence.
+The report includes chord precision and recall plus voicing and text recovery over all applicable
+truth events. Compatibility keys (`chord_acc`, `voicing_acc`, `text_acc`, `spelling_acc`, and
+`anchor_acc`) remain, with their conditional denominators named in `metric_denominators`. Missing
+candidate songs count as misses, while extra candidate files appear under coverage and do not
+enter accuracy calculations.
+
+`eval_extraction.py score` remains useful for exploratory checks based on corpus status. A song
+used while tuning the parser is calibration data; its score is not evidence of historical reader
+accuracy. Report generalization only from an untouched, human-reviewed held-out split.
+
 ### QA correction tool (browser)
 
 Review each extracted song beside its scanned pages and fix chord names, fingerings, and lyrics.
