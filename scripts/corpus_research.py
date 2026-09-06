@@ -15,7 +15,7 @@ import unicodedata
 from pathlib import Path
 
 from eval_extraction import aligned_pairs, flat_entries
-from harmony import parse_symbol, roman, voicing_to_pitches
+from harmony import note_to_pc, parse_symbol, roman, voicing_to_pitches
 
 SCHEMA_VERSION = 1
 VOICING_FIELDS = ("voicing", "voicing_printed")
@@ -37,9 +37,7 @@ def _candidate_key(arrangement):
     return title, composers
 
 
-def load_manifest(path):
-    """Load and validate the small curated work-assignment manifest."""
-    manifest = json.loads(Path(path).read_text(encoding="utf-8"))
+def _validate_manifest(manifest):
     if manifest.get("schema_version") != SCHEMA_VERSION:
         raise ValueError(f"manifest schema_version must be {SCHEMA_VERSION}")
     works = manifest.get("works")
@@ -54,17 +52,27 @@ def load_manifest(path):
             raise ValueError(f"assignment {arrangement_id!r} references an unknown work_id")
         confirmed = assignment.get("confirmed_key")
         if confirmed is not None:
-            if (
-                not isinstance(confirmed, dict)
-                or not confirmed.get("tonic")
-                or not confirmed.get("evidence")
-            ):
+            if not isinstance(confirmed, dict):
                 raise ValueError(
                     f"assignment {arrangement_id!r} confirmed_key needs tonic and evidence"
+                )
+            tonic = confirmed.get("tonic")
+            if not isinstance(tonic, str) or tonic != tonic.strip() or note_to_pc(tonic) is None:
+                raise ValueError(f"assignment {arrangement_id!r} has an invalid tonic")
+            evidence = confirmed.get("evidence")
+            if not isinstance(evidence, str) or not evidence.strip():
+                raise ValueError(
+                    f"assignment {arrangement_id!r} confirmed_key needs non-blank evidence"
                 )
             if confirmed.get("mode", "major") not in ("major", "minor"):
                 raise ValueError(f"assignment {arrangement_id!r} has an invalid key mode")
     return manifest
+
+
+def load_manifest(path):
+    """Load and validate the small curated work-assignment manifest."""
+    manifest = json.loads(Path(path).read_text(encoding="utf-8"))
+    return _validate_manifest(manifest)
 
 
 def _song_records(path, corpus_root, document):
@@ -90,10 +98,12 @@ def _coverage(song):
 
 def build_catalog(corpus_root, manifest, include_unreviewed=False):
     """Return a deterministic catalog without changing the source corpus."""
+    manifest = _validate_manifest(manifest)
     corpus_root = Path(corpus_root)
     arrangements = []
     excluded = {}
     invalid_files = []
+    valid_files = 0
     assignments = manifest["assignments"]
 
     for path in sorted(corpus_root.rglob("*.json")):
@@ -105,6 +115,7 @@ def build_catalog(corpus_root, manifest, include_unreviewed=False):
                 {"source_path": path.relative_to(corpus_root).as_posix(), "error": str(exc)}
             )
             continue
+        valid_files += 1
         status = document.get("document", {}).get("status") or "pending"
         for arrangement_id, song in _song_records(path, corpus_root, document):
             eligible = status == "done"
@@ -189,6 +200,9 @@ def build_catalog(corpus_root, manifest, include_unreviewed=False):
             "identity_authority": "curated manifest assignments",
         },
         "summary": {
+            "source_files_attempted": valid_files + len(invalid_files),
+            "source_files_valid": valid_files,
+            "source_files_invalid": len(invalid_files),
             "arrangements_discovered": len(arrangements),
             "arrangements_included": len(included),
             "arrangements_excluded": len(arrangements) - len(included),
@@ -329,7 +343,10 @@ def compare_arrangements(corpus_root, left, right, voicing_field="voicing"):
     }
     left_key = left["keys"]["confirmed"]
     right_key = right["keys"]["confirmed"]
-    roman_enabled = left_key is not None and right_key is not None
+    keys_confirmed = left_key is not None and right_key is not None
+    left_roman_events = _roman_alignment(left_entries, left_key) if keys_confirmed else []
+    right_roman_events = _roman_alignment(right_entries, right_key) if keys_confirmed else []
+    roman_enabled = bool(keys_confirmed and left_roman_events and right_roman_events)
 
     for left_index, right_index in pairs:
         le, re_ = left_entries[left_index], right_entries[right_index]
@@ -374,8 +391,6 @@ def compare_arrangements(corpus_root, left, right, voicing_field="voicing"):
         )
 
     spans = _unaligned_spans(left_entries, right_entries, pairs)
-    left_roman_events = _roman_alignment(left_entries, left_key) if roman_enabled else []
-    right_roman_events = _roman_alignment(right_entries, right_key) if roman_enabled else []
     roman_pairs = (
         aligned_pairs(
             [event["roman"] for event in left_roman_events],
@@ -389,6 +404,25 @@ def compare_arrangements(corpus_root, left, right, voicing_field="voicing"):
         if roman_enabled
         else []
     )
+    roman_matches = [
+        {
+            "left": {
+                **_event_view(
+                    left_roman_events[left_index]["entry"],
+                    left_roman_events[left_index]["event_index"],
+                ),
+                "roman": left_roman_events[left_index]["roman"],
+            },
+            "right": {
+                **_event_view(
+                    right_roman_events[right_index]["entry"],
+                    right_roman_events[right_index]["event_index"],
+                ),
+                "roman": right_roman_events[right_index]["roman"],
+            },
+        }
+        for left_index, right_index in roman_pairs
+    ]
     mismatches = [
         item
         for item in aligned
@@ -414,11 +448,16 @@ def compare_arrangements(corpus_root, left, right, voicing_field="voicing"):
             "reason": (
                 "both arrangements have manifest-confirmed keys"
                 if roman_enabled
-                else "disabled: both arrangements need manifest-confirmed keys"
+                else (
+                    "disabled: confirmed keys produced no comparable Roman events"
+                    if keys_confirmed
+                    else "disabled: both arrangements need manifest-confirmed keys"
+                )
             ),
             "left_events": len(left_roman_events),
             "right_events": len(right_roman_events),
             "aligned_events": len(roman_pairs),
+            "aligned_event_pairs": roman_matches,
             "unaligned_spans": roman_spans,
         },
         "event_counts": {"left": len(left_entries), "right": len(right_entries)},
@@ -530,21 +569,35 @@ def render_html(report):
     comparison_sections = []
     for comparison in report["comparisons"]:
         counts = comparison["counts"]
+        absolute_gaps = counts["unaligned_spans"]
+        roman_result = comparison["roman_comparison"]
+        roman_gaps = len(roman_result["unaligned_spans"])
+        roman_summary = (
+            f"Confirmed-key Roman alignment: {roman_result['aligned_events']} match"
+            f"{'es' if roman_result['aligned_events'] != 1 else ''}; {roman_gaps} gap span"
+            f"{'s' if roman_gaps != 1 else ''}."
+            if roman_result["enabled"]
+            else f"Confirmed-key Roman alignment: {roman_result['reason']}."
+        )
         comparison_sections.append(
             f"<section><h2>{esc(comparison['left_arrangement_id'])} ↔ "
             f"{esc(comparison['right_arrangement_id'])}</h2>"
             f"<p>{'PROVISIONAL · ' if comparison['provisional'] else ''}"
             f"field: <code>{esc(comparison['voicing_field'])}</code>; "
-            f"aligned: {esc(counts['harmonically_aligned'])}; "
-            f"unaligned spans: {esc(counts['unaligned_spans'])}; "
             f"voicing differences: {esc(counts['voicing_differences'])}; "
             f"physical bass differences: {esc(counts['physical_bass_differences'])}.</p>"
-            f"<p>Roman comparison: {esc(comparison['roman_comparison']['reason'])}.</p>"
-            f"<details><summary>Aligned mismatches</summary><pre>"
-            f"{esc(json.dumps(comparison['aligned_mismatches'], ensure_ascii=False, indent=2))}"
+            f"<p>Absolute harmonic alignment: {esc(counts['harmonically_aligned'])} match"
+            f"{'es' if counts['harmonically_aligned'] != 1 else ''}; {esc(absolute_gaps)} gap span"
+            f"{'s' if absolute_gaps != 1 else ''}.</p>"
+            f"<p>{esc(roman_summary)}</p>"
+            f"<details><summary>Absolute harmonic matches</summary><pre>"
+            f"{esc(json.dumps(comparison['aligned_events'], ensure_ascii=False, indent=2))}"
             "</pre></details>"
-            f"<details><summary>Unaligned evidence</summary><pre>"
+            f"<details><summary>Absolute harmonic gaps</summary><pre>"
             f"{esc(json.dumps(comparison['unaligned_spans'], ensure_ascii=False, indent=2))}"
+            "</pre></details>"
+            f"<details><summary>Confirmed-key Roman matches and gaps</summary><pre>"
+            f"{esc(json.dumps({'matches': roman_result['aligned_event_pairs'], 'gaps': roman_result['unaligned_spans']}, ensure_ascii=False, indent=2))}"
             "</pre></details></section>"
         )
     queue_rows = "".join(
@@ -561,6 +614,10 @@ def render_html(report):
         f"<td>{esc(item['note'])}</td></tr>"
         for item in report["catalog"]["candidate_groups"]
     )
+    invalid_rows = "".join(
+        f"<tr><td>{esc(item['source_path'])}</td><td>{esc(item['error'])}</td></tr>"
+        for item in report["catalog"]["invalid_files"]
+    )
     return f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width">
 <title>Cross-album corpus research</title><style>
@@ -570,7 +627,9 @@ th{{background:#eee}}code,pre{{font:12px ui-monospace,monospace}}pre{{white-spac
 .notice{{padding:.7rem;background:#fff4ce;border-left:4px solid #c48b00}}</style></head><body>
 <h1>Cross-album corpus research</h1>
 <p class="notice">This report describes songbook documents and curated work assignments. It makes no recording or release-date claims. Priority points rank missing evidence and disagreements; they are not probabilities.</p>
+<p>Sources attempted {esc(summary["source_files_attempted"])}: {esc(summary["source_files_valid"])} valid, {esc(summary["source_files_invalid"])} invalid.</p>
 <p>Included {esc(summary["arrangements_included"])} of {esc(summary["arrangements_discovered"])} arrangements; excluded {esc(summary["arrangements_excluded"])} ({esc(summary["excluded_by_status"])}); comparisons {esc(summary["same_work_comparisons"])}.</p>
+<h2>Invalid source files</h2><table><thead><tr><th>Source path</th><th>Error</th></tr></thead><tbody>{invalid_rows}</tbody></table>
 <h2>Catalog and coverage</h2><table><thead><tr><th>Arrangement/source</th><th>Observed album</th><th>Observed song</th><th>Work</th><th>Status</th><th>Included</th><th>Stored key</th><th>Confirmed key evidence</th><th>Editorial voicings</th><th>Printed voicings</th><th>Revision SHA-256</th></tr></thead><tbody>{"".join(rows)}</tbody></table>
 <h2>Candidate groups</h2><p>Normalization suggestions require manifest review and do not merge works.</p><table><thead><tr><th>Normalized title</th><th>Normalized composers</th><th>Arrangements</th><th>Identity status</th></tr></thead><tbody>{candidate_rows}</tbody></table>
 <h2>Review queue</h2><table><thead><tr><th>Points</th><th>Arrangement</th><th>Evidence needed</th></tr></thead><tbody>{queue_rows}</tbody></table>
