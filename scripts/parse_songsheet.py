@@ -16,11 +16,18 @@ Providers:
 
 import argparse
 import base64
+import copy
 import json
 import os
 import sys
+import uuid
 from datetime import datetime, timezone
+from importlib import metadata
 from pathlib import Path
+
+from extraction_provenance import attach_observations, file_sha256, json_sha256
+from songsheet_io import write_json_artifact
+from songsheet_version import SCHEMA_VERSION, stamp
 
 PARSE_PROMPT = """Analyze this Brazilian songsheet image (one page) and extract a structured JSON object.
 
@@ -241,32 +248,107 @@ def parse_with_codex(image_path: Path, model: str = None) -> dict:
     return codex_client.codex_vision_json(image_path, PARSE_PROMPT, model=model)
 
 
-def parse_songsheet(image_path: Path, provider: str = "codex", model: str = None) -> dict:
-    """Parse a songsheet image and return structured JSON."""
-
+def extraction_settings(image_path: Path, provider: str = "codex", model: str = None) -> dict:
+    """Fingerprint effective inputs/settings without reading credentials or calling a provider."""
     import codex_client
 
-    parsers = {
-        "codex": (parse_with_codex, codex_client.DEFAULT_MODEL),
-        "claude": (parse_with_claude, "claude-sonnet-4-20250514"),
-        "gemini": (parse_with_gemini, "gemini-2.0-flash"),
-        "openai": (parse_with_openai, "gpt-4o"),
+    defaults = {
+        "codex": codex_client.DEFAULT_MODEL,
+        "claude": "claude-sonnet-4-20250514",
+        "gemini": "gemini-2.0-flash",
+        "openai": "gpt-4o",
     }
+    if provider not in defaults:
+        raise ValueError(f"Unknown provider: {provider}. Use: {list(defaults)}")
+    package = {
+        "codex": "openai",
+        "openai": "openai",
+        "claude": "anthropic",
+        "gemini": "google-generativeai",
+    }[provider]
+    try:
+        sdk_version = metadata.version(package)
+    except metadata.PackageNotFoundError:
+        sdk_version = None
+    scripts = Path(__file__).resolve().parent
+    code = [Path(__file__), scripts / "extraction_provenance.py"]
+    if provider == "codex":
+        code.append(scripts / "codex_client.py")
+    settings = {
+        "image": {"name": Path(image_path).name, "sha256": file_sha256(image_path)},
+        "provider": provider,
+        "model": model or defaults[provider],
+        "prompt_sha256": json_sha256(PARSE_PROMPT),
+        "implementation": {p.name: file_sha256(p) for p in code},
+        "schema_sha256": file_sha256(scripts.parent / "schemas" / "songsheet.schema.json"),
+        "schema_version": SCHEMA_VERSION,
+        "sdk": {"package": package, "version": sdk_version},
+        "request_options": {"max_tokens": 4096} if provider in ("claude", "openai") else {},
+    }
+    if provider == "codex":
+        settings["request_options"] = {"image_detail": "high", "store": False, "stream": True}
+    return settings
 
-    if provider not in parsers:
-        raise ValueError(f"Unknown provider: {provider}. Use: {list(parsers.keys())}")
 
-    parser_fn, default_model = parsers[provider]
-    model = model or default_model
-
-    result = parser_fn(image_path, model)
-
-    # Add provenance metadata (kept alongside the document/songs payload)
+def parse_songsheet(image_path: Path, provider: str = "codex", model: str = None) -> dict:
+    """Parse one image and preserve its exact readings alongside editable entries."""
+    settings = extraction_settings(image_path, provider, model)
+    parser_fn = {
+        "codex": parse_with_codex,
+        "claude": parse_with_claude,
+        "gemini": parse_with_gemini,
+        "openai": parse_with_openai,
+    }[provider]
+    result = parser_fn(image_path, settings["model"])
     result.setdefault("_meta", {})
     result["_meta"]["source"] = image_path.name
     result["_meta"]["parsed_at"] = datetime.now(timezone.utc).isoformat()
-    result["_meta"]["model"] = f"{provider}/{model}"
+    result["_meta"]["model"] = f"{provider}/{settings['model']}"
+    result["_meta"]["extraction"] = settings
+    source = {
+        "kind": "vision",
+        "extraction": settings,
+        "parsed_at": result["_meta"]["parsed_at"],
+        "response_id": None,
+    }
+    return stamp(attach_observations(result, source))
 
+
+def parse_cached(
+    image_path: Path,
+    output: Path,
+    *,
+    force: bool = False,
+    provider: str = "codex",
+    model: str = None,
+) -> dict:
+    """Shared fingerprinted cache and append-only snapshots for every extraction CLI."""
+    output.mkdir(parents=True, exist_ok=True)
+    settings = extraction_settings(image_path, provider, model)
+    cache = output / f"{image_path.stem}.json"
+    if cache.exists() and not force:
+        try:
+            result = json.loads(cache.read_text())
+            cached = result.get("_meta", {}).get("cache", {})
+            if cached.get("settings_sha256") == json_sha256(settings):
+                payload = copy.deepcopy(result)
+                payload["_meta"].pop("cache", None)
+                if cached.get("payload_sha256") == json_sha256(payload):
+                    return result
+        except (OSError, ValueError, TypeError, AttributeError):
+            pass
+    result = parse_songsheet(image_path, provider=provider, model=model)
+    snapshots = output / "extractions"
+    snapshots.mkdir(exist_ok=True)
+    result["_meta"].pop("cache", None)
+    result["_meta"]["cache"] = {
+        "settings_sha256": json_sha256(settings),
+        "payload_sha256": json_sha256(result),
+    }
+    # JSON content with a reserved suffix: recursive *.json song exporters must
+    # consume only the latest aliases, never historical extraction attempts.
+    write_json_artifact(snapshots / f"{image_path.stem}-{uuid.uuid4().hex}.snapshot", result)
+    write_json_artifact(cache, result, overwrite=True)
     return result
 
 
@@ -278,6 +360,9 @@ def main():
         "-p", "--provider", default="codex", choices=["codex", "claude", "gemini", "openai"]
     )
     parser.add_argument("-m", "--model", help="Override model name")
+    parser.add_argument(
+        "--force", action="store_true", help="make a new extraction despite a matching cache"
+    )
     parser.add_argument("--dry-run", action="store_true", help="Show what would be done")
 
     args = parser.parse_args()
@@ -298,10 +383,9 @@ def main():
         print(f"Parsing: {image_path.name}...", end=" ", flush=True)
 
         try:
-            result = parse_songsheet(image_path, args.provider, args.model)
-
-            with open(output_path, "w") as f:
-                json.dump(result, f, indent=2, ensure_ascii=False)
+            result = parse_cached(
+                image_path, args.output, provider=args.provider, model=args.model, force=args.force
+            )
 
             confidence = result.get("_confidence", "?")
             flags = len(result.get("_flags", []))

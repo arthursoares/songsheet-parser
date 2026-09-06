@@ -17,10 +17,11 @@ Usage:
     python validate_extraction.py PDF --report-json /tmp/report.json
 
 Page renders and per-page JSON live under <workdir>/<pdf-stem>/ and are reused
-on re-run unless --force is given.
+only while content/settings fingerprints match. --force creates a fresh extraction.
 """
 
 import argparse
+import copy
 import json
 import sys
 import unicodedata
@@ -33,6 +34,15 @@ ROOT = SCRIPTS.parent
 sys.path.insert(0, str(SCRIPTS))
 
 import parse_songsheet  # noqa: E402
+from extraction_provenance import (  # noqa: E402
+    attach_observations,
+    file_sha256,
+    has_observations,
+    seal_page_sources,
+    validate_observations,
+)
+from songsheet_io import publish_bytes, write_json_artifact  # noqa: E402
+from songsheet_version import stamp, version_error  # noqa: E402
 
 SCHEMA_PATH = ROOT / "schemas" / "songsheet.schema.json"
 DEFAULT_WORKDIR = Path("/tmp/ssv")
@@ -41,25 +51,42 @@ DEFAULT_WORKDIR = Path("/tmp/ssv")
 def render_pages(pdf_path: Path, out_dir: Path, dpi: int, force: bool) -> list[Path]:
     """Render each PDF page to a PNG, cached. Return ordered list of PNG paths."""
     out_dir.mkdir(parents=True, exist_ok=True)
-    doc = fitz.open(pdf_path)
-    pages = []
-    for i in range(doc.page_count):
-        png = out_dir / f"page-{i + 1:03d}.png"
-        if force or not png.exists():
-            doc[i].get_pixmap(dpi=dpi).save(png)
-        pages.append(png)
-    doc.close()
+    settings = {
+        "pdf": {"name": pdf_path.name, "sha256": file_sha256(pdf_path)},
+        "dpi": dpi,
+        "renderer": {
+            "pymupdf": fitz.VersionBind,
+            "implementation_sha256": file_sha256(Path(__file__)),
+        },
+    }
+    manifest_path = out_dir / "_render-manifest.json"
+    try:
+        previous = json.loads(manifest_path.read_text())
+    except (OSError, ValueError):
+        previous = {}
+    if not isinstance(previous, dict):
+        previous = {}
+    reusable = not force and previous.get("settings") == settings
+    old_pages = previous.get("pages", {}) if reusable else {}
+    if not isinstance(old_pages, dict):
+        old_pages = {}
+    pages, records = [], {}
+    with fitz.open(pdf_path) as doc:
+        for i in range(doc.page_count):
+            png = out_dir / f"page-{i + 1:03d}.png"
+            if not (png.exists() and old_pages.get(png.name) == file_sha256(png)):
+                publish_bytes(png, doc[i].get_pixmap(dpi=dpi).tobytes("png"), overwrite=True)
+            pages.append(png)
+            records[png.name] = file_sha256(png)
+    write_json_artifact(manifest_path, {"settings": settings, "pages": records}, overwrite=True)
     return pages
 
 
-def parse_page(png: Path, out_dir: Path, force: bool) -> dict:
-    """Parse one page to the document model, cached as JSON. Return the dict."""
-    cache = out_dir / f"{png.stem}.json"
-    if cache.exists() and not force:
-        return json.loads(cache.read_text())
-    result = parse_songsheet.parse_songsheet(png, provider="codex")
-    cache.write_text(json.dumps(result, ensure_ascii=False, indent=2))
-    return result
+def parse_page(
+    png: Path, out_dir: Path, force: bool, *, provider: str = "codex", model: str = None
+) -> dict:
+    """Reuse only matching, intact page results; preserve every new extraction snapshot."""
+    return parse_songsheet.parse_cached(png, out_dir, force=force, provider=provider, model=model)
 
 
 def _norm_title(title: str) -> str:
@@ -67,11 +94,59 @@ def _norm_title(title: str) -> str:
     return nfkd.encode("ascii", "ignore").decode("ascii").lower().strip()
 
 
-def assemble_document(pdf_path: Path, page_results: list[dict]) -> dict:
+def assemble_document(
+    pdf_path: Path, page_results: list[dict], *, page_numbers: list[int] | None = None
+) -> dict:
     """Stitch per-page parse results into one document, merging songs that
     continue across page breaks (same title as previous page's last song)."""
     songs: list[dict] = []
-    for page_idx, result in enumerate(page_results, start=1):
+    page_numbers = (
+        page_numbers if page_numbers is not None else list(range(1, len(page_results) + 1))
+    )
+    if (
+        len(page_numbers) != len(page_results)
+        or len(set(page_numbers)) != len(page_numbers)
+        or any(type(p) is not int or p < 1 for p in page_numbers)
+    ):
+        raise ValueError("page_numbers must give one distinct positive page number per result")
+    pdf_source = {
+        "name": pdf_path.name,
+        "sha256": file_sha256(pdf_path) if pdf_path.is_file() else None,
+    }
+    meta = {
+        "source_pdf": pdf_source,
+        "extraction_sources": {},
+        "observations": {},
+        "page_sources": {},
+    }
+    for page_idx, original in zip(page_numbers, page_results):
+        result = copy.deepcopy(original)
+        err = version_error(result)
+        if err:
+            raise ValueError(err)
+        validate_observations(result)
+        if not has_observations(result):
+            result = attach_observations(
+                result,
+                {
+                    "kind": "failed_page"
+                    if result.get("_meta", {}).get("parse_error")
+                    else "legacy_page_result",
+                    "metadata": copy.deepcopy(result.get("_meta", {})),
+                    "source_pdf": pdf_source,
+                    "page": page_idx,
+                },
+            )
+        for key in ("extraction_sources", "observations"):
+            for source_id, value in result["_meta"][key].items():
+                if source_id in meta[key] and meta[key][source_id] != value:
+                    raise ValueError(f"conflicting extraction evidence: {source_id}")
+                meta[key][source_id] = copy.deepcopy(value)
+        for source_id in result["_meta"]["extraction_sources"]:
+            context = {"source_pdf": pdf_source, "page": page_idx}
+            if source_id in meta["page_sources"] and meta["page_sources"][source_id] != context:
+                raise ValueError("one extraction source cannot refer to multiple PDF pages")
+            meta["page_sources"][source_id] = context
         for s_idx, song in enumerate(result.get("songs", [])):
             song = json.loads(json.dumps(song))  # deep copy
             # The model's own "pages" value is an unreliable guess (it may print
@@ -90,14 +165,18 @@ def assemble_document(pdf_path: Path, page_results: list[dict]) -> dict:
                 song["pages"] = [page_idx]
                 songs.append(song)
 
-    return {
-        "document": {
-            "title": pdf_path.stem,
-            "source_pdf": pdf_path.name,
-            "page_count": len(page_results),
-        },
-        "songs": songs,
-    }
+    seal_page_sources(meta)
+    return stamp(
+        {
+            "document": {
+                "title": pdf_path.stem,
+                "source_pdf": pdf_path.name,
+                "page_count": len(page_results),
+            },
+            "songs": songs,
+            "_meta": meta,
+        }
+    )
 
 
 def _bars(song: dict) -> list:
@@ -144,10 +223,10 @@ def validate_pdf(pdf_path: Path, workdir: Path, dpi: int, force: bool) -> dict:
             page_results.append(parse_page(png, work, force))
         except Exception as e:  # noqa: BLE001
             parse_errors.append(f"{png.name}: {e}")
-            page_results.append({"songs": []})
+            page_results.append({"songs": [], "_meta": {"parse_error": str(e)}})
 
     document = assemble_document(pdf_path, page_results)
-    (work / "_assembled.json").write_text(json.dumps(document, ensure_ascii=False, indent=2))
+    write_json_artifact(work / "_assembled.json", document, overwrite=True)
 
     schema_error = None
     try:

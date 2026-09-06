@@ -335,12 +335,12 @@ def cmd_reparse(args):
     """Parse a golden song's page PNGs fresh, assemble, score against the golden.
 
     The whole prompt-improvement loop in one command: per-page parses are
-    cached under --workdir (delete it or pass --force after a prompt change).
+    cached under --workdir only while their input/settings fingerprints match.
     """
     import re as _re
 
-    import parse_songsheet
-    from validate_extraction import assemble_document
+    from songsheet_io import write_json_artifact
+    from validate_extraction import assemble_document, parse_page
 
     golden_song, golden_doc = _load_song(args.golden)
     pages_dir = args.golden.parent / "pages"
@@ -357,21 +357,19 @@ def cmd_reparse(args):
     work.mkdir(parents=True, exist_ok=True)
     page_results = []
     for png in pngs:
-        cache = work / f"{png.stem}.json"
-        if cache.exists() and not args.force:
-            print(f"  {png.name}: cached")
-            page_results.append(json.loads(cache.read_text()))
-            continue
-        print(f"  {png.name}: parsing…", flush=True)
-        result = parse_songsheet.parse_songsheet(png, provider=args.provider, model=args.model)
-        cache.write_text(json.dumps(result, ensure_ascii=False, indent=2))
-        page_results.append(result)
+        print(f"  {png.name}: checking extraction…", flush=True)
+        page_results.append(
+            parse_page(png, work, args.force, provider=args.provider, model=args.model)
+        )
 
-    doc = assemble_document(Path(stem), page_results)
+    numbers = [int(_re.search(r"-p(\d+)$", png.stem).group(1)) for png in pngs]
+    source_pdf = Path(golden_doc.get("document", {}).get("source_pdf") or stem)
+    doc = assemble_document(source_pdf, page_results, page_numbers=numbers)
+    write_json_artifact(work / "_candidate.json", doc, overwrite=True)
     if len(doc["songs"]) != 1:
-        print(f"note: fresh parse assembled into {len(doc['songs'])} songs; scoring songs[0]")
+        print(f"Cannot score: fresh parse assembled into {len(doc['songs'])} songs; expected one.")
+        return 1
     cand_song = doc["songs"][0]
-    (work / "_candidate.json").write_text(json.dumps(doc, ensure_ascii=False, indent=2))
 
     s = score_song(golden_song, cand_song)
     print(f"\n{'':<12} {'chord':>8} {'spell':>8} {'voicing':>8} {'text':>8} {'anchor':>8}  bars")

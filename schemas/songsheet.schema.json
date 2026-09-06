@@ -21,6 +21,11 @@
           "description": "Chord name, or '%' for measure-repeat (continued chord)"
         },
         "voicing": { "$ref": "#/definitions/voicing" },
+        "observation_id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Stable link to the immutable source reading in _meta.observations"
+        },
         "voicing_printed": {
           "$ref": "#/definitions/voicing",
           "description": "What the PAGE prints (CV diagram reader) — kept separate from 'voicing' so editorial corrections don't overwrite the evidence"
