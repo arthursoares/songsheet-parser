@@ -19,6 +19,33 @@ on disk. Even `materialize_songs --overwrite` cannot discard existing source evi
 fresh candidate directory when re-extracting. Raw source readings are evidence of the page
 extraction, not proof of what a recording contains or a claim of human verification.
 
+## Native diagram evidence
+
+Whole-PDF validation also reads chord diagrams from the PDF's native embedded page image.
+It adds `voicing_printed` only when the number of detected, readable diagrams exactly
+matches every non-repeat source observation on that page (plus `%` entries whose source
+observation explicitly contains a voicing). Pairing is page-local visual reading order.
+The tool never shifts across a missing/extra diagram and never uses an existing voicing to
+choose a pairing. All results are proposals marked `unreviewed`.
+
+`_meta.diagram_evidence` is keyed by the entry's stable `observation_id`. Each self-hashed
+record contains the PDF hash and page, native-raster dimensions and coordinate space,
+inclusive diagram crop box, decoded pattern and voicing, base-fret resolution and chord-name
+dependence, the original source symbol, reader/template hashes, pairing basis, and errors.
+Count mismatches, unreadable diagrams, and missing native imagery are kept in self-hashed
+`_meta.diagram_diagnostics` records. These diagnostics preserve all detected results as a
+manual-review worklist without changing the page extraction.
+
+Diagram enrichment is the default for `validate_extraction.py`; use `--no-diagrams` for the
+legacy LLM-only path. To enrich one existing page candidate without modifying it:
+
+```bash
+python scripts/diagram_evidence.py candidate-page.json Album.pdf --page 8 \
+  --output enriched-page.json
+```
+
+The output is create-only. Choose a new path for another attempt.
+
 ## Cache and snapshot behavior
 
 The direct parser CLI, whole-PDF validator, and evaluation `reparse` command share the same
@@ -44,3 +71,9 @@ python scripts/materialize_songs.py --workdir .local/candidates/run-001 \
 `.local/` is git-ignored. The corrected corpus is not modified by these commands. Fingerprints
 make runs attributable and prevent stale cache reuse; they do not make a remote model
 deterministic. Provider response IDs are currently unavailable and recorded as null.
+
+Diagram records are also checked and preserved by corpus saves. Pairing uses the original
+observation order, so later editorial reordering cannot move evidence to another chord.
+Metadata includes native pixel and transitive decision-code hashes; name-conditioned readings
+remain proposals. Multi-song page diagnostics become per-song subsets with a parent fingerprint.
+Reports explicitly distinguish disabled diagram extraction from unreviewed hybrid proposals.

@@ -33,6 +33,7 @@ SCRIPTS = Path(__file__).resolve().parent
 ROOT = SCRIPTS.parent
 sys.path.insert(0, str(SCRIPTS))
 
+import diagram_evidence  # noqa: E402
 import parse_songsheet  # noqa: E402
 from extraction_provenance import (  # noqa: E402
     attach_observations,
@@ -125,6 +126,7 @@ def assemble_document(
         if err:
             raise ValueError(err)
         validate_observations(result)
+        diagram_evidence.validate_diagram_metadata(result)
         if not has_observations(result):
             result = attach_observations(
                 result,
@@ -142,6 +144,12 @@ def assemble_document(
                 if source_id in meta[key] and meta[key][source_id] != value:
                     raise ValueError(f"conflicting extraction evidence: {source_id}")
                 meta[key][source_id] = copy.deepcopy(value)
+        for key in ("diagram_evidence", "diagram_diagnostics"):
+            for record_id, value in result.get("_meta", {}).get(key, {}).items():
+                target = meta.setdefault(key, {})
+                if record_id in target and target[record_id] != value:
+                    raise ValueError(f"conflicting diagram evidence: {record_id}")
+                target[record_id] = copy.deepcopy(value)
         for source_id in result["_meta"]["extraction_sources"]:
             context = {"source_pdf": pdf_source, "page": page_idx}
             if source_id in meta["page_sources"] and meta["page_sources"][source_id] != context:
@@ -166,7 +174,7 @@ def assemble_document(
                 songs.append(song)
 
     seal_page_sources(meta)
-    return stamp(
+    assembled = stamp(
         {
             "document": {
                 "title": pdf_path.stem,
@@ -177,6 +185,8 @@ def assemble_document(
             "_meta": meta,
         }
     )
+    validate_observations(assembled)
+    return assembled
 
 
 def _bars(song: dict) -> list:
@@ -210,7 +220,9 @@ def heuristics(document: dict) -> list[str]:
     return warns
 
 
-def validate_pdf(pdf_path: Path, workdir: Path, dpi: int, force: bool) -> dict:
+def validate_pdf(
+    pdf_path: Path, workdir: Path, dpi: int, force: bool, *, diagrams: bool = True
+) -> dict:
     import jsonschema
 
     schema = json.loads(SCHEMA_PATH.read_text())
@@ -218,12 +230,20 @@ def validate_pdf(pdf_path: Path, workdir: Path, dpi: int, force: bool) -> dict:
     pages = render_pages(pdf_path, work, dpi, force)
 
     page_results, parse_errors = [], []
-    for png in pages:
+    for page_number, png in enumerate(pages, start=1):
         try:
-            page_results.append(parse_page(png, work, force))
+            result = parse_page(png, work, force)
         except Exception as e:  # noqa: BLE001
             parse_errors.append(f"{png.name}: {e}")
-            page_results.append({"songs": [], "_meta": {"parse_error": str(e)}})
+            result = {"songs": [], "_meta": {"parse_error": str(e)}}
+        if diagrams and not result.get("_meta", {}).get("parse_error"):
+            try:
+                result = diagram_evidence.enrich_page_result(result, pdf_path, page_number)
+            except Exception as e:  # noqa: BLE001
+                result = diagram_evidence.record_page_failure(
+                    result, pdf_path, page_number, "enrichment_error", str(e)
+                )
+        page_results.append(result)
 
     document = assemble_document(pdf_path, page_results)
     write_json_artifact(work / "_assembled.json", document, overwrite=True)
@@ -235,6 +255,8 @@ def validate_pdf(pdf_path: Path, workdir: Path, dpi: int, force: bool) -> dict:
         schema_error = f"{list(e.absolute_path)}: {e.message}"
 
     warns = heuristics(document)
+    diagram_diagnostics = list(document.get("_meta", {}).get("diagram_diagnostics", {}).values())
+    diagram_count = len(document.get("_meta", {}).get("diagram_evidence", {}))
     return {
         "pdf": pdf_path.name,
         "pages": len(pages),
@@ -243,7 +265,16 @@ def validate_pdf(pdf_path: Path, workdir: Path, dpi: int, force: bool) -> dict:
         "parse_errors": parse_errors,
         "schema_error": schema_error,
         "warnings": warns,
-        "passed": not parse_errors and schema_error is None and not warns,
+        "diagram_diagnostics": diagram_diagnostics,
+        "diagrams_enabled": diagrams,
+        "diagram_status": "disabled"
+        if not diagrams
+        else ("issues" if diagram_diagnostics else "unreviewed_proposals"),
+        "diagram_evidence_count": diagram_count,
+        "passed": not parse_errors
+        and schema_error is None
+        and not warns
+        and not diagram_diagnostics,
         "assembled_path": str(work / "_assembled.json"),
     }
 
@@ -254,16 +285,23 @@ def main():
     ap.add_argument("--workdir", type=Path, default=DEFAULT_WORKDIR)
     ap.add_argument("--dpi", type=int, default=200)
     ap.add_argument("--force", action="store_true", help="Re-render and re-parse, ignore cache")
+    ap.add_argument(
+        "--no-diagrams",
+        action="store_true",
+        help="skip native-image diagram evidence enrichment",
+    )
     ap.add_argument("--report-json", type=Path)
     args = ap.parse_args()
 
     reports = []
     for pdf in args.pdfs:
         print(f"\n{'=' * 70}\n📄 {pdf.name}\n{'=' * 70}", flush=True)
-        rep = validate_pdf(pdf, args.workdir, args.dpi, args.force)
+        rep = validate_pdf(pdf, args.workdir, args.dpi, args.force, diagrams=not args.no_diagrams)
         reports.append(rep)
         status = "✅ PASS" if rep["passed"] else "❌ ISSUES"
-        print(f"{status}  pages={rep['pages']} songs={rep['songs']}")
+        print(
+            f"{status}  pages={rep['pages']} songs={rep['songs']} diagrams={rep['diagram_status']}"
+        )
         for t in rep["song_titles"]:
             print(f"   • {t}")
         for e in rep["parse_errors"]:
@@ -272,6 +310,9 @@ def main():
             print(f"   ❌ schema: {rep['schema_error']}")
         for w in rep["warnings"]:
             print(f"   ⚠️  {w}")
+        for diagnostic in rep["diagram_diagnostics"]:
+            record = diagnostic["record"]
+            print(f"   ⚠️  diagram page {record['page']}: {record['message']}")
         print(f"   → {rep['assembled_path']}")
 
     if args.report_json:
