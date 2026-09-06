@@ -12,8 +12,9 @@ Usage:
 """
 
 import argparse
-import json
 from pathlib import Path
+
+from songsheet_io import load_document, save_document
 
 
 def collect_fragments(song):
@@ -82,7 +83,7 @@ def hyphenate_via_llm(fragments):
 
 def migrate_file(path, hyphenator, dry_run=False):
     """Migrate one song JSON. hyphenator(fragments)->lines. Returns True if changed."""
-    doc = json.loads(Path(path).read_text())
+    doc = load_document(path)
     changed = False
     for song in doc.get("songs", []):
         if not needs_migration(song):
@@ -92,7 +93,7 @@ def migrate_file(path, hyphenator, dry_run=False):
         apply_fragments(song, hyph)
         changed = True
     if changed and not dry_run:
-        Path(path).write_text(json.dumps(doc, ensure_ascii=False, indent=2))
+        save_document(path, doc, overwrite=True)
     return changed
 
 

@@ -30,7 +30,7 @@ from pathlib import Path
 
 from diagram_reader import decode_diagram, detect_diagrams, load_page_image, resolve_voicing
 from materialize_songs import album_slug
-from songsheet_version import stamp
+from songsheet_io import load_document, save_document
 
 # ---------------------------------------------------------------------------
 # pure pairing / comparison
@@ -238,26 +238,28 @@ def main():
             print(f"!! no PDF found for album {album_dir.name}, skipping")
             continue
         for song_file in sorted(album_dir.glob("*.json")):
-            doc = json.loads(song_file.read_text())
-            song = doc["songs"][0]
+            rep = {"album": album_dir.name, "file": song_file.name}
             try:
+                doc = load_document(song_file)
+                song = doc["songs"][0]
                 diagrams = song_diagram_voicings(song, pdf, args.cache)
+                audit, pairs = audit_song(song, diagrams)
+                rep.update(audit)
+                rep["status"] = doc.get("document", {}).get("status") or "pending"
+                if args.write and pairs:
+                    changed = False
+                    for e, (cv, _err) in pairs:
+                        if cv and e.get("voicing_printed") != cv:
+                            e["voicing_printed"] = cv
+                            changed = True
+                    if changed:
+                        save_document(song_file, doc, overwrite=True)
             except Exception as e:  # noqa: BLE001 — one bad page shouldn't kill the run
-                rows.append({"album": album_dir.name, "file": song_file.name, "error": str(e)})
+                rep["error"] = str(e)
+                rows.append(rep)
+                print(f"ERROR  {album_dir.name}/{song_file.name}: {e}")
                 continue
-            rep, pairs = audit_song(song, diagrams)
-            rep["album"] = album_dir.name
-            rep["file"] = song_file.name
-            rep["status"] = doc.get("document", {}).get("status") or "pending"
             rows.append(rep)
-            if args.write and pairs:
-                changed = False
-                for e, (cv, _err) in pairs:
-                    if cv and e.get("voicing_printed") != cv:
-                        e["voicing_printed"] = cv
-                        changed = True
-                if changed:
-                    song_file.write_text(json.dumps(stamp(doc), ensure_ascii=False, indent=2))
             tag = rep["mode"] or "UNALIGNED"
             print(
                 f"{album_dir.name}/{song_file.name}: {tag}  agree={rep['agree']}"
@@ -266,7 +268,7 @@ def main():
                 f" (diagrams={rep['diagrams']}, voiced={rep['entries_with_voicing']})"
             )
 
-    audited = [r for r in rows if r.get("mode")]
+    audited = [r for r in rows if "error" not in r and r.get("mode")]
     agree = sum(r["agree"] for r in audited)
     differ = sum(r["differ"] for r in audited)
     missing = sum(r["missing_stored"] for r in audited)

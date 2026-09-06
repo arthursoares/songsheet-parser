@@ -1,9 +1,13 @@
 import json
+import os
 import sys
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 import qa_server as S
+from songsheet_version import SCHEMA_VERSION
 
 
 def _corpus(tmp_path):
@@ -131,7 +135,7 @@ def test_save_stamps_schema_version(tmp_path):
     )
     assert status == 200
     on_disk = json.loads((root / "1-album" / "01-song-one.json").read_text())
-    assert on_disk["schema_version"] == S.stamp({})["schema_version"]
+    assert on_disk["schema_version"] == SCHEMA_VERSION
 
 
 def test_save_rejects_future_schema_version(tmp_path):
@@ -158,6 +162,54 @@ def test_save_invalid_song_rejected(tmp_path):
     assert json.loads(body)["ok"] is False
     on_disk = json.loads((root / "1-album" / "01-song-one.json").read_text())
     assert on_disk["songs"][0]["sections"][0]["bars"][0][0]["chord"] == "Dm7"
+
+
+@pytest.mark.parametrize("payload", [None, [], "song", 1, True])
+def test_save_non_object_rejected_without_touching_file(tmp_path, payload):
+    root = _corpus(tmp_path)
+    target = root / "1-album" / "01-song-one.json"
+    original = target.read_bytes()
+    status, _, body = S.handle(
+        "POST", "/api/song/1-album/01-song-one.json", json.dumps(payload).encode(), root
+    )
+    assert status == 422
+    assert json.loads(body)["ok"] is False
+    assert target.read_bytes() == original
+
+
+def test_save_refuses_to_replace_future_document_on_disk(tmp_path):
+    root = _corpus(tmp_path)
+    target = root / "1-album" / "01-song-one.json"
+    candidate = target.read_bytes()
+    future = json.loads(candidate)
+    future["schema_version"] = 99
+    target.write_text(json.dumps(future))
+    original = target.read_bytes()
+
+    status, _, body = S.handle("POST", "/api/song/1-album/01-song-one.json", candidate, root)
+    assert status == 422
+    assert "newer than supported" in json.loads(body)["error"]
+    assert target.read_bytes() == original
+
+
+def test_save_failed_atomic_replace_preserves_original(tmp_path, monkeypatch):
+    root = _corpus(tmp_path)
+    target = root / "1-album" / "01-song-one.json"
+    original = target.read_bytes()
+    doc = json.loads(original)
+    doc["songs"][0]["title"] = "Edited"
+
+    def fail_replace(*args):
+        raise OSError("simulated replace failure")
+
+    monkeypatch.setattr(os, "replace", fail_replace)
+    status, _, body = S.handle(
+        "POST", "/api/song/1-album/01-song-one.json", json.dumps(doc).encode(), root
+    )
+    assert status == 500
+    assert "simulated replace failure" in json.loads(body)["error"]
+    assert target.read_bytes() == original
+    assert sorted(p.name for p in target.parent.iterdir()) == [target.name, "pages"]
 
 
 def test_save_rejects_path_traversal(tmp_path):
