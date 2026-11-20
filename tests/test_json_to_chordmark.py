@@ -1,10 +1,10 @@
 import json
 import subprocess
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 SCRIPT = ROOT / "scripts" / "json_to_chordmark.py"
-PY = ROOT / ".venv" / "bin" / "python"
 
 
 def make_doc(title="Chega de Saudade"):
@@ -22,7 +22,7 @@ def make_doc(title="Chega de Saudade"):
 
 def run_cli(*args):
     return subprocess.run(
-        [str(PY), str(SCRIPT), *map(str, args)],
+        [sys.executable, str(SCRIPT), *map(str, args)],
         capture_output=True,
         text=True,
     )

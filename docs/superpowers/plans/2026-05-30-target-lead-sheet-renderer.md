@@ -1,7 +1,5 @@
 # Target Lead-Sheet Renderer + Lyric Hyphenation Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
-
 **Goal:** Add a polished "target" lead-sheet renderer (pure Python, reads the new chord-anchored model) wired into the QA Preview tab, plus word-continuation dashes in lyric data (LLM-seeded for existing songs, preserved by the parse prompt going forward).
 
 **Architecture:** A new pure module `render_target.py` turns a song dict into bespoke HTML (title, top diagram dictionary, two-column chord-over-syllable body, Roman fret positions, barres, `°`). Hyphenation lives as trailing `-` inside the `text` field (no schema change); a one-time `migrate_hyphenation.py` seeds it via the existing Codex LLM client, and the parse prompt preserves it. The QA server gains style/dict/inline params on `/api/render`; the Preview tab gets controls.

@@ -1,7 +1,5 @@
 # Songsheet Data Model Redesign — Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
-
 **Goal:** Replace the songsheet JSON model with a chord-anchored model (a bar is an ordered array of `{chord, voicing?, text?}` entries) and rewrite the schema, vision parse prompt, and ChordMark converter to use it.
 
 **Architecture:** Vision parsing (OpenAI via Codex, default `gpt-5.5`) emits the new hierarchy `document → songs → sections → bars → chord-entry[]`. Chord↔text anchoring is intrinsic to entry order (no `at_syllable` lookup). Timing is interpreter-derived in the converter (no `beats` in the data). Voicing is per-occurrence, rendered as ChordMark inline voicing `Name[xxxxxx]`. The separate `add_positions.py` stage is removed.

@@ -11,7 +11,7 @@ core = [
 dev = [
   { include-group = "core" },
   "pytest>=8.0",
-  "ruff>=0.8",
+  "ruff==0.15.16",   # Keep lint and formatting rules consistent with CI.
 ]
 # Optional vision providers (install if you use them):
 claude = ["anthropic"]

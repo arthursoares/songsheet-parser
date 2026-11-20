@@ -1,7 +1,5 @@
 # QA / Correction Tool Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
-
 **Goal:** Build a local browser tool to review each extracted song side-by-side with its scanned pages and correct chord names, voicings, and anchored lyrics, with reverse chord detection (tonal.js) validated through ChordMark's parser (chord-symbol), saving schema-validated JSON back to a committed per-song corpus.
 
 **Architecture:** A one-time `materialize_songs.py` promotes scratch assembled docs into a committed `data/joao-gilberto/songs/<album>/<NN>-<song>.json` corpus with page PNGs. A stdlib-only Python HTTP server (`qa_server.py`) serves songs + page images and accepts schema-validated saves. A vanilla-JS browser app (`qa_static/`) renders the side-by-side editor; all music logic (detect + validate) runs client-side via vendored tonal.js + chord-symbol.
