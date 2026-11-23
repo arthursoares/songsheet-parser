@@ -822,22 +822,12 @@ function hmSnapshotHtml() {
 }
 
 async function hmExportPdf() {
-  hmExportFlash("converting…");
+  hmExportFlash("Preparing harmony chart…");
   try {
-    const res = await fetch(`/api/convert?fmt=pdf&name=${encodeURIComponent(hmExportStem())}`, {
-      method: "POST",
-      headers: { "Content-Type": "text/html" },
-      body: hmSnapshotHtml(),
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      hmExportFlash("export failed: " + (err.error || res.status));
-      return;
-    }
-    hmDownloadBlob(await res.blob(), hmExportStem() + ".pdf");
-    hmExportFlash("Exported ✓");
-  } catch (e) {
-    hmExportFlash("export failed: " + e);
+    await PreviewExport.printChartHtml(hmSnapshotHtml());
+    hmExportFlash("");
+  } catch (error) {
+    hmExportFlash("Print failed: " + error.message);
   }
 }
 

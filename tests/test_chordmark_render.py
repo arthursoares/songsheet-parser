@@ -54,6 +54,14 @@ def test_four_chords_one_beat_each():
     assert cm.render_chord_line(bar) == "A. B. C. D."
 
 
+def test_more_chords_than_beats_reports_unrepresentable_bar():
+    import pytest
+
+    bar = [{"chord": chord} for chord in ("A", "B", "C", "D", "E")]
+    with pytest.raises(cm.ChordMarkBarError, match="5 chord entries.*4-beat"):
+        cm.render_chord_line(bar)
+
+
 def test_lyric_line_anchors_each_chord_text():
     bar = [
         {"chord": "Dm7", "text": "Vai mi nha"},
@@ -72,9 +80,53 @@ def test_lyric_line_percent_entry_with_text():
     assert cm.render_lyric_line(bar) == "_tris"
 
 
+def test_lyric_line_preserves_a_standalone_dash_before_the_next_chord():
+    bar = [{"chord": "C", "text": "eu -"}, {"chord": "G", "text": "sei"}]
+    assert cm.render_lyric_line(bar) == "_eu - _sei"
+
+
 def test_lyric_line_skips_missing_text_entries():
     bar = [{"chord": "Dm7", "text": "Vai"}, {"chord": "A7"}]
     assert cm.render_lyric_line(bar) == "_Vai"
+
+
+def test_lyric_line_hides_continuation_dashes_without_losing_chord_markers():
+    bar = [
+        {"chord": "C", "text": "A tris-"},
+        {"chord": "G", "text": "te-"},
+        {"chord": "Am", "text": "za e se-"},
+        {"chord": "F", "text": "nho- ra,"},
+    ]
+    assert cm.render_lyric_line(bar) == "_A tris_te_za e se_nhora,"
+
+
+def test_lyric_line_preserves_embedded_hyphens_and_distinct_empty_anchors():
+    bar = [
+        {"chord": "C", "text": "sam-"},
+        {"chord": "G"},
+        {"chord": "Am", "text": "ba good-bye"},
+    ]
+    assert cm.render_lyric_line(bar) == "_sam_ _ba good-bye"
+
+
+def test_lyric_line_preserves_a_terminal_hyphen_without_a_following_lyric():
+    assert cm.render_lyric_line([{"chord": "C", "text": "spoken -"}]) == "_spoken -"
+
+
+def test_render_song_preserves_empty_anchors_before_lyrics_in_the_same_or_later_bar():
+    song = {
+        "title": "T",
+        "sections": [
+            {
+                "bars": [
+                    [{"chord": "C"}, {"chord": "G7", "text": "word"}],
+                    [{"chord": "A", "text": "next"}, {"chord": "E"}],
+                    [{"chord": "F", "text": "last"}],
+                ]
+            }
+        ],
+    }
+    assert cm.render_song(song) == "C.. G7.. A.. E.. F\n_ _word _next _ _last\n"
 
 
 def test_render_song_full():
@@ -96,7 +148,7 @@ def test_render_song_full():
     assert out == ("chord Dm7 x,5,7,5,6,x\n\nDm7[x,5,7,5,6,x] %\n_Vai mi nha _tris\n")
 
 
-def test_render_song_groups_instrumental_separately_from_sung():
+def test_render_song_groups_by_requested_width_regardless_of_lyrics():
     song = {
         "title": "T",
         "chords": {},
@@ -113,11 +165,50 @@ def test_render_song_groups_instrumental_separately_from_sung():
         ],
     }
     out = cm.render_song(song)
-    assert out == (
-        "Gm9 %\n"  # instrumental bars grouped, no lyric line
-        "Dm7 %\n"  # sung bars grouped
-        "_Vai _mi\n"
-    )
+    assert out == ("Gm9 % Dm7 %\n_ _ _Vai _mi\n")
+
+
+def test_section_groups_continue_across_unlabeled_page_boundaries():
+    sections = [
+        {"label": None, "bars": [[{"chord": "A"}], [{"chord": "B"}]]},
+        {"label": None, "bars": [[{"chord": "C"}], [{"chord": "D"}], [{"chord": "E"}]]},
+    ]
+
+    groups = cm._group_section_bars(sections, 4)
+
+    assert groups == [
+        (None, [[{"chord": "A"}], [{"chord": "B"}], [{"chord": "C"}], [{"chord": "D"}]]),
+        (None, [[{"chord": "E"}]]),
+    ]
+
+
+def test_section_groups_flush_before_an_explicit_label():
+    sections = [
+        {"label": None, "bars": [[{"chord": "A"}], [{"chord": "B"}]]},
+        {"label": "Bridge", "bars": [[{"chord": "C"}]]},
+        {"label": None, "bars": [[{"chord": "D"}], [{"chord": "E"}], [{"chord": "F"}]]},
+    ]
+
+    groups = cm._group_section_bars(sections, 4)
+
+    assert groups == [
+        (None, [[{"chord": "A"}], [{"chord": "B"}]]),
+        (
+            "Bridge",
+            [[{"chord": "C"}], [{"chord": "D"}], [{"chord": "E"}], [{"chord": "F"}]],
+        ),
+    ]
+
+
+def test_render_song_resolves_leading_percent_after_an_unlabeled_page_boundary():
+    song = {
+        "sections": [
+            {"bars": [[{"chord": "C"}], [{"chord": "D"}], [{"chord": "E"}], [{"chord": "F"}]]},
+            {"bars": [[{"chord": "%", "text": "held"}]]},
+        ]
+    }
+
+    assert cm.render_song(song) == "C D E F\nF\n_held\n"
 
 
 def test_render_song_emits_section_label():

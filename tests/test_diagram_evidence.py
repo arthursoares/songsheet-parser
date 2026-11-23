@@ -2,6 +2,7 @@ import copy
 import hashlib
 import json
 import sys
+import threading
 
 import diagram_evidence as evidence
 import diagram_reader
@@ -348,7 +349,7 @@ def test_validate_pdf_can_disable_diagram_enrichment(tmp_path, monkeypatch):
     (tmp_path / "work" / "album").mkdir(parents=True)
     doc = candidate({"chord": "C", "text": "word"})
     monkeypatch.setattr(validate_extraction, "render_pages", lambda *_: [png])
-    monkeypatch.setattr(validate_extraction, "parse_page", lambda *_: doc)
+    monkeypatch.setattr(validate_extraction, "parse_page", lambda *_, **_kwargs: doc)
     monkeypatch.setattr(
         validate_extraction.diagram_evidence,
         "enrich_page_result",
@@ -367,7 +368,7 @@ def test_validate_pdf_reports_diagram_worklist_as_an_issue(tmp_path, monkeypatch
     (tmp_path / "work" / "album").mkdir(parents=True)
     doc = candidate({"chord": "C", "text": "word"})
     monkeypatch.setattr(validate_extraction, "render_pages", lambda *_: [png])
-    monkeypatch.setattr(validate_extraction, "parse_page", lambda *_: doc)
+    monkeypatch.setattr(validate_extraction, "parse_page", lambda *_, **_kwargs: doc)
     monkeypatch.setattr(
         validate_extraction.diagram_evidence,
         "enrich_page_result",
@@ -378,6 +379,53 @@ def test_validate_pdf_reports_diagram_worklist_as_an_issue(tmp_path, monkeypatch
     report = validate_extraction.validate_pdf(pdf, tmp_path / "work", 200, False)
     assert report["passed"] is False
     assert report["diagram_diagnostics"][0]["record"]["status"] == "count_mismatch"
+
+
+def test_validate_pdf_forwards_model_and_assembles_concurrent_results_in_page_order(
+    tmp_path, monkeypatch
+):
+    pdf = fake_pdf(tmp_path)
+    pages = [tmp_path / f"page-{number:03d}.png" for number in range(1, 4)]
+    for png in pages:
+        png.write_bytes(b"png")
+    (tmp_path / "work" / "album").mkdir(parents=True)
+    enrichment_order = []
+    calls = []
+    ready = {1: threading.Event(), 2: threading.Event()}
+    caller = threading.current_thread()
+
+    def parse(png, _work, _force, *, model):
+        calls.append((png.name, model))
+        page_number = int(png.stem.rsplit("-", 1)[1])
+        if page_number in ready:
+            assert ready[page_number].wait(timeout=3)
+        result = candidate({"chord": f"C{page_number}", "text": "word"})
+        result["songs"][0]["title"] = f"Song {page_number}"
+        return result
+
+    def enrich_on_caller(result, _pdf, page_number):
+        assert threading.current_thread() is caller
+        enrichment_order.append(page_number)
+        if page_number - 1 in ready:
+            ready[page_number - 1].set()
+        return result
+
+    monkeypatch.setattr(validate_extraction, "render_pages", lambda *_: pages)
+    monkeypatch.setattr(validate_extraction, "parse_page", parse)
+    monkeypatch.setattr(evidence, "enrich_page_result", enrich_on_caller)
+    report = validate_extraction.validate_pdf(
+        pdf,
+        tmp_path / "work",
+        200,
+        False,
+        model="gpt-6.2-sol",
+        workers=3,
+    )
+
+    assert {model for _, model in calls} == {"gpt-6.2-sol"}
+    assert enrichment_order == [3, 2, 1]
+    assert report["parse_errors"] == []
+    assert report["song_titles"] == ["Song 1", "Song 2", "Song 3"]
 
 
 def test_offline_cli_writes_create_only_and_keeps_input_unchanged(tmp_path, monkeypatch):

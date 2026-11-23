@@ -25,6 +25,7 @@ import copy
 import json
 import sys
 import unicodedata
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 import fitz  # pymupdf
@@ -47,6 +48,7 @@ from songsheet_version import stamp, version_error  # noqa: E402
 
 SCHEMA_PATH = ROOT / "schemas" / "songsheet.schema.json"
 DEFAULT_WORKDIR = Path("/tmp/ssv")
+MAX_WORKERS = 32
 
 
 def render_pages(pdf_path: Path, out_dir: Path, dpi: int, force: bool) -> list[Path]:
@@ -221,21 +223,39 @@ def heuristics(document: dict) -> list[str]:
 
 
 def validate_pdf(
-    pdf_path: Path, workdir: Path, dpi: int, force: bool, *, diagrams: bool = True
+    pdf_path: Path,
+    workdir: Path,
+    dpi: int,
+    force: bool,
+    *,
+    diagrams: bool = True,
+    model: str | None = None,
+    workers: int = 1,
+    progress: bool = False,
 ) -> dict:
     import jsonschema
+
+    if not 1 <= workers <= MAX_WORKERS:
+        raise ValueError(f"workers must be between 1 and {MAX_WORKERS}")
 
     schema = json.loads(SCHEMA_PATH.read_text())
     work = workdir / pdf_path.stem
     pages = render_pages(pdf_path, work, dpi, force)
 
-    page_results, parse_errors = [], []
-    for page_number, png in enumerate(pages, start=1):
+    def parse_one(png: Path) -> tuple[dict, str | None]:
         try:
-            result = parse_page(png, work, force)
+            return parse_page(png, work, force, model=model), None
         except Exception as e:  # noqa: BLE001
-            parse_errors.append(f"{png.name}: {e}")
             result = {"songs": [], "_meta": {"parse_error": str(e)}}
+            return result, f"{png.name}: {e}"
+
+    page_results: list[dict | None] = [None] * len(pages)
+    page_errors: list[str | None] = [None] * len(pages)
+    completed = 0
+
+    def record(page_number: int, result: dict, error: str | None) -> None:
+        nonlocal completed
+        # PyMuPDF rendering and diagram loading stay on the calling thread.
         if diagrams and not result.get("_meta", {}).get("parse_error"):
             try:
                 result = diagram_evidence.enrich_page_result(result, pdf_path, page_number)
@@ -243,9 +263,38 @@ def validate_pdf(
                 result = diagram_evidence.record_page_failure(
                     result, pdf_path, page_number, "enrichment_error", str(e)
                 )
-        page_results.append(result)
+        page_results[page_number - 1] = result
+        page_errors[page_number - 1] = error
+        completed += 1
+        if progress:
+            status = "error" if error else "ok"
+            error_count = sum(item is not None for item in page_errors)
+            print(
+                f"   parse {completed}/{len(pages)}: page {page_number}/{len(pages)} "
+                f"{status} ({error_count} errors)",
+                flush=True,
+            )
 
-    document = assemble_document(pdf_path, page_results)
+    if workers == 1:
+        for page_number, png in enumerate(pages, start=1):
+            result, error = parse_one(png)
+            record(page_number, result, error)
+    elif pages:
+        with ThreadPoolExecutor(max_workers=min(workers, len(pages))) as executor:
+            futures = {
+                executor.submit(parse_one, png): page_number
+                for page_number, png in enumerate(pages, start=1)
+            }
+            for future in as_completed(futures):
+                page_number = futures[future]
+                result, error = future.result()
+                record(page_number, result, error)
+
+    ordered_results = [result for result in page_results if result is not None]
+    if len(ordered_results) != len(pages):
+        raise RuntimeError("not all rendered pages produced a parse result")
+    parse_errors = [error for error in page_errors if error is not None]
+    document = assemble_document(pdf_path, ordered_results)
     write_json_artifact(work / "_assembled.json", document, overwrite=True)
 
     schema_error = None
@@ -284,6 +333,14 @@ def main():
     ap.add_argument("pdfs", nargs="+", type=Path)
     ap.add_argument("--workdir", type=Path, default=DEFAULT_WORKDIR)
     ap.add_argument("--dpi", type=int, default=200)
+    ap.add_argument("--model", help="Codex model name (for example, gpt-6.2-sol)")
+    ap.add_argument(
+        "--workers",
+        type=int,
+        default=1,
+        metavar=f"1-{MAX_WORKERS}",
+        help=f"concurrent page parses (default: 1, maximum: {MAX_WORKERS})",
+    )
     ap.add_argument("--force", action="store_true", help="Re-render and re-parse, ignore cache")
     ap.add_argument(
         "--no-diagrams",
@@ -292,11 +349,22 @@ def main():
     )
     ap.add_argument("--report-json", type=Path)
     args = ap.parse_args()
+    if not 1 <= args.workers <= MAX_WORKERS:
+        ap.error(f"--workers must be between 1 and {MAX_WORKERS}")
 
     reports = []
     for pdf in args.pdfs:
         print(f"\n{'=' * 70}\n📄 {pdf.name}\n{'=' * 70}", flush=True)
-        rep = validate_pdf(pdf, args.workdir, args.dpi, args.force, diagrams=not args.no_diagrams)
+        rep = validate_pdf(
+            pdf,
+            args.workdir,
+            args.dpi,
+            args.force,
+            diagrams=not args.no_diagrams,
+            model=args.model,
+            workers=args.workers,
+            progress=True,
+        )
         reports.append(rep)
         status = "✅ PASS" if rep["passed"] else "❌ ISSUES"
         print(

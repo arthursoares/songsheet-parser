@@ -1,11 +1,37 @@
 // Song list sidebar, song loading/saving, and the dirty-guard navigation.
+const LAST_SONGS_KEY = "qaLastSongByAlbum";
+
+function rememberedSong(album) {
+  try {
+    const saved = JSON.parse(localStorage.getItem(LAST_SONGS_KEY) || "{}");
+    return saved && typeof saved[album] === "string" ? saved[album] : "";
+  } catch (_error) {
+    return "";
+  }
+}
+
+function rememberSong(album, file) {
+  if (!album || !file) return;
+  try {
+    const saved = JSON.parse(localStorage.getItem(LAST_SONGS_KEY) || "{}");
+    const next = saved && typeof saved === "object" && !Array.isArray(saved) ? saved : {};
+    next[album] = file;
+    localStorage.setItem(LAST_SONGS_KEY, JSON.stringify(next));
+  } catch (_error) {
+    // Storage can be disabled or full; song loading must still work.
+  }
+}
+
 function fillSongs() {
   const songSel = $("songSel");
-  const a = albums.find((x) => x.album === $("albumSel").value);
+  const album = $("albumSel").value;
+  const a = albums.find((x) => x.album === album);
   const songs = (a && a.songs) || [];
   songSel.innerHTML = songs
     .map((s) => `<option value="${esc(s.file)}">${STATUS_LABEL[s.status] || "○"}  ${esc(s.file)}</option>`)
     .join("");
+  const remembered = rememberedSong(album);
+  if (songs.some((s) => s.file === remembered)) songSel.value = remembered;
   renderSongList();
   updateProgress();
 }
@@ -43,8 +69,13 @@ function renderSongList() {
   }
   list.innerHTML = "";
   songs.forEach((s) => {
-    const row = document.createElement("div");
+    const row = document.createElement("button");
+    row.type = "button";
     row.className = "song-row" + (s.file === state.file ? " sel" : "");
+    row.setAttribute("aria-current", s.file === state.file ? "true" : "false");
+    const statusName = (STATUS_LABEL[s.status] || STATUS_LABEL.pending)
+      .replace(/^\S+\s*/, "");
+    row.setAttribute("aria-label", `${prettyFile(s.file)}, ${statusName}`);
     // audit badge: print-diff count (review backlog), or ✓ when the CV audit
     // confirmed every voicing — a "ready to confirm" candidate at a glance
     const badge = !s.audited ? ""
@@ -59,9 +90,18 @@ function renderSongList() {
   });
 }
 
-// Load a song by file, going through the dirty-guard. No-op if same file.
+function syncCurrentSongTitle() {
+  const title = $("currentSongTitle");
+  if (!title) return;
+  title.textContent = state.doc && state.doc.songs && state.doc.songs.length
+    ? (song().title || "")
+    : "";
+  title.title = title.textContent;
+}
+
+// Load a song by file, going through the dirty-guard.
 function selectSong(file) {
-  if (file === state.file) return;
+  if (file === state.file && (state.doc || loadingSong)) return;
   if (!confirmDiscard()) return;
   $("songSel").value = file;
   loadSong();
@@ -96,6 +136,9 @@ function showEmpty() {
   state.doc = null;
   state.sel = null;
   state.flags = [];
+  state.dirty = false;
+  state.editVersion = 0;
+  syncSaveAvailability();
   undoStack = [];
   redoStack = [];
   $("pages").innerHTML = "";
@@ -103,49 +146,99 @@ function showEmpty() {
   $("editor").classList.remove("open");
   syncNote();
   renderProvenance();
+  syncCurrentSongTitle();
+  renderSongList();
+  showView("bars");
+  if (typeof updateChordReviewEntryPoint === "function") updateChordReviewEntryPoint();
+}
+
+let loadGeneration = 0;
+let loadingSong = false;
+
+function clearSongForLoad(message) {
+  state.doc = null;
+  state.sel = null;
+  state.flags = [];
+  state.dirty = false;
+  state.editVersion = 0;
+  syncSaveAvailability();
+  undoStack = [];
+  redoStack = [];
+  $("pages").innerHTML = "";
+  $("bars").innerHTML = `<div class="empty">${esc(message)}</div>`;
+  $("editor").classList.remove("open");
+  syncNote();
+  renderProvenance();
+  syncCurrentSongTitle();
   renderSongList();
   showView("bars");
 }
 
 async function loadSong() {
+  const generation = ++loadGeneration;
+  if (state.activeView === "chordReview") showView("bars");
   $("saveStatus").textContent = "";
-  state.album = $("albumSel").value;
-  state.file = $("songSel").value;
+  const album = $("albumSel").value;
+  const file = $("songSel").value;
+  state.album = album;
+  state.file = file;
   state.dictSel.clear();
   state.dictEdit = null;
   state.dictMergeOpen = false;
-  undoStack = [];
-  redoStack = [];
-  if (!state.album || !state.file) { showEmpty(); return; }
-  state.doc = await api(`/api/song/${state.album}/${state.file}`);
-  if (!state.doc || state.doc.error || !state.doc.songs || !state.doc.songs.length) {
-    $("pages").innerHTML = "";
-    $("bars").innerHTML = `<div class="empty">Could not load this song.</div>`;
-    $("editor").classList.remove("open");
-    showView("bars");
+  loadingSong = Boolean(album && file);
+  if (!album || !file) { showEmpty(); return; }
+  clearSongForLoad("Loading song…");
+  let loaded;
+  try {
+    loaded = await api(`/api/song/${album}/${file}`);
+  } catch (_error) {
+    if (generation !== loadGeneration) return;
+    loadingSong = false;
+    clearSongForLoad("Could not load this song.");
+    if (typeof updateChordReviewEntryPoint === "function") updateChordReviewEntryPoint();
     return;
   }
+  if (generation !== loadGeneration) return;
+  loadingSong = false;
+  if (!loaded || loaded.error || !loaded.songs || !loaded.songs.length) {
+    clearSongForLoad("Could not load this song.");
+    if (typeof updateChordReviewEntryPoint === "function") updateChordReviewEntryPoint();
+    return;
+  }
+  state.doc = loaded;
   state.sel = null;
   state.dirty = false;
+  state.editVersion = 0;
+  syncSaveAvailability();
+  rememberSong(album, file);
   const status = (state.doc.document && state.doc.document.status) || "pending";
   $("statusSel").value = status;
   $("keySel").value = songKey();
   window.ChordNaming.setKeyTonic(songKey());
   syncNote();
   renderProvenance();
+  syncCurrentSongTitle();
   renderPages();
   renderBars();
   renderSongList();
   showView("bars");
   $("editor").classList.remove("open");
+  if (typeof updateChordReviewEntryPoint === "function") updateChordReviewEntryPoint();
 }
 
 let savePromise = null;
+
+function syncSaveAvailability() {
+  const button = $("saveBtn");
+  if (button) button.disabled = Boolean(savePromise) || !state.doc;
+}
 
 async function saveOnce() {
   const status = $("saveStatus");
   const submittedDoc = state.doc;
   const submittedJson = JSON.stringify(submittedDoc);
+  const submittedEditVersion = state.editVersion || 0;
+  const submittedGeneration = loadGeneration;
   const submittedAlbum = state.album;
   const submittedFile = state.file;
   const submittedStatus =
@@ -157,20 +250,28 @@ async function saveOnce() {
       { method: "POST", body: submittedJson });
   } catch (error) {
     if (state.doc === submittedDoc) {
-      status.textContent = "✗ " + String(error); status.style.color = "var(--bad)";
+      status.textContent = "Unsaved changes · save failed: " + String(error);
+      status.style.color = "var(--bad)";
     }
     return { ok: false, error: String(error) };
   }
   if (res.ok) {
     const sameDocument = state.doc === submittedDoc;
-    const unchanged = sameDocument && JSON.stringify(state.doc) === submittedJson;
+    const unchanged = sameDocument &&
+      (state.editVersion || 0) === submittedEditVersion &&
+      JSON.stringify(state.doc) === submittedJson;
     if (unchanged) {
       status.textContent = "✓ saved";
       state.dirty = false;
     } else if (sameDocument) {
-      status.textContent = "✓ submitted version saved · newer edits unsaved";
+      status.textContent = "Unsaved changes";
     }
-    if (sameDocument) status.style.color = "var(--ok)";
+    if (submittedGeneration === loadGeneration && state.doc &&
+        state.album === submittedAlbum && state.file === submittedFile &&
+        typeof syncSavedScanDocument === "function") {
+      syncSavedScanDocument(unchanged ? state.doc : JSON.parse(submittedJson), unchanged);
+    }
+    if (sameDocument) status.style.color = unchanged ? "var(--ok)" : "#d29922";
     // reflect the saved status in the local album cache → progress count + dropdown label
     const a = albums.find((x) => x.album === submittedAlbum);
     const s = a && a.songs && a.songs.find((x) => x.file === submittedFile);
@@ -189,7 +290,8 @@ async function saveOnce() {
     // refresh the preview (it renders the in-memory doc, so this just re-syncs)
     if (sameDocument && state.activeView === "preview") renderPreview();
   } else if (state.doc === submittedDoc) {
-    status.textContent = "✗ " + res.error; status.style.color = "var(--bad)";
+    status.textContent = "Unsaved changes · save failed: " + res.error;
+    status.style.color = "var(--bad)";
   }
   return res;
 }
@@ -201,9 +303,11 @@ function save() {
   if (button) button.disabled = true;
   savePromise = saveOnce().finally(() => {
     savePromise = null;
-    if (button) button.disabled = false;
+    syncSaveAvailability();
   });
   return savePromise;
 }
 
-if (typeof module === "object" && module.exports) module.exports = { save };
+if (typeof module === "object" && module.exports) {
+  module.exports = { fillSongs, loadSong, renderSongList, save };
+}

@@ -20,20 +20,24 @@
     --fn-chrombass:#c8a26b;
   }
   body{margin:0;font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:var(--text)}
+  [hidden]{display:none!important}
   .muted{color:var(--muted);font-size:12px}
   .btn-primary{background:var(--accent);color:var(--accent-ink);border:0;border-radius:6px;padding:7px 14px;font-weight:600;cursor:pointer}
   .hidden{display:none}
   header{display:flex;flex-wrap:wrap;gap:12px;align-items:center;padding:10px 14px;background:var(--panel);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:5}
   header select{background:var(--panel-2);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:5px}
   header .spacer{flex:1}
-  .layout{display:grid;grid-template-columns:230px 1fr 1fr;height:calc(100vh - 49px)}
+  .current-song-title{max-width:22ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
+  .song-status-control{display:flex;align-items:center;gap:5px;color:var(--muted);font-size:12px}
+  .layout{--layout-columns:230px minmax(0,1fr) minmax(0,1fr);display:grid;grid-template-columns:var(--layout-columns);height:calc(100vh - var(--qa-header-height,49px))}
   /* focus mode: hide the PDF-scan pane and/or the song list */
-  .layout.no-pages{grid-template-columns:230px 1fr}
+  .layout.no-pages{--layout-columns:230px minmax(0,1fr)}
   .layout.no-pages .col.left{display:none}
-  .layout.no-songs{grid-template-columns:1fr 1fr}
+  .layout.no-songs{--layout-columns:minmax(0,1fr) minmax(0,1fr)}
   .layout.no-songs .col.songs{display:none}
-  .layout.no-pages.no-songs{grid-template-columns:1fr}
+  .layout.no-pages.no-songs{--layout-columns:minmax(0,1fr)}
   .col{overflow:auto;padding:14px;min-width:0}
+  .col.right{container-type:inline-size}
   .col.left{border-right:1px solid var(--border);background:var(--bg-deep)}
   /* Songs sidebar */
   .col.songs{border-right:1px solid var(--border);background:var(--bg-deep);padding:10px}
@@ -43,7 +47,7 @@
   .songs-filter button{flex:1;background:var(--panel-2);color:var(--muted);border:1px solid var(--border);border-radius:6px;padding:4px 2px;cursor:pointer;font-size:11px}
   .songs-filter button.active{background:var(--sel);color:var(--text);border-color:var(--accent)}
   .songs-list{display:flex;flex-direction:column;gap:3px}
-  .song-row{display:flex;align-items:center;gap:8px;padding:7px 8px;border:1px solid transparent;border-radius:7px;cursor:pointer;font-size:13px;line-height:1.25}
+  .song-row{display:flex;align-items:center;gap:8px;width:100%;padding:7px 8px;border:1px solid transparent;border-radius:7px;cursor:pointer;font:inherit;font-size:13px;line-height:1.25;text-align:left;background:transparent;color:var(--text)}
   .song-row:hover{background:var(--panel)}
   .song-row.sel{background:var(--sel);border-color:var(--accent)}
   .song-row .sg{width:14px;text-align:center;flex:0 0 auto;color:var(--muted)}
@@ -66,15 +70,15 @@
   .secmv button,.barmv button{background:var(--field);border:1px solid var(--border);color:var(--muted);border-radius:4px;cursor:pointer;font-size:11px;padding:2px 7px;line-height:1.4}
   .secmv button:hover:not(:disabled),.barmv button:hover:not(:disabled){border-color:var(--accent);color:var(--text)}
   .secmv button:disabled,.barmv button:disabled{opacity:.3;cursor:default}
-  .barhead{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+  .barhead{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:6px}
   .barhead .barnum{margin-bottom:0}
-  .barmv{margin-left:auto}
+  .barmv{margin-left:auto;max-width:100%;flex-wrap:wrap;justify-content:flex-end}
   .sec-empty{display:flex;align-items:center;gap:10px;border:1px dashed var(--border);border-radius:8px;padding:8px;margin-bottom:8px}
   .sec-empty .barAddFirst{background:var(--field);border:1px solid var(--border);color:var(--muted);border-radius:4px;cursor:pointer;font-size:11px;padding:2px 7px}
   .sec-empty .barAddFirst:hover{border-color:var(--accent);color:var(--text)}
   /* Review tab */
   .review-empty{color:var(--ok);font-size:14px;padding:24px 4px}
-  .rev-row{display:flex;align-items:center;gap:10px;border:1px solid var(--border);border-radius:8px;padding:9px 10px;margin-bottom:7px;cursor:pointer;background:var(--panel)}
+  .rev-row{display:flex;align-items:center;gap:10px;width:100%;border:1px solid var(--border);border-radius:8px;padding:9px 10px;margin-bottom:7px;cursor:pointer;background:var(--panel);color:var(--text);font:inherit;text-align:left}
   .rev-row:hover{border-color:var(--accent)}
   .rev-row .rnm{font-weight:600}
   .rev-row .rwhere{color:var(--muted);font-size:12px}
@@ -94,9 +98,98 @@
   .review-state.verified{background:var(--ok-bg);color:var(--ok)}
   .review-state.stale,.review-state.invalid{background:var(--bad-bg);color:var(--bad)}
   .review-flags-title{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:7px}
-  .kbdhint{cursor:help;color:var(--muted);font-size:12px;border:1px solid var(--border);border-radius:50%;width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center}
-  .col.left img{width:100%;border:1px solid var(--border);border-radius:8px;margin-bottom:6px;background:var(--paper)}
-  .pagecap{color:var(--muted);font-size:12px;margin-bottom:12px}
+  /* Focused printed-fingering review */
+  .chord-review{max-width:1120px;margin:0 auto;padding:6px 0 32px}
+  .chord-workspace{min-width:0}
+  .layout.chord-review-mode .chord-workspace{display:grid;grid-template-columns:minmax(230px,32%) minmax(0,1fr);gap:14px;height:calc(100vh - var(--qa-header-height,49px) - 57px);min-height:0}
+  .layout.chord-review-mode .chord-workspace>#bars{min-width:0;overflow:auto;padding-right:8px}
+  .layout.chord-review-mode .chord-workspace>#chordReview{min-width:0;max-width:none;overflow:auto;padding-right:4px}
+  .chord-review-section-label{display:none;color:var(--muted);font-size:11px}
+  .layout.chord-review-mode #bars .chord-review-section-label{display:block}
+  .layout.chord-review-mode #bars :is(.seclabel,.secmv,.barmv,.barAddFirst,.mv){display:none}
+  .layout.chord-review-mode #bars .chip:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-color:var(--accent)}
+  .chord-review-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:12px}
+  .chord-review-title{min-width:0}
+  .chord-review-title h1{font-size:22px;line-height:1.2;margin:2px 0 5px;overflow-wrap:anywhere}
+  .chord-review-context{color:var(--muted);font-size:12px}
+  .chord-review-nav,.chord-review-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .chord-review-nav button,.chord-review-actions button{background:var(--panel-2);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:7px 12px;cursor:pointer}
+  .chord-review-actions{margin-top:14px}
+  .chord-review-actions .accept{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600}
+  .chord-review-key{margin-left:5px;color:inherit;opacity:.7;font:11px ui-monospace,monospace}
+  .chord-review-message{min-height:20px;margin:4px 0 10px;color:var(--muted)}
+  .chord-review-compare{display:grid;grid-template-columns:minmax(220px,.8fr) minmax(280px,1.2fr);gap:12px}
+  .chord-review-card{min-width:0;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:14px}
+  .chord-review-card h2{margin:0 0 12px;color:var(--muted);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em}
+  .chord-review-diagram{min-height:190px;display:flex;align-items:center;justify-content:center;background:var(--field);border:1px solid var(--border);border-radius:8px;padding:12px;overflow:auto}
+  .chord-review-diagram svg{display:block;max-width:100%;height:auto}
+  .chord-review-value{display:block;margin-top:10px;padding:7px 9px;background:var(--field);border:1px solid var(--border);border-radius:6px;color:var(--text);font:12px/1.45 ui-monospace,monospace;overflow-wrap:anywhere}
+  .chord-review-crop-wrap{display:flex;justify-content:center;align-items:center;min-height:190px;max-width:100%;overflow:auto;background:var(--field);border:1px solid var(--border);border-radius:8px;padding:8px}
+  .chord-review-crop{display:block;width:auto;max-width:min(100%,560px);height:auto;max-height:440px;object-fit:contain;background:var(--paper);border-radius:5px}
+  .chord-review-source{min-height:18px;margin-top:8px;color:var(--muted);font-size:12px}
+  .chord-review-help{margin-top:10px;color:var(--muted);font-size:12px}
+  #chordReviewToggle:focus-visible,.chord-review button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  .chord-review button:disabled{opacity:.4;cursor:not-allowed}
+  @media (max-width:760px){
+    .chord-review-head{flex-direction:column}
+    .chord-review-compare{grid-template-columns:minmax(0,1fr)}
+    .chord-review-crop{max-width:100%}
+  }
+  @container (max-width:850px){
+    .chord-review-compare{grid-template-columns:minmax(0,1fr)}
+  }
+  @container (max-width:620px){
+    .layout.chord-review-mode .chord-workspace{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(150px,35vh) minmax(0,1fr)}
+    .layout.chord-review-mode .chord-workspace>#bars{padding-right:0;padding-bottom:8px;border-bottom:1px solid var(--border)}
+    .chord-review-head{flex-direction:column}
+  }
+  .kbdhint{cursor:pointer;color:var(--muted);font-size:12px;border:1px solid var(--border);border-radius:50%;width:24px;height:24px;padding:0;background:var(--panel-2);display:inline-flex;align-items:center;justify-content:center}
+  .kbdhint:hover,.kbdhint:focus-visible{color:var(--text);border-color:var(--accent)}
+  .kbdhint:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  .shortcut-dialog{width:min(680px,calc(100vw - 32px));max-height:calc(100vh - 48px);box-sizing:border-box;overflow:auto;padding:0;border:1px solid var(--border-2);border-radius:12px;background:var(--panel);color:var(--text);box-shadow:0 18px 60px #000a}
+  .shortcut-dialog::backdrop{background:#07090db8;backdrop-filter:blur(2px)}
+  .shortcut-dialog form{padding:18px}
+  .shortcut-dialog-head{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:14px}
+  .shortcut-dialog h2{margin:0;font-size:18px}
+  .shortcut-dialog-close{background:var(--panel-2);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:6px 11px;cursor:pointer}
+  .shortcut-dialog-close:hover,.shortcut-dialog-close:focus-visible{border-color:var(--accent)}
+  .shortcut-groups{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  .shortcut-group{border:1px solid var(--border);border-radius:8px;padding:10px;background:var(--field)}
+  .shortcut-group h3{margin:0 0 7px;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.07em}
+  .shortcut-list{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:5px 10px;margin:0;font-size:12px}
+  .shortcut-list dt,.shortcut-list dd{margin:0}
+  .shortcut-list dt{display:flex;align-items:flex-start;gap:3px;white-space:nowrap}
+  .shortcut-list dd{color:var(--muted)}
+  .shortcut-list kbd,.chord-review-key{font-family:ui-monospace,monospace}
+  .shortcut-list kbd{min-width:16px;box-sizing:border-box;padding:1px 4px;border:1px solid var(--border-2);border-bottom-width:2px;border-radius:4px;background:var(--panel-2);color:var(--text);font-size:11px;text-align:center}
+  .shortcut-list .flagged{color:#d29922}
+  @media (max-width:620px){.shortcut-groups{grid-template-columns:minmax(0,1fr)}}
+  .scan-page{margin:0 0 12px}
+  .scan-image{position:relative;border-radius:8px;overflow:hidden;box-shadow:0 0 0 1px var(--border)}
+  .scan-image img{display:block;width:100%;background:var(--paper)}
+  .scan-page.current .scan-image{box-shadow:0 0 0 2px var(--accent)}
+  .scan-review-marks{position:absolute;inset:0;pointer-events:none}
+  .scan-review-mark{position:absolute;pointer-events:auto;border:0;border-radius:3px;background:transparent;padding:0;cursor:pointer}
+  .scan-review-mark[data-review-status="reviewed"]{box-shadow:0 0 0 2px #268842;background:#4aae5722}
+  .scan-review-mark[data-review-status="deferred"],.scan-review-mark[data-review-status="changed"]{box-shadow:0 0 0 2px #b15b05;background:#d9872426}
+  .scan-review-mark:hover,.scan-review-mark.selected{box-shadow:0 0 0 2px #1760bd,0 0 0 4px #fff;z-index:1}
+  .scan-toolbar{position:sticky;top:0;z-index:2;display:flex;gap:6px 14px;align-items:center;flex-wrap:wrap;background:var(--bg-deep);padding:5px 0;margin-bottom:5px}
+  .scan-edits-toggle{display:flex;gap:5px;align-items:center;color:var(--text);font-size:12px;cursor:pointer}
+  .scan-edits-toggle input{margin:0;accent-color:var(--accent)}
+  .scan-review-legend{display:flex;gap:12px;flex-wrap:wrap;color:var(--muted);font-size:11px}
+  .scan-review-legend span::before{content:"";display:inline-block;width:9px;height:9px;margin-right:5px;border-radius:2px;background:#268842}
+  .scan-review-legend span+span::before{background:#b15b05}
+  .scan-edit-badge{position:absolute;bottom:100%;left:0;padding:1px 4px;border:1px solid #174988;border-radius:4px;background:#174988;color:#fff;font:600 11px/1.3 system-ui,sans-serif;white-space:nowrap}
+  .scan-edit-badge[data-edit-status="unsaved"]{border:1px dashed #f8cf75;background:#543704;color:#fff4d5}
+  .scan-edit-details{box-sizing:border-box;width:100%;padding:7px 9px;border:1px solid var(--border);border-radius:6px;background:var(--panel);font-size:12px}
+  .scan-edit-heading{display:flex;justify-content:space-between;gap:8px}
+  .scan-edit-heading span,.scan-edit-details small{color:var(--muted)}
+  .scan-edit-details table{width:100%;table-layout:fixed;border-collapse:collapse;text-align:left}
+  .scan-edit-details th,.scan-edit-details td{padding:3px 4px;vertical-align:top;overflow-wrap:anywhere;border-bottom:1px solid var(--border)}
+  .scan-edit-details th:first-child{width:16%}
+  .scan-edit-details small{display:block}
+  .scan-edit-details .tab{margin-top:6px}
+  .pagecap{color:var(--muted);font-size:12px;margin-top:6px}
   .empty{color:var(--muted);font-size:13px;padding:24px 4px}
   .section-label{color:var(--muted);text-transform:uppercase;font-size:11px;letter-spacing:.08em;margin:16px 0 8px}
   .bar{border:1px solid var(--border);border-radius:8px;padding:8px;margin-bottom:8px;background:var(--panel)}
@@ -105,6 +198,10 @@
   .chip{background:var(--chip);border:1px solid var(--border);border-radius:7px;padding:6px 9px;cursor:pointer;min-width:60px}
   .chip:hover{border-color:var(--accent)}.chip.sel{background:var(--sel);border-color:var(--accent)}
   .chip .nm{font-weight:600}.chip.pct .nm{color:var(--accent)}
+  .chord-review-state{display:block;color:var(--muted);font-size:11px}
+  .chord-review-state[data-review-status="reviewed"]{color:var(--ok)}
+  .chord-review-state[data-review-status="deferred"],.chord-review-state[data-review-status="changed"]{color:#d29922}
+  .ed-review{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:12px 0}
   .chip .vc{font:11px ui-monospace,monospace;color:var(--muted)}
   .chip .nt{font:11px ui-monospace,monospace;color:var(--note)}
   .chip .ci{font:11px ui-monospace,monospace;color:var(--civ)}
@@ -119,16 +216,25 @@
   .chip .cdia{display:block;margin:3px 0}
   .dhead .cdia{vertical-align:middle}
   .chip .warn{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--bad);margin-left:5px}
-  .editor{position:fixed;right:0;top:49px;bottom:0;width:360px;background:var(--panel-2);border-left:1px solid var(--border);padding:16px;overflow:auto;transform:translateX(100%);transition:transform .15s}
+  .editor{position:fixed;right:0;top:var(--qa-header-height,49px);bottom:0;box-sizing:border-box;width:min(393px,100%);min-width:0;background:var(--panel-2);border-left:1px solid var(--border);padding:16px;overflow:auto;transform:translateX(100%);transition:transform .15s}
   .editor.open{transform:none}
+  @media (min-width:1100px){
+    .layout:has(>.editor.open:not(.hidden)){grid-template-columns:var(--layout-columns) 360px}
+    .layout>.editor.open:not(.hidden){position:static;width:auto;transition:none}
+  }
   .editor h2{font-size:13px;color:var(--muted);text-transform:uppercase;margin:0 0 12px}
+  .ed-split-actions{display:flex;flex-wrap:wrap;gap:6px}
+  .ed-split-actions .tab:disabled{opacity:.4;cursor:default}
   .editor label{display:block;font-size:12px;color:var(--muted);margin:12px 0 4px}
-  .editor input[type=text]{width:100%;background:var(--field);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:8px}
+  .editor input[type=text]{box-sizing:border-box;width:100%;background:var(--field);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:8px}
   .err{color:var(--bad);font-size:12px;min-height:16px;margin-top:4px}
   .badge{display:inline-flex;gap:6px;font-size:12px;padding:3px 8px;border-radius:20px;margin-top:6px}
   .badge.ok{background:var(--ok-bg);color:var(--ok)}.badge.bad{background:var(--bad-bg);color:var(--bad)}
   .suggest .s{display:flex;justify-content:space-between;padding:6px 8px;border:1px solid var(--border);border-radius:6px;margin:5px 0;cursor:pointer}
-  .suggest .s:hover{border-color:var(--accent)}
+  .suggest button.s{width:100%;background:var(--field);color:var(--text);font:inherit;text-align:left}
+  .suggest .s:hover,.suggest button.s:focus-visible{border-color:var(--accent)}
+  .chord-review-suggestions{margin:0 0 12px}
+  .chord-review-suggestions-label{color:var(--muted);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em}
   .fb-ctl{display:flex;gap:8px;align-items:center;color:var(--muted);font-size:12px;margin-bottom:8px}
   .fb-ctl button{background:var(--panel);border:1px solid var(--border);color:var(--text);border-radius:5px;width:24px;height:24px;cursor:pointer}
   .fb-grid{display:flex;gap:0;justify-content:center;background:var(--field);border:1px solid var(--border);border-radius:8px;padding:10px}
@@ -154,15 +260,15 @@
   .ly-line-edit{width:100%;box-sizing:border-box;font:14px ui-monospace,monospace;background:var(--panel);color:inherit;border:1px solid var(--border);border-radius:6px;padding:6px 8px}
   .ly-line-edit:focus{border-color:var(--accent);outline:none}
   .ly-line-err{color:var(--bad);font-size:11px;min-height:14px;margin-top:2px}
-  .viewtabs{display:flex;gap:6px;margin-bottom:10px}
+  .viewtabs{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
   .tab{background:var(--panel-2);color:var(--muted);border:1px solid var(--border);border-radius:6px;padding:5px 12px;cursor:pointer}
   .tab.active{background:var(--sel);color:var(--text);border-color:var(--accent)}
   .pvctl{display:flex;gap:10px;align-items:center;margin-bottom:8px;flex-wrap:wrap}
   .cmctl{display:flex;gap:10px;align-items:center;margin-bottom:8px}
-  .cmsplit{display:flex;gap:8px;height:calc(100vh - 140px)}
+  .cmsplit{display:flex;gap:8px;height:calc(100vh - var(--qa-header-height,49px) - 91px)}
   #cmSource{width:42%;height:100%;box-sizing:border-box;background:var(--bg-deep);color:#cfe3d8;border:1px solid var(--border);border-radius:8px;padding:10px;font:12px/1.55 ui-monospace,monospace;resize:none;white-space:pre;tab-size:2}
   #cmSource.hidden{display:none}
-  #json{display:flex;flex-direction:column;height:calc(100vh - 100px)}
+  #json{display:flex;flex-direction:column;height:calc(100vh - var(--qa-header-height,49px) - 51px)}
   #json.hidden{display:none}
   #json .row{display:flex;gap:8px;align-items:center;margin-bottom:8px}
   #jsonMsg.err{color:var(--bad)}
@@ -210,7 +316,7 @@
   #jsonEditor .CodeMirror-lint-mark-error{text-decoration:wavy underline var(--bad)}
   #jsonEditor .CodeMirror-activeline-background{background:#1a1f29}
   /* Harmony tab — measures of function-colored chord cells + lanes + panel */
-  #harmony{height:calc(100vh - 100px);overflow:auto;padding-bottom:40px}
+  #harmony{height:calc(100vh - var(--qa-header-height,49px) - 51px);overflow:auto;padding-bottom:40px}
   .hm-head{color:var(--muted);font-size:12px;margin-bottom:8px;line-height:1.6}
   .hm-keybar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
   .hm-keybar:empty{display:none}
@@ -272,60 +378,148 @@
   .hm-cell.medconf{opacity:.88;border:1px dotted var(--border-2)}
   .hm-cell.selected{box-shadow:0 0 0 2px var(--accent) inset}
   .hm-fnbar{height:3px;border-radius:2px;margin-top:5px}
-  /* Lyrics tab — chords-over-syllables, drag to re-anchor */
-  #lyrics{height:calc(100vh - 100px);overflow:auto;padding-bottom:40px}
-  .ly-hint{color:var(--muted);font-size:12px;margin-bottom:12px}
+  /* Lyrics tab — editable four-bar Arrange rows */
+  #lyrics{height:calc(100vh - var(--qa-header-height,49px) - 51px);overflow:auto;padding-bottom:40px}
+  .ly-hint{color:var(--muted);font-size:12px;line-height:1.4;margin:0 0 10px;padding:6px 8px;background:var(--panel);border-left:2px solid var(--border-2);border-radius:0 5px 5px 0}
+  .ly-arrange-message{min-height:18px;margin:0 0 10px;color:var(--muted);font-size:12px}
   .ly-section{margin-bottom:22px}
-  .ly-seclabel{color:var(--muted);text-transform:uppercase;font-size:11px;letter-spacing:.08em;margin:0 0 10px}
-  .ly-line{display:flex;flex-wrap:wrap;align-items:flex-end;gap:2px;line-height:2.6}
-  .ly-bar{display:flex;flex-wrap:wrap;align-items:flex-end;gap:2px}
-  .ly-barsep{color:var(--border-2);font-size:18px;align-self:flex-end;margin:0 4px;user-select:none}
-  /* a syllable column: chord token stacked above the syllable text */
-  .ly-syl{position:relative;display:inline-flex;flex-direction:column;align-items:flex-start;padding:0 2px;border-radius:5px;min-height:2.4em;justify-content:flex-end}
-  .ly-syl.drop-ok{background:var(--sel);outline:1px dashed var(--accent)}
-  .ly-chord{align-self:flex-start;font-weight:700;font-size:13px;color:var(--accent);background:var(--chip);border:1px solid var(--border);border-radius:6px;padding:0 6px;margin-bottom:2px;cursor:grab;user-select:none;line-height:1.5}
-  .ly-chord.pct{color:var(--muted);opacity:.55;font-weight:500}
-  .ly-chord:hover{border-color:var(--accent)}
-  .ly-chord.dragging{opacity:.4}
+  .ly-seclabel{color:var(--muted);text-transform:uppercase;font-size:11px;letter-spacing:.08em;margin:0 0 8px}
+  .ly-line{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;align-items:stretch;margin-bottom:8px;line-height:1.35}
+  .ly-bar{display:flex;flex-direction:column;min-width:0;background:var(--panel);border:1px solid var(--border);border-radius:8px;overflow:hidden}
+  .ly-bar-start{display:flex;align-items:center;justify-content:space-between;width:100%;box-sizing:border-box;padding:4px 7px;background:var(--panel-2);color:var(--muted);border:0;border-bottom:1px solid var(--border);font:inherit;font-size:11px;line-height:1.35;text-align:left;cursor:copy}
+  .ly-bar-start:hover,.ly-bar-start:focus-visible{color:var(--text);background:var(--sel)}
+  .ly-bar-start.drop-ok{color:var(--text);background:var(--sel);box-shadow:inset 0 0 0 1px var(--accent)}
+  .ly-bar-content{display:flex;flex-wrap:wrap;align-items:stretch;gap:2px;min-height:54px;padding:6px;overflow-x:auto}
+  /* A syllable column keeps its chord and text aligned while remaining a drop target. */
+  .ly-syl{position:relative;display:flex;flex:0 0 auto;flex-direction:column;align-items:stretch;justify-content:flex-end;min-width:24px;padding:1px;border-radius:5px;transition:background .12s,box-shadow .12s}
+  .ly-syl.drop-ok{background:var(--sel);box-shadow:0 0 0 1px var(--accent)}
+  .ly-syl.drop-blocked,.ly-bar-start.drop-blocked{box-shadow:inset 0 0 0 1px #d29922}
+  .ly-chord,.ly-text{font:inherit;border:0;background:none;color:inherit}
+  .ly-chord{align-self:flex-start;max-width:100%;font-weight:700;font-size:13px;color:var(--accent);background:var(--chip);border:1px solid var(--border);border-radius:5px;padding:1px 5px;margin:0 0 3px;cursor:grab;user-select:none;line-height:1.45;white-space:nowrap}
+  .ly-chord:hover,.ly-chord.selected{border-color:var(--accent);background:var(--sel)}
+  .ly-chord.selected{box-shadow:0 0 0 1px var(--accent)}
+  .ly-chord.dragging{opacity:.4;cursor:grabbing}
   .ly-chord.inst{cursor:grab}
-  .ly-chordrow-spacer{height:1.5em}
-  .ly-text{font-size:15px;white-space:pre}
+  .ly-chord.pct,.ly-chord .pct{pointer-events:none;color:var(--muted);opacity:.6;font-weight:500}
+  .ly-chordrow-spacer{display:block;height:1.9em;min-width:1px}
+  .ly-text{min-height:1.55em;padding:1px 3px;border-radius:4px;font-size:15px;line-height:1.45;white-space:pre;cursor:text;text-align:left}
+  .ly-text:hover{background:var(--panel-2)}
   .ly-text.empty{color:var(--muted)}
   .ly-inst{font-style:italic;color:var(--muted)}
+  .ly-bar-start:focus-visible,.ly-chord:focus-visible,.ly-text:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  /* Legacy separators remain harmless while saved text-mode renders are open. */
+  .ly-barsep{color:var(--border-2);font-size:18px;align-self:center;margin:0 2px;user-select:none}
+  @container (max-width:720px){.ly-line{grid-template-columns:repeat(2,minmax(0,1fr))}}
+  @container (max-width:390px){.ly-line{grid-template-columns:minmax(0,1fr)}}
+  /* Lyrics Flow — continuous monospaced text with chords anchored by character offset. */
+  .ly-flow-content{--ly-lane-height:2.05em;max-width:100%;overflow-x:auto;overflow-y:visible;padding:2px 0 10px;overscroll-behavior-inline:contain;font:17px/1.65 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-variant-ligatures:none}
+  .ly-flow-section{margin:0 0 22px}
+  .ly-flow-system{--ly-lanes:1;position:relative;min-width:max-content;padding-top:calc(var(--ly-lanes) * var(--ly-lane-height));margin-bottom:.55em}
+  .ly-flow-chords{position:absolute;inset:0 0 auto;height:calc(var(--ly-lanes) * var(--ly-lane-height));overflow:visible;pointer-events:none}
+  .ly-flow-label{position:absolute;inset-block-end:calc(var(--ly-lane, 0) * var(--ly-lane-height));display:flex;gap:.35ch;white-space:nowrap}
+  .ly-flow-label .ly-chord{margin:0;padding:1px .5ch;pointer-events:auto;font:inherit;font-weight:600;line-height:1.45}
+  .ly-flow-unanchored .ly-chord{color:var(--muted)}
+  .ly-flow-lyric{position:relative;white-space:pre;color:var(--text)}
+  .ly-flow-fragment{display:inline;margin:0;padding:0;border:0;background:none;color:inherit;font:inherit;border-radius:2px;cursor:text;transition:background .12s,box-shadow .12s}
+  .ly-flow-fragment:hover{background:var(--panel-2)}
+  .ly-flow-fragment:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+  .ly-flow-fragment.drop-ok{background:var(--sel);box-shadow:0 0 0 1px var(--accent)}
+  .ly-flow-fragment.drop-blocked{box-shadow:inset 0 0 0 1px #d29922}
+  .ly-flow-measure{position:absolute;inline-size:1ch;block-size:1em;visibility:hidden;pointer-events:none}
+  .ly-flow-instrumental{display:flex;flex-wrap:wrap;gap:5px;padding-top:.25em;color:var(--muted);font:italic 15px/1.5 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace}
+  .ly-flow-instrumental .ly-chord{position:static;margin:0 .5ch 0 0;font-size:1em}
 </style>
 </head>
 <body>
 <header>
-  <select id="albumSel"></select>
+  <select id="albumSel" aria-label="Album"></select>
   <select id="songSel" class="hidden"></select>
+  <span id="currentSongTitle" class="current-song-title" aria-live="polite"></span>
   <span id="albumProgress" class="muted"></span>
   <button id="nextFlagBtn" class="tab" title="jump to next flagged chord (} next, { previous; ]/[ step every chord)">Next flagged ›</button>
   <select id="keySel" title="song key (for interval analysis)">
     <option value="">key: —</option>
   </select>
-  <select id="statusSel" title="editing status">
-    <option value="pending">○ pending</option>
-    <option value="in_progress">◐ in progress</option>
-    <option value="done">✓ done</option>
-  </select>
+  <label class="song-status-control">Song status
+    <select id="statusSel">
+      <option value="pending">○ pending</option>
+      <option value="in_progress">◐ in progress</option>
+      <option value="done">✓ done</option>
+    </select>
+  </label>
   <span id="flagCount" class="muted"></span>
   <button id="songsToggle" class="tab" title="show/hide the song list (focus mode)">☰ songs</button>
   <button id="scanToggle" class="tab" title="show/hide the PDF scan pane (\)">⊞ scan</button>
+  <button id="chordReviewToggle" class="tab" aria-pressed="false">Chord review</button>
   <button id="spellToggle" title="toggle note spelling" style="background:var(--panel-2);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:7px 14px;font-weight:600;cursor:pointer">♯ sharp</button>
   <span class="spacer"></span>
-  <span id="saveStatus" class="muted"></span>
-  <span class="kbdhint" id="kbdHint" title="Keyboard shortcuts:&#10;⌘S / Ctrl+S — Save&#10;⌘Z / Ctrl+Z — Undo&#10;⌘⇧Z / Ctrl+Y — Redo&#10;Esc — close editor&#10;n / p — next / previous song&#10;] — next flagged chord&#10;\ — toggle PDF scan pane&#10;Enter (in name field) — Apply">?</span>
+  <span id="saveStatus" class="muted" role="status" aria-live="polite"></span>
+  <button class="kbdhint" id="kbdHint" type="button" aria-label="Keyboard shortcuts" aria-haspopup="dialog" aria-controls="shortcutDialog" title="Keyboard shortcuts (? or /)">?</button>
   <button id="saveBtn" class="btn-primary">Save song</button>
 </header>
+<dialog id="shortcutDialog" class="shortcut-dialog" aria-labelledby="shortcutDialogTitle">
+  <form method="dialog">
+    <div class="shortcut-dialog-head">
+      <h2 id="shortcutDialogTitle">Keyboard shortcuts</h2>
+      <button class="shortcut-dialog-close" value="close">Close</button>
+    </div>
+    <div class="shortcut-groups">
+      <section class="shortcut-group">
+        <h3>Navigate chords</h3>
+        <dl class="shortcut-list">
+          <dt><kbd>H</kbd> / <kbd>←</kbd> / <kbd>[</kbd></dt><dd>Previous chord</dd>
+          <dt><kbd>L</kbd> / <kbd>→</kbd> / <kbd>]</kbd></dt><dd>Next chord</dd>
+          <dt><kbd>J</kbd> / <kbd>↓</kbd></dt><dd>Next bar</dd>
+          <dt><kbd>K</kbd> / <kbd>↑</kbd></dt><dd>Previous bar</dd>
+          <dt class="flagged"><kbd>Shift</kbd>+<kbd>←</kbd> / <kbd>{</kbd></dt><dd class="flagged">Previous flagged chord</dd>
+          <dt class="flagged"><kbd>Shift</kbd>+<kbd>→</kbd> / <kbd>}</kbd></dt><dd class="flagged">Next flagged chord</dd>
+        </dl>
+      </section>
+      <section class="shortcut-group">
+        <h3>Arrange chords</h3>
+        <dl class="shortcut-list">
+          <dt><kbd>Shift</kbd>+<kbd>H</kbd></dt><dd>Move earlier within bar</dd>
+          <dt><kbd>Shift</kbd>+<kbd>L</kbd></dt><dd>Move later within bar</dd>
+          <dt><kbd>Shift</kbd>+<kbd>J</kbd></dt><dd>Move to next bar</dd>
+          <dt><kbd>Shift</kbd>+<kbd>K</kbd></dt><dd>Move to previous bar</dd>
+          <dt><kbd>1</kbd>–<kbd>4</kbd></dt><dd>Apply numbered chord name</dd>
+        </dl>
+      </section>
+      <section class="shortcut-group">
+        <h3>Chord review</h3>
+        <dl class="shortcut-list">
+          <dt><kbd>A</kbd></dt><dd>Apply edits with the printed fingering, mark reviewed and advance</dd>
+          <dt><kbd>R</kbd></dt><dd>Mark reviewed and stay in Bars or Chord Review</dd>
+          <dt><kbd>Space</kbd></dt><dd>Apply edits, mark reviewed and advance in Bars or Chord Review</dd>
+          <dt><kbd>S</kbd></dt><dd>Defer this chord</dd>
+        </dl>
+      </section>
+      <section class="shortcut-group">
+        <h3>Songs and editing</h3>
+        <dl class="shortcut-list">
+          <dt><kbd>N</kbd> / <kbd>P</kbd></dt><dd>Next / previous song</dd>
+          <dt><kbd>\</kbd></dt><dd>Toggle PDF scan pane</dd>
+          <dt><kbd>⌘/Ctrl</kbd>+<kbd>S</kbd></dt><dd>Save song</dd>
+          <dt><kbd>⌘/Ctrl</kbd>+<kbd>Z</kbd></dt><dd>Undo</dd>
+          <dt><kbd>⌘⇧Z</kbd> / <kbd>Ctrl+Y</kbd></dt><dd>Redo</dd>
+          <dt><kbd>Enter</kbd></dt><dd>Apply and mark reviewed in the chord name or anchored lyric field. Apply edits in fretboard or song lyric fields.</dd>
+          <dt><kbd>F2</kbd></dt><dd>Edit the focused lyric in Flow or Arrange</dd>
+          <dt><kbd>Escape</kbd></dt><dd>Exit editing or dismiss this dialog</dd>
+          <dt><kbd>?</kbd> / <kbd>/</kbd></dt><dd>Show keyboard shortcuts</dd>
+        </dl>
+      </section>
+    </div>
+  </form>
+</dialog>
 <div class="layout">
   <div class="col songs" id="songsPanel">
     <div class="songs-tools">
-      <input type="text" id="songSearch" placeholder="search songs…" autocomplete="off">
+      <input type="text" id="songSearch" aria-label="Search songs" placeholder="search songs…" autocomplete="off">
       <div class="songs-filter" id="songsFilter">
-        <button data-filter="all" class="active">All</button>
-        <button data-filter="pending">○</button>
-        <button data-filter="in_progress">◐</button>
-        <button data-filter="done">✓</button>
+        <button type="button" data-filter="all" class="active" aria-pressed="true">All</button>
+        <button type="button" data-filter="pending" aria-label="Pending songs" title="Pending songs" aria-pressed="false">○</button>
+        <button type="button" data-filter="in_progress" aria-label="Songs in progress" title="Songs in progress" aria-pressed="false">◐</button>
+        <button type="button" data-filter="done" aria-label="Done songs" title="Done songs" aria-pressed="false">✓</button>
       </div>
     </div>
     <div class="songs-list" id="songsList"></div>
@@ -341,15 +535,60 @@
     <div class="viewtabs">
       <button id="tabBars" class="tab active">Bars</button>
       <button id="tabLyrics" class="tab">Lyrics</button>
-      <button id="tabReview" class="tab">Review</button>
+      <button id="tabReview" class="tab">Verification</button>
       <button id="tabDict" class="tab">Dictionary</button>
       <button id="tabHarmony" class="tab">Harmony</button>
       <button id="tabPreview" class="tab">Preview</button>
       <button id="tabJson" class="tab">JSON</button>
     </div>
-    <div id="bars"></div>
+    <div class="chord-workspace">
+      <div id="bars"></div>
+      <section id="chordReview" class="chord-review hidden" aria-labelledby="chordReviewName">
+        <div class="chord-review-head">
+          <div class="chord-review-title">
+            <div id="chordReviewPosition" class="muted" aria-live="polite"></div>
+            <h1 id="chordReviewName"></h1>
+            <div id="chordReviewContext" class="chord-review-context"></div>
+          </div>
+          <div class="chord-review-nav" aria-label="Chord review navigation">
+            <button id="chordReviewPrev" type="button" aria-keyshortcuts="h ArrowLeft" title="previous chord (H or ←)">Previous <span class="chord-review-key">H / ←</span></button>
+            <button id="chordReviewNext" type="button" aria-keyshortcuts="l ArrowRight" title="next chord (L or →)">Next <span class="chord-review-key">L / →</span></button>
+          </div>
+        </div>
+        <div id="chordReviewMessage" class="chord-review-message" role="status" aria-live="polite"></div>
+        <div id="chordReviewContent" hidden>
+          <div class="chord-review-suggestions">
+            <div class="chord-review-suggestions-label">Chord names</div>
+            <div id="chordReviewSuggestions" class="suggest" aria-label="Chord names"></div>
+          </div>
+          <div class="chord-review-compare">
+            <section class="chord-review-card" aria-label="Current voicing">
+              <h2>Current voicing</h2>
+              <div id="chordReviewDiagram" class="chord-review-diagram"></div>
+              <code id="chordReviewCurrent" class="chord-review-value"></code>
+            </section>
+            <section class="chord-review-card" aria-label="Printed fingering">
+              <h2>Printed fingering</h2>
+              <div class="chord-review-crop-wrap">
+                <img id="chordReviewCrop" class="chord-review-crop" alt="Magnified printed chord diagram crop" hidden>
+              </div>
+              <div id="chordReviewSourceStatus" class="chord-review-source"></div>
+              <code id="chordReviewProposed" class="chord-review-value"></code>
+            </section>
+          </div>
+          <div class="chord-review-actions" aria-label="Chord review decision">
+            <button id="chordReviewAccept" class="accept" type="button" aria-keyshortcuts="A">Use printed and review <span class="chord-review-key">A</span></button>
+            <button id="chordReviewKeep" type="button" aria-keyshortcuts="Space">Mark reviewed <span class="chord-review-key">Space</span></button>
+            <button id="chordReviewSkip" type="button" aria-keyshortcuts="S">Defer <span class="chord-review-key">S</span></button>
+            <button id="chordReviewEdit" type="button">Edit chord</button>
+          </div>
+          <div class="chord-review-help">Shift + ← / → (or { / }) moves between flagged chords.</div>
+        </div>
+      </section>
+    </div>
     <div id="lyrics" class="hidden"></div>
     <div id="review" class="hidden">
+      <p id="verificationChordProgress" class="muted"></p>
       <div id="reviewSourceIssues" class="review-source-issues hidden"></div>
       <div class="review-controls">
         <label>Field
@@ -396,7 +635,7 @@
         <button id="hmExportJson" class="tab" title="analysis of the CURRENT (unsaved) edits">Export JSON</button>
         <button id="hmExportCsv" class="tab" title="one row per chord event — for spreadsheets">Export CSV</button>
         <button id="hmExportHtml" class="tab" title="standalone snapshot of this view">Export HTML</button>
-        <button id="hmExportPdf" class="tab" title="the snapshot converted by headless Chrome">Export PDF</button>
+        <button id="hmExportPdf" class="tab">Print / Save PDF</button>
         <span id="hmExportMsg" class="muted"></span>
       </div>
       <div id="hmLegend"></div>
@@ -421,24 +660,31 @@
     <div id="preview" class="hidden">
       <div class="pvctl">
         <label>style
-          <select id="pvStyle"><option value="fork">Fork</option><option value="target">Target</option></select>
+          <select id="pvStyle"><option value="fork">Chord Chart</option><option value="target">Lead Sheet</option></select>
         </label>
         <label>dictionary
           <select id="pvDict"><option value="per_voicing">per voicing</option><option value="per_name">per name</option></select>
         </label>
-        <label>bars/line
+        <label title="Measures per row. Several chord symbols can share a measure.">Bars per line
           <select id="pvBars"><option>4</option><option>6</option><option>8</option></select>
         </label>
-        <label><input type="checkbox" id="pvInline"> inline diagrams</label>
+        <label>diagrams
+          <select id="pvDiagrams">
+            <option value="dictionary">Dictionary</option>
+            <option value="inline">Inline</option>
+            <option value="both">Both</option>
+          </select>
+        </label>
         <label><input type="checkbox" id="pvSource"> source</label>
         <span class="spacer" style="flex:1"></span>
-        <button id="pvExportPdf" class="tab">Export PDF</button>
+        <button id="pvExportPdf" class="tab">Print / Save PDF</button>
         <button id="pvExportPng" class="tab">Export PNG</button>
         <button id="pvExportHtml" class="tab">Export HTML</button>
         <button id="pvExportChordmark" class="tab">Export .chordmark</button>
         <button id="pvExportChordpro" class="tab">Export ChordPro</button>
-        <button id="pvExportAlbum" class="tab">Export album PDF</button>
+        <button id="pvExportAlbum" class="tab">Print saved album</button>
         <span id="pvExportMsg" class="muted"></span>
+        <span id="pvPreviewMsg" class="muted" role="status"></span>
       </div>
       <div id="pvSourceBar" class="cmctl hidden">
         <button id="cmCopy" class="btn-primary">Copy ChordMark</button>
@@ -462,8 +708,8 @@
       <textarea id="jsonSource" spellcheck="false" class="hidden"></textarea>
     </div>
   </div>
+  <aside class="editor" id="editor"></aside>
 </div>
-<aside class="editor" id="editor"></aside>
 <script src="vendor/tonal.bundle.js"></script>
 <script src="vendor/chord-symbol.bundle.js"></script>
 <script src="vendor/codemirror/codemirror.min.js"></script>
@@ -482,7 +728,10 @@
 <script src="app_songs.js"></script>
 <script src="app_bars.js"></script>
 <script src="app_lyrics.js"></script>
+<script src="app_preview_export.js"></script>
 <script src="app_views.js"></script>
+<script src="app_chord_review.js"></script>
+<script src="app_scan.js"></script>
 <script src="app_review.js"></script>
 <script src="app_dict.js"></script>
 <script src="app.js"></script>

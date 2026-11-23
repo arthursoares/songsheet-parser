@@ -150,26 +150,33 @@ def _bar_tokens(bar):
     return out
 
 
-def render_bar_html(bar, inline_diagrams=False):
+def render_bar_html(bar, inline_diagrams=False, *, continuation_after=False):
     """Render one bar as a grid cell of chord-over-syllable slots.
 
     Each chord entry is a slot: the chord name (with beat dots for multi-chord
     bars, or '%' for a held entry) above its syllables below. The enclosing
     `.bar` cell draws the bar lines (the `|`) and gives every bar equal width.
-    Hyphenation is verbatim from `text` (a trailing '-' marks a word continuation).
+    Stored continuation dashes are hidden for display, using the same semantics
+    as the ChordMark export. The model text and per-entry chord slots are not
+    changed.
     """
     slots = []
-    for label, text, voicing, chord in _bar_tokens(bar):
+    tokens = _bar_tokens(bar)
+    for index, (label, text, voicing, chord) in enumerate(tokens):
+        has_later_lyric = continuation_after or any(
+            later[1].strip() for later in tokens[index + 1 :]
+        )
         idia = (
             f'<span class="idia">{diagram(voicing)}</span>'
             if inline_diagrams and voicing and chord != "%"
             else ""
         )
+        lyric = chordmark_render.lyric_display_text(text, continuation_after=has_later_lyric)
         slots.append(
             '<span class="sl">'
             f'<span class="ch"><b class="cn">{_html.escape(label)}</b></span>'
             f"{idia}"
-            f'<span class="ly">{_html.escape(text)}</span>'
+            f'<span class="ly">{_html.escape(lyric)}</span>'
             "</span>"
         )
     return '<div class="bar">' + "".join(slots) + "</div>"
@@ -271,28 +278,51 @@ def _dictionary_html(sections, mode):
     return '<div class="dict">' + "".join(parts) + "</div>"
 
 
-def _chunk(items, n):
-    """Split a list into consecutive chunks of at most n (n>=1)."""
-    n = max(1, n)
-    return [items[i : i + n] for i in range(0, len(items), n)]
-
-
 def _body_html(sections, inline_diagrams, bars_per_line=4):
     """Render sections as an even bar-grid: `bars_per_line` equal-width bars per
     line, each its own cell (CSS draws the bar lines), chords over their syllables."""
     cols = f"grid-template-columns:repeat({bars_per_line},1fr)"
     lines = []
-    for sec in sections or []:
-        label = sec.get("label")
+    for label, group in chordmark_render._group_section_bars(
+        sections, bars_per_line, keep_empty_bars=True
+    ):
         if label:
             lines.append(f'<div class="seclabel">{_html.escape(label)}</div>')
-        for group in _chunk(sec.get("bars", []), bars_per_line):
-            cells = "".join(render_bar_html(bar, inline_diagrams=inline_diagrams) for bar in group)
-            lines.append(f'<div class="ln" style="{cols}">{cells}</div>')
+        if not group:
+            continue
+        last_lyric = max(
+            (i for i, bar in enumerate(group) if chordmark_render._bar_has_lyric(bar)),
+            default=-1,
+        )
+        cells = "".join(
+            render_bar_html(bar, inline_diagrams=inline_diagrams, continuation_after=i < last_lyric)
+            for i, bar in enumerate(group)
+        )
+        lines.append(f'<div class="ln" style="{cols}">{cells}</div>')
     return '<div class="body">' + "".join(lines) + "</div>"
 
 
-def _song_inner_html(song, dictionary="per_voicing", inline_diagrams=False, bars_per_line=4):
+def _diagram_visibility(diagram_layout, inline_diagrams):
+    """Return (dictionary, inline) visibility for legacy or explicit layout options."""
+    if diagram_layout is None:
+        return True, inline_diagrams
+    if diagram_layout == "dictionary":
+        return True, False
+    if diagram_layout == "inline":
+        return False, True
+    if diagram_layout == "both":
+        return True, True
+    raise ValueError(f"unknown diagram layout: {diagram_layout!r}")
+
+
+def _song_inner_html(
+    song,
+    dictionary="per_voicing",
+    inline_diagrams=False,
+    bars_per_line=4,
+    *,
+    diagram_layout=None,
+):
     """The per-song body markup (title + composer + dictionary + body), no <style>.
 
     Shared by render_song (standalone page) and render_songbook (one doc, many songs)
@@ -301,18 +331,31 @@ def _song_inner_html(song, dictionary="per_voicing", inline_diagrams=False, bars
     sections = song.get("sections", [])
     title = _html.escape(song.get("title") or "")
     composer = _html.escape(", ".join(song.get("composers") or []))
+    show_dictionary, show_inline = _diagram_visibility(diagram_layout, inline_diagrams)
+    dictionary_html = _dictionary_html(sections, dictionary) if show_dictionary else ""
     return (
         f'<h1>{title}</h1><div class="composer">{composer}</div>'
-        f"{_dictionary_html(sections, dictionary)}"
-        f"{_body_html(sections, inline_diagrams, bars_per_line)}"
+        f"{dictionary_html}"
+        f"{_body_html(sections, show_inline, bars_per_line)}"
     )
 
 
-def render_song(song, dictionary="per_voicing", inline_diagrams=False, bars_per_line=4):
+def render_song(
+    song,
+    dictionary="per_voicing",
+    inline_diagrams=False,
+    bars_per_line=4,
+    *,
+    diagram_layout=None,
+):
     """Render a song dict to a full standalone target-look HTML page."""
     title = _html.escape(song.get("title") or "")
     inner = _song_inner_html(
-        song, dictionary=dictionary, inline_diagrams=inline_diagrams, bars_per_line=bars_per_line
+        song,
+        dictionary=dictionary,
+        inline_diagrams=inline_diagrams,
+        bars_per_line=bars_per_line,
+        diagram_layout=diagram_layout,
     )
     return (
         '<!doctype html><html><head><meta charset="utf-8">'
@@ -337,7 +380,13 @@ _SONGBOOK_CSS = """
 
 
 def render_songbook(
-    songs, title="", dictionary="per_voicing", inline_diagrams=False, bars_per_line=4
+    songs,
+    title="",
+    dictionary="per_voicing",
+    inline_diagrams=False,
+    bars_per_line=4,
+    *,
+    diagram_layout=None,
 ):
     """Render many song dicts into ONE standalone HTML document.
 
@@ -355,7 +404,11 @@ def render_songbook(
     sections_html = "".join(
         '<section class="song">'
         + _song_inner_html(
-            s, dictionary=dictionary, inline_diagrams=inline_diagrams, bars_per_line=bars_per_line
+            s,
+            dictionary=dictionary,
+            inline_diagrams=inline_diagrams,
+            bars_per_line=bars_per_line,
+            diagram_layout=diagram_layout,
         )
         + "</section>"
         for s in songs

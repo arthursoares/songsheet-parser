@@ -12,11 +12,13 @@ Usage:
 import argparse
 import hashlib
 import json
+import os
 import re
 import threading
+from html import escape
 from pathlib import Path
 
-from extraction_provenance import file_sha256
+from extraction_provenance import entries, file_sha256
 from review_state import record_review, review_summary
 from songsheet_io import DocumentError, load_document, save_document, validate_document
 
@@ -62,6 +64,20 @@ def _bars_per_line(params):
     return n if n in (4, 6, 8) else 4
 
 
+def _diagram_layout(params):
+    value = params.get("diagrams")
+    return value if value in ("dictionary", "inline", "both") else None
+
+
+def _target_render_options(params):
+    return {
+        "dictionary": params.get("dict", "per_voicing"),
+        "inline": params.get("inline") == "1",
+        "bars_per_line": _bars_per_line(params),
+        "diagram_layout": _diagram_layout(params),
+    }
+
+
 def _song_meta(path: Path):
     """Status + voicing-audit summary for the sidebar. Never raises.
 
@@ -102,15 +118,13 @@ def list_albums(root: Path):
 
 
 def _chrome():
-    """Path to a headless-capable Chrome/Chromium binary, or None if not found."""
+    """Find an isolated server export renderer without starting desktop Chrome."""
     import shutil
 
-    for c in ("google-chrome", "chromium", "chromium-browser"):
-        p = shutil.which(c)
-        if p:
-            return p
-    mac = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
-    return mac if Path(mac).exists() else None
+    configured = os.environ.get("SONGSHEET_CHROME_BIN")
+    if configured:
+        return shutil.which(configured)
+    return shutil.which("chrome-headless-shell") or shutil.which("chromium-headless-shell")
 
 
 # Serialize headless-Chrome conversions: the server is a ThreadingHTTPServer,
@@ -123,10 +137,17 @@ def _chrome_convert(html: str, fmt: str):
 
     fmt is "pdf" or "png". Returns the bytes, or raises RuntimeError if Chrome is
     missing or the conversion fails / times out. Conversions are serialized
-    (one Chrome process at a time) so concurrent exports don't collide.
+    (one Chrome process at a time) so concurrent exports don't collide. PNG is
+    rendered from Chrome's paginated PDF instead of a fixed-height screenshot,
+    so long charts are not silently clipped at the viewport boundary.
     """
+    import io
+    import signal
     import subprocess
     import tempfile
+
+    if fmt not in ("pdf", "png"):
+        raise ValueError(f"unsupported Chrome conversion format: {fmt!r}")
 
     with _CHROME_LOCK:
         chrome = _chrome()
@@ -136,33 +157,71 @@ def _chrome_convert(html: str, fmt: str):
         with tempfile.TemporaryDirectory() as tmp:
             in_html = Path(tmp) / "in.html"
             in_html.write_text(html, encoding="utf-8")
-            if fmt == "pdf":
-                out = Path(tmp) / "out.pdf"
-                cmd = [
-                    chrome,
-                    "--headless",
-                    "--disable-gpu",
-                    "--no-pdf-header-footer",
-                    f"--print-to-pdf={out}",
-                    str(in_html),
-                ]
-            else:
-                out = Path(tmp) / "out.png"
-                cmd = [
-                    chrome,
-                    "--headless",
-                    "--disable-gpu",
-                    f"--screenshot={out}",
-                    "--window-size=1100,1600",
-                    str(in_html),
-                ]
+            out = Path(tmp) / "out.pdf"
+            profile = Path(tmp) / "chrome-profile"
+            cmd = [
+                chrome,
+                "--headless",
+                "--disable-gpu",
+                "--no-first-run",
+                "--no-default-browser-check",
+                f"--user-data-dir={profile}",
+                "--no-pdf-header-footer",
+                f"--print-to-pdf={out}",
+                in_html.as_uri(),
+            ]
             try:
                 r = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
             except subprocess.TimeoutExpired as e:
                 raise RuntimeError("Chrome conversion timed out") from e
-            if not out.exists():
-                raise RuntimeError(f"Chrome conversion failed: {r.stderr or r.stdout}")
-            return out.read_bytes()
+            if r.returncode != 0 or not out.exists():
+                detail = (r.stderr or r.stdout or "").strip()
+                if r.returncode < 0:
+                    try:
+                        outcome = f"terminated by {signal.Signals(-r.returncode).name}"
+                    except ValueError:
+                        outcome = f"terminated by signal {-r.returncode}"
+                else:
+                    outcome = f"exited with status {r.returncode}"
+                if detail:
+                    outcome += f": {detail}"
+                raise RuntimeError(f"Chrome conversion failed ({outcome})")
+
+            pdf = out.read_bytes()
+            if not pdf.startswith(b"%PDF-"):
+                raise RuntimeError("Chrome conversion failed (invalid PDF output)")
+            if fmt == "pdf":
+                return pdf
+
+            # Chrome's command-line screenshot captures only the viewport. Render
+            # every printed page and join them vertically for a complete PNG.
+            import fitz
+            from PIL import Image
+
+            try:
+                pages = []
+                with fitz.open(stream=pdf, filetype="pdf") as document:
+                    for page in document:
+                        pixmap = page.get_pixmap(matrix=fitz.Matrix(2, 2), alpha=False)
+                        pages.append(
+                            Image.frombytes("RGB", (pixmap.width, pixmap.height), pixmap.samples)
+                        )
+                if not pages:
+                    raise ValueError("PDF has no pages")
+                image = Image.new(
+                    "RGB",
+                    (max(page.width for page in pages), sum(page.height for page in pages)),
+                    "white",
+                )
+                y = 0
+                for page in pages:
+                    image.paste(page, (0, y))
+                    y += page.height
+                png = io.BytesIO()
+                image.save(png, format="PNG")
+                return png.getvalue()
+            except Exception as e:  # noqa: BLE001
+                raise RuntimeError(f"PNG conversion failed: {e}") from e
 
 
 def _attach(stem: str, ext: str):
@@ -175,17 +234,26 @@ def _render_html_for_export(target: Path, params):
 
     Returns (html_str, None) on success or (None, error_3tuple) on failure.
     """
-    bars = _bars_per_line(params)
     if params.get("style") == "fork":
-        result = render_song_html(target, bars_per_line=bars)
-    else:
-        result = render_target_html(
-            target,
-            dictionary=params.get("dict", "per_voicing"),
-            inline=params.get("inline") == "1",
-            bars_per_line=bars,
+        result = render_song_html(
+            target, bars_per_line=_bars_per_line(params), diagram_layout=_diagram_layout(params)
         )
+    else:
+        result = render_target_html(target, **_target_render_options(params))
     # render_*_html return (200, "text/html", bytes); surface any non-200 as error
+    if result[0] != 200:
+        return None, result
+    return result[2].decode("utf-8"), None
+
+
+def _render_doc_html_for_export(doc, params):
+    """Build export HTML from an in-memory document without reading a song file."""
+    if params.get("style") == "fork":
+        result = render_song_doc(
+            doc, bars_per_line=_bars_per_line(params), diagram_layout=_diagram_layout(params)
+        )
+    else:
+        result = render_target_doc(doc, **_target_render_options(params))
     if result[0] != 200:
         return None, result
     return result[2].decode("utf-8"), None
@@ -198,7 +266,7 @@ def _load_doc(body: bytes):
     """
     try:
         return json.loads(body), None
-    except (json.JSONDecodeError, ValueError) as e:
+    except (json.JSONDecodeError, UnicodeDecodeError, ValueError) as e:
         return None, _json(400, {"error": f"invalid JSON: {e}"})
 
 
@@ -249,22 +317,30 @@ def _h_chordmark(req, album, file):
 
 
 def _h_render_doc(req):
-    """?style=target|fork&dict=&inline=&bars= — render from a POSTed doc.
+    """?style=target|fork&dict=&diagrams=&bars= — render from a POSTed doc.
 
     Live preview of UNSAVED edits: body is the in-memory document. Never writes.
     """
     doc, err = _load_doc(req.body)
     if err is not None:
         return err
-    bars = _bars_per_line(req.params)
+    options = _target_render_options(req.params)
+    fork = None
     if req.params.get("style") == "fork":
-        return render_song_doc(doc, bars_per_line=bars)
-    return render_target_doc(
-        doc,
-        dictionary=req.params.get("dict", "per_voicing"),
-        inline=req.params.get("inline") == "1",
-        bars_per_line=bars,
-    )
+        fork = render_song_doc(
+            doc, bars_per_line=options["bars_per_line"], diagram_layout=options["diagram_layout"]
+        )
+    if fork is not None and fork[0] == 200:
+        return fork
+    target = render_target_doc(doc, **options)
+    if fork is None:
+        return target
+    if target[0] != 200:
+        return fork
+    headers = {"X-Songsheet-Preview-Style": "target"}
+    if fork[0] == 422:
+        headers["X-Songsheet-Preview-Reason"] = "bar-layout"
+    return *target, headers
 
 
 def _h_chordmark_doc(req):
@@ -333,8 +409,7 @@ def _h_harmony_doc(req):
 
 def _h_convert(req):
     """?fmt=pdf|png&name=<stem> — body is an HTML document, returns it converted
-    by headless Chrome as a downloadable attachment. Used by the Harmony tab's
-    PDF export (the snapshot HTML is built client-side so it reflects unsaved edits).
+    by the configured headless renderer as a downloadable attachment.
     """
     fmt = req.params.get("fmt", "pdf")
     if fmt not in ("pdf", "png"):
@@ -359,15 +434,11 @@ def _h_render(req, album, file):
     target, err = _existing_song(req.root, album, file)
     if err is not None:
         return err
-    bars = _bars_per_line(req.params)
     if req.params.get("style") == "target":
-        return render_target_html(
-            target,
-            dictionary=req.params.get("dict", "per_voicing"),
-            inline=req.params.get("inline") == "1",
-            bars_per_line=bars,
-        )
-    return render_song_html(target, bars_per_line=bars)
+        return render_target_html(target, **_target_render_options(req.params))
+    return render_song_html(
+        target, bars_per_line=_bars_per_line(req.params), diagram_layout=_diagram_layout(req.params)
+    )
 
 
 def _h_export(req, album, file):
@@ -409,6 +480,55 @@ def _h_export(req, album, file):
     return _json(400, {"error": f"unknown fmt: {fmt}"})
 
 
+def _h_export_doc(req, album, file):
+    """Export a posted document snapshot using an existing song's filename only."""
+    _target, err = _existing_song(req.root, album, file)
+    if err is not None:
+        return err
+    doc, err = _load_doc(req.body)
+    if err is not None:
+        return err
+    try:
+        validate_document(doc)
+    except (DocumentError, TypeError, ValueError) as exc:
+        return _json(422, {"error": str(exc)})
+
+    fmt = req.params.get("fmt", "html")
+    if fmt not in ("chordmark", "chordpro", "html", "pdf", "png"):
+        return _json(400, {"error": f"unknown fmt: {fmt}"})
+    stem = file[:-5] if file.endswith(".json") else file
+
+    if fmt == "chordmark":
+        try:
+            text = _build_chordmark_doc(doc, _bars_per_line(req.params))
+        except Exception as exc:  # noqa: BLE001
+            return _json(500, {"error": f"chordmark build failed: {exc}"})
+        return 200, "text/plain; charset=utf-8", text.encode(), _attach(stem, "chordmark")
+
+    if fmt == "chordpro":
+        try:
+            text = _build_chordpro_doc(doc)
+        except Exception as exc:  # noqa: BLE001
+            return _json(500, {"error": f"chordpro build failed: {exc}"})
+        return 200, "text/plain; charset=utf-8", text.encode(), _attach(stem, "chordpro")
+
+    html, err = _render_doc_html_for_export(doc, req.params)
+    if err is not None:
+        return err
+    if fmt == "html":
+        return 200, "text/html", html.encode(), _attach(stem, "html")
+    if fmt in ("pdf", "png"):
+        if _chrome() is None:
+            return _json(500, {"error": "Chrome not found for PDF export"})
+        try:
+            blob = _chrome_convert(html, fmt)
+        except RuntimeError as exc:
+            return _json(500, {"error": str(exc)})
+        ctype = "application/pdf" if fmt == "pdf" else "image/png"
+        return 200, ctype, blob, _attach(stem, fmt)
+    raise AssertionError(f"unhandled export format: {fmt}")
+
+
 def _h_export_album(req, album):
     """?fmt=pdf|html — whole-album songbook (one document)."""
     album_dir = _safe_under(req.root, album)
@@ -435,6 +555,158 @@ def _h_export_album(req, album):
 
 # Source- and document-fingerprinted crops; observation IDs survive unsaved moves.
 _CROP_CACHE: dict = {}
+# PyMuPDF's native objects are not safe to use concurrently.  Keep both the
+# existing native-image loads and page-placement inspection on one lane.
+_PDF_LOCK = threading.Lock()
+
+
+def _evidence_pdf(source):
+    """Resolve and fingerprint one recorded source PDF, or return an API error."""
+    if PDF_DIR is None or not PDF_DIR.is_dir():
+        return None, _json(404, {"error": "no pdf directory configured"})
+    if not isinstance(source, dict):
+        return None, _json(422, {"error": "invalid source PDF evidence"})
+    name, digest = source.get("name"), source.get("sha256")
+    if not isinstance(name, str) or not name or Path(name).name != name:
+        return None, _json(400, {"error": "invalid source PDF path"})
+    pdf = (PDF_DIR / name).resolve()
+    if not pdf.is_relative_to(PDF_DIR.resolve()) or pdf.suffix.lower() != ".pdf":
+        return None, _json(400, {"error": "invalid source PDF path"})
+    if not pdf.is_file():
+        return None, _json(404, {"error": "recorded source PDF is unavailable"})
+    if not isinstance(digest, str) or file_sha256(pdf) != digest:
+        return None, _json(409, {"error": "source PDF changed; regenerate candidate evidence"})
+    return pdf, None
+
+
+def _page_diagram_boxes(pdf: Path, page_number: int, records: list[dict]):
+    """Map native inclusive crop boxes into rotated, cropped page fractions.
+
+    The diagram reader uses the first embedded page image.  MuPDF reports that
+    image's placement in cropped but unrotated page coordinates, so each native
+    pixel-edge rectangle must pass through the image placement and the page
+    rotation before it can be normalized against the rendered ``page.rect``.
+    """
+    import fitz
+
+    result = {record["observation_id"]: None for record in records}
+    with _PDF_LOCK, fitz.open(pdf) as document:
+        if page_number < 1 or page_number > document.page_count:
+            return result
+        page = document[page_number - 1]
+        images = page.get_images(full=True)
+        if not images:
+            return result
+        xref, native_width, native_height = images[0][0], images[0][2], images[0][3]
+        placements = page.get_image_rects(xref, transform=True)
+        if len(placements) != 1:
+            return result
+        _placement_rect, placement = placements[0]
+        rotation = page.rotation_matrix
+        rendered = page.rect
+        if rendered.width <= 0 or rendered.height <= 0:
+            return result
+        for record in records:
+            native = record.get("native_image", {})
+            if native.get("width") != native_width or native.get("height") != native_height:
+                continue
+            x0, y0, x1, y1 = record["crop_box"]
+            # Evidence boxes are inclusive pixel indices; use the outer pixel
+            # edges so a one-pixel box retains non-zero area.
+            unit_points = (
+                fitz.Point(x0 / native_width, y0 / native_height),
+                fitz.Point((x1 + 1) / native_width, y0 / native_height),
+                fitz.Point(x0 / native_width, (y1 + 1) / native_height),
+                fitz.Point((x1 + 1) / native_width, (y1 + 1) / native_height),
+            )
+            points = [point * placement * rotation for point in unit_points]
+            left = max(0.0, min(point.x for point in points) / rendered.width)
+            top = max(0.0, min(point.y for point in points) / rendered.height)
+            right = min(1.0, max(point.x for point in points) / rendered.width)
+            bottom = min(1.0, max(point.y for point in points) / rendered.height)
+            if left < right and top < bottom:
+                result[record["observation_id"]] = [
+                    round(left, 10),
+                    round(top, 10),
+                    round(right, 10),
+                    round(bottom, 10),
+                ]
+    return result
+
+
+def _h_diagram_location(req, album, file):
+    """All observation-linked source locations for a saved song.
+
+    Paired diagram evidence includes normalized page geometry.  A validated
+    observation with only page context is still useful to the reviewer and is
+    returned with ``box: null``.  Legacy entries without links are not guessed.
+    """
+    target, err = _existing_song(req.root, album, file)
+    if err is not None:
+        return err
+    try:
+        doc = load_document(target)
+    except (ValueError, OSError) as exc:
+        return _json(422, {"error": str(exc)})
+
+    meta = doc.get("_meta", {})
+    observations = meta.get("observations", {})
+    contexts = meta.get("page_sources", {})
+    evidence = meta.get("diagram_evidence", {})
+    pending = {}
+    resolved_sources = {}
+    for _position, entry in entries(doc):
+        observation_id = entry.get("observation_id")
+        if observation_id in pending:
+            continue
+        observation = observations.get(observation_id)
+        if not isinstance(observation, dict):
+            continue
+        wrapper = evidence.get(observation_id)
+        record = wrapper.get("record") if isinstance(wrapper, dict) else None
+        if isinstance(record, dict):
+            page_number, source = record["page"], record["source_pdf"]
+        else:
+            context = contexts.get(observation.get("source_id"))
+            if not isinstance(context, dict):
+                continue
+            page_number, source = context["page"], context["source_pdf"]
+        source_key = json.dumps(source, sort_keys=True, separators=(",", ":"))
+        if source_key not in resolved_sources:
+            pdf, source_err = _evidence_pdf(source)
+            if source_err is not None:
+                return source_err
+            resolved_sources[source_key] = pdf
+        pdf = resolved_sources[source_key]
+        pending[observation_id] = {
+            "page": page_number,
+            "box": None,
+            "pdf": pdf,
+            "record": record,
+        }
+    if not pending:
+        return _json(404, {"error": "no linked source locations"})
+
+    groups = {}
+    for observation_id, location in pending.items():
+        if location["record"] is not None:
+            groups.setdefault((location["pdf"], location["page"]), []).append(location["record"])
+    for (pdf, page_number), records in groups.items():
+        try:
+            boxes = _page_diagram_boxes(pdf, page_number, records)
+        except (Exception, SystemExit):  # noqa: BLE001 - page-only is the defined fallback
+            boxes = {record["observation_id"]: None for record in records}
+        for observation_id, box in boxes.items():
+            pending[observation_id]["box"] = box
+    return _json(
+        200,
+        {
+            "locations": {
+                observation_id: {"page": item["page"], "box": item["box"]}
+                for observation_id, item in pending.items()
+            }
+        },
+    )
 
 
 def _h_diagram_crop(req, album, file):
@@ -476,13 +748,9 @@ def _h_diagram_crop(req, album, file):
         if wrapper is None:
             return _json(404, {"error": "no recorded diagram pairing; inspect the source page"})
         record = wrapper["record"]
-        pdf = (PDF_DIR / record["source_pdf"]["name"]).resolve()
-        if not pdf.is_relative_to(PDF_DIR.resolve()) or pdf.suffix.lower() != ".pdf":
-            return _json(400, {"error": "invalid source PDF path"})
-        if not pdf.is_file():
-            return _json(404, {"error": "recorded source PDF is unavailable"})
-        if file_sha256(pdf) != record["source_pdf"]["sha256"]:
-            return _json(409, {"error": "source PDF changed; regenerate candidate evidence"})
+        pdf, source_err = _evidence_pdf(record["source_pdf"])
+        if source_err is not None:
+            return source_err
         page_num, box = record["page"], record["crop_box"]
     else:
         import audit_voicings as av
@@ -491,7 +759,8 @@ def _h_diagram_crop(req, album, file):
         if pdf is None:
             return _json(404, {"error": f"no PDF for album {album}"})
         try:
-            diagrams = av.song_diagram_data(song, pdf, CV_CACHE_DIR)
+            with _PDF_LOCK:
+                diagrams = av.song_diagram_data(song, pdf, CV_CACHE_DIR)
             pairs, _mode = av.pair_song(song, diagrams)
         except Exception as exc:  # noqa: BLE001
             return _json(500, {"error": f"diagram pairing failed: {exc}"})
@@ -515,7 +784,8 @@ def _h_diagram_crop(req, album, file):
     from PIL import Image
 
     try:
-        page = load_page_image(pdf, page_num)
+        with _PDF_LOCK:
+            page = load_page_image(pdf, page_num)
     except (Exception, SystemExit) as exc:  # noqa: BLE001
         return _json(500, {"error": f"source image unavailable: {exc}"})
     if record and (
@@ -580,8 +850,10 @@ _ROUTES = [
     ("POST", "/api/convert", _h_convert),
     ("GET", "/api/render/{album}/{file}", _h_render),
     ("GET", "/api/export/{album}/{file}", _h_export),
+    ("POST", "/api/export-doc/{album}/{file}", _h_export_doc),
     ("GET", "/api/export-album/{album}", _h_export_album),
     ("GET", "/api/page/{album}/{file}/{n}", _h_page),
+    ("GET", "/api/diagram-location/{album}/{file}", _h_diagram_location),
     ("GET", "/api/diagram-crop/{album}/{file}", _h_diagram_crop),
 ]
 _COMPILED_ROUTES = [(m, p.strip("/").split("/"), fn) for m, p, fn in _ROUTES]
@@ -648,16 +920,18 @@ def save_song(target: Path, body: bytes):
     return _json(200, {"ok": True})
 
 
-def _html_error(msg):
+def _html_error(msg, status=500):
     body = (
         f"<!doctype html><meta charset='utf-8'>"
         f"<body style='font:14px sans-serif;color:#b00;padding:20px'>"
-        f"ChordMark preview unavailable:<br><pre>{msg}</pre></body>"
+        f"Preview unavailable:<br><pre>{escape(msg)}</pre></body>"
     )
-    return 200, "text/html", body.encode()
+    return status, "text/html", body.encode()
 
 
-def render_target_doc(doc, dictionary="per_voicing", inline=False, bars_per_line=4):
+def render_target_doc(
+    doc, dictionary="per_voicing", inline=False, bars_per_line=4, *, diagram_layout=None
+):
     """Render a document dict to the target lead-sheet HTML (pure Python, no fork).
 
     The doc-based core shared by the GET (from path) and POST (from body) routes.
@@ -669,20 +943,32 @@ def render_target_doc(doc, dictionary="per_voicing", inline=False, bars_per_line
         if not songs:
             return _html_error("no songs in document")
         html = render_target.render_song(
-            songs[0], dictionary=dictionary, inline_diagrams=inline, bars_per_line=bars_per_line
+            songs[0],
+            dictionary=dictionary,
+            inline_diagrams=inline,
+            bars_per_line=bars_per_line,
+            diagram_layout=diagram_layout,
         )
         return 200, "text/html", html.encode()
     except Exception as e:  # noqa: BLE001
         return _html_error(f"target render failed: {e}")
 
 
-def render_target_html(song_path: Path, dictionary="per_voicing", inline=False, bars_per_line=4):
+def render_target_html(
+    song_path: Path, dictionary="per_voicing", inline=False, bars_per_line=4, *, diagram_layout=None
+):
     """Render a saved song to the target lead-sheet HTML (pure Python, no fork)."""
     try:
         doc = json.loads(song_path.read_text())
     except Exception as e:  # noqa: BLE001
         return _html_error(f"target render failed: {e}")
-    return render_target_doc(doc, dictionary=dictionary, inline=inline, bars_per_line=bars_per_line)
+    return render_target_doc(
+        doc,
+        dictionary=dictionary,
+        inline=inline,
+        bars_per_line=bars_per_line,
+        diagram_layout=diagram_layout,
+    )
 
 
 def _render_album_songbook_html(album_dir: Path, album: str, params):
@@ -704,6 +990,7 @@ def _render_album_songbook_html(album_dir: Path, album: str, params):
             dictionary=params.get("dict", "per_voicing"),
             inline_diagrams=params.get("inline") == "1",
             bars_per_line=_bars_per_line(params),
+            diagram_layout=_diagram_layout(params),
         )
         return html, None
     except Exception as e:  # noqa: BLE001
@@ -742,16 +1029,21 @@ def _build_chordmark(song_path: Path, bars_per_line=4) -> str:
     return _build_chordmark_doc(doc, bars_per_line=bars_per_line)
 
 
-def _build_chordpro(song_path: Path) -> str:
-    """Build ChordPro source text for every song in a saved document."""
+def _build_chordpro_doc(doc) -> str:
+    """Build ChordPro source text for every song in a document dict."""
     import chordpro_render
 
-    doc = json.loads(song_path.read_text())
     songs = doc.get("songs", [])
     return "\n\n".join(chordpro_render.render_chordpro(s) for s in songs)
 
 
-def render_song_doc(doc, bars_per_line=4):
+def _build_chordpro(song_path: Path) -> str:
+    """Build ChordPro source text for every song in a saved document."""
+    doc = json.loads(song_path.read_text())
+    return _build_chordpro_doc(doc)
+
+
+def render_song_doc(doc, bars_per_line=4, *, diagram_layout=None):
     """Render a document dict to ChordMark HTML via the fork (node render_chordmark.js).
 
     The doc-based core shared by the GET (from path) and POST (from body) routes.
@@ -760,41 +1052,92 @@ def render_song_doc(doc, bars_per_line=4):
     import subprocess
     import tempfile
 
+    import chordmark_render
+
     node = shutil.which("node")
     render_js = SCRIPTS / "render_chordmark.js"
     if not node or not render_js.exists():
         return _html_error("node or render_chordmark.js not found")
 
+    def chart_source():
+        sources, rows = [], []
+        for song in doc.get("songs", []):
+            source, song_rows = chordmark_render.render_chart_source(song, bars_per_line)
+            sources.append(source)
+            rows.extend(song_rows)
+        return "\n\n".join(sources), rows
+
+    chart_data = None
     try:
-        chordmark = _build_chordmark_doc(doc, bars_per_line)
+        # Include blank measures in the expected layout so the Fork cannot
+        # silently drop them while assembling the chart.
+        bar_counts = [
+            len(bars)
+            for song in doc.get("songs", [])
+            for _, bars in chordmark_render._group_section_bars(
+                song.get("sections", []), bars_per_line
+            )
+            if bars
+        ]
+        try:
+            chordmark = _build_chordmark_doc(doc, bars_per_line)
+        except chordmark_render.ChordMarkBarError:
+            chordmark, chart_data = chart_source()
+    except chordmark_render.ChordMarkBarError as e:
+        return _html_error(str(e), status=422)
     except Exception as e:  # noqa: BLE001
         return _html_error(f"failed to build ChordMark: {e}")
 
     with tempfile.TemporaryDirectory() as tmp:
         cm_path = Path(tmp) / "song.chordmark"
         html_path = Path(tmp) / "song.html"
-        cm_path.write_text(chordmark)
-        try:
-            r = subprocess.run(
-                [node, str(render_js), str(cm_path), str(html_path)],
+        command = [node, str(render_js), str(cm_path), str(html_path)]
+        if diagram_layout is not None:
+            command.extend(["--diagrams", diagram_layout])
+        if bar_counts:
+            command.extend(["--expected-bars", ",".join(map(str, bar_counts))])
+
+        def render(source, rows):
+            cm_path.write_text(source)
+            html_path.unlink(missing_ok=True)
+            invocation = command.copy()
+            if rows is not None:
+                chart_path = Path(tmp) / "chart.json"
+                chart_path.write_text(json.dumps(rows))
+                invocation.extend(["--chart-data", str(chart_path)])
+            return subprocess.run(
+                invocation,
                 capture_output=True,
                 text=True,
                 timeout=60,
             )
+
+        try:
+            r = render(chordmark, chart_data)
+            if r.returncode == 3 and chart_data is None:
+                r = render(*chart_source())
+        except chordmark_render.ChordMarkBarError as e:
+            return _html_error(str(e), status=422)
         except subprocess.TimeoutExpired:
             return _html_error("fork render timed out")
+        except (ValueError, OSError) as e:
+            return _html_error(f"could not render Chord Chart: {e}")
+        if r.returncode == 3:
+            return _html_error(
+                "ChordMark could not preserve the chart’s bar boundaries.", status=422
+            )
         if r.returncode != 0 or not html_path.exists():
             return _html_error(f"fork render failed:\n{r.stderr or r.stdout}")
         return 200, "text/html", html_path.read_bytes()
 
 
-def render_song_html(song_path: Path, bars_per_line=4):
+def render_song_html(song_path: Path, bars_per_line=4, *, diagram_layout=None):
     """Render a saved song to ChordMark HTML via the fork (node render_chordmark.js)."""
     try:
         doc = json.loads(song_path.read_text())
     except Exception as e:  # noqa: BLE001
         return _html_error(f"failed to build ChordMark: {e}")
-    return render_song_doc(doc, bars_per_line=bars_per_line)
+    return render_song_doc(doc, bars_per_line=bars_per_line, diagram_layout=diagram_layout)
 
 
 def serve(songs_root: Path, port: int):

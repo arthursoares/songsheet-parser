@@ -52,8 +52,8 @@ codex login          # default vision provider uses your ChatGPT/Codex subscript
 Optional, for the ChordMark-fork render style: clone
 [arthursoares/chord-mark](https://github.com/arthursoares/chord-mark) (adds inline chord
 diagrams + comma-form voicings to upstream ChordMark) as a sibling at `../chordmark/chord-mark`
-and have Node installed. PDF/PNG exports need Google Chrome / Chromium on `PATH` (or at the
-standard macOS location).
+and have Node installed. For server API PDF/PNG export, use `chrome-headless-shell` or
+`chromium-headless-shell` on `PATH`, or set `SONGSHEET_CHROME_BIN` to a separate headless renderer.
 
 ## Usage
 
@@ -172,11 +172,16 @@ The right column has seven tabs:
   validated through ChordMark's parser ([chord-symbol](https://github.com/no-chris/chord-symbol));
   a red dot flags name↔voicing mismatches. Also supports **structural editing**: add/delete a bar,
   split/merge a bar, add/delete a section, and inline section-label rename.
-- **Lyrics** *(prototype)* — a lyrics-first layout where each chord renders above its anchored
-  syllable, per section. **Drag a chord token onto a different syllable to re-anchor it** (per-bar
-  rebuild, wired into undo / dirty-state / Save). Known prototype limits: re-anchoring is scoped to
-  **within a single bar** (cross-bar drops no-op), and syllable splitting is whitespace-based.
-- **Review** — records separate whole-song review states for **Structure**, **Chord names**,
+  Use **Split before** or **Split after** in the chord editor to set the boundary around
+  the selected chord. **+ before** and **+ after** insert an empty bar beside that bar.
+  Both operations keep the same chord selected.
+- **Lyrics · Flow** shows continuous lyrics with chords above their syllables, joining
+  continued words across bars and unlabelled sections. **Arrange** retains the bar
+  grid and offers bar starts as drop targets. Drag a chord to a lyric, or select the
+  chord and click its destination. Double-click a lyric to edit it. The scan follows
+  the selected chord where source links are available. **Text** mode edits whole lyric
+  lines using ChordMark anchors.
+- **Verification** — records separate whole-song review states for **Structure**, **Chord names**,
   **Lyrics**, **Editorial voicings**, **Printed diagrams**, and **Key**, with reviewer and evidence.
   Verification is bound to the reviewed field values and their structural positions; later edits
   display that field as stale. A key can be verified only when a supported major/minor key is
@@ -202,28 +207,66 @@ list and/or the scanned-pages pane when you want the full width for one tab. **S
 schema-validated JSON back to disk. Edits support **undo/redo**, and a dirty-state guard warns
 before navigating away or switching songs with unsaved edits.
 
-**Keyboard shortcuts:** ⌘S/Ctrl+S save · Esc close editor · `n`/`p` next/previous song ·
-`]` next-flagged chord · `\` toggle the scan pane · Enter applies in the chord editor ·
+**Keyboard shortcuts** · ⌘S/Ctrl+S save · Esc close editor · `n`/`p` next/previous song ·
+`[`/`]` previous/next chord · `{`/`}` previous/next flagged chord · `\` toggle the scan pane ·
+Enter applies in the chord editor ·
 ⌘Z/Ctrl+Z undo · ⌘⇧Z/Ctrl+Y redo.
+
+In **Bars** and **Chord review**, use `h`/`l` or ←/→ to step through chords, and
+`j`/`k` or ↓/↑ to step through bars. Shift+←/→ jumps between flags. Shift+`h`/`l`
+reorders the selected chord within its bar, and Shift+`j`/`k` moves it to the
+next/previous bar. Press `1`–`4` to apply the corresponding chord-name suggestion.
+Press `?` or `/` to open the shortcut reference.
+
+In the chord editor, **Apply** also marks the resulting chord reviewed. In
+**Bars** and **Chord review**, press `R` to mark a selected chord reviewed and
+stay on it, or Space to mark it reviewed and advance.
+In Bars, Space applies the current draft before advancing. Press `A` to use the
+printed fingering while applying the draft. Enter applies edits in the chord name
+or anchored lyric field.
+
+**Chord review** hides the song list and focuses the selected chord in the chord list.
+Press `A` to use the printed fingering and mark the chord reviewed, or `S` to defer.
+Each advances to the next chord.
+**Save song** stores those decisions with the chord. Editing a reviewed chord name,
+fingering, or linked source makes the decision stale. In the same browser, Chord
+Review remembers the last selected chord for each song.
+
+The scan follows the selected chord to its recorded source page. When the source
+diagram has a recorded location, the scan shows the chord's review state and lets
+you click the diagram to select the chord.
+Turn on **Show edits** to see corrected chord names, voicing and lyric changes, and
+new bar starts at their source positions. Select a chord to compare **As extracted**
+with **Current**. Dashed badges track unsaved edits and become solid after saving.
 
 ### Preview & export
 
 The **Preview** tab renders a live view of the **current in-memory edits** (no Save required), in
 either of two styles, by POSTing the document to `POST /api/render-doc?style=<fork|target>`:
 
-- **fork** — through Arthur's ChordMark fork (inline diagrams, ChordMark layout); needs Node +
-  the fork repo at `../chordmark/chord-mark`.
-- **target** — a polished lead sheet (centered title, alphabetical diagram dictionary, two-column
+- **Chord Chart** — through Arthur's ChordMark fork. Requires Node and the installed fork toolchain
+  at `../chordmark/chord-mark`, or a workspace-local copy at `.local/chordmark-runtime`.
+- **Lead Sheet** — a polished lead sheet (centered title, alphabetical diagram dictionary, two-column
   chord-over-syllable body, Roman fret positions, barres, `°` for diminished). Pure Python, no
-  fork needed. Extra params: `dict=per_voicing|per_name`, `inline=0|1`, `bars=4|6|8`.
+  fork needed. The dictionary can group entries per voicing or per name.
+
+Choose **Dictionary**, **Inline**, or **Both** from the Diagrams menu. Either renderer
+accepts `diagrams=dictionary|inline|both` and `bars=4|6|8`.
+
+If Chord Chart cannot render, Preview shows the built-in Lead Sheet and keeps your style selection.
+
+**Bars per line** counts measures, including measures with several chord symbols.
+Named sections and the end of a song can have a shorter final row. Chord Chart
+preserves blank measures and crowded bars when rendering the preview.
 
 A **Source** toggle shows the generated `.chordmark` text (also for the current edits, via
 `POST /api/chordmark-doc`) beside the render.
 
-**In-app export** buttons (in the Preview tab) download the rendered song as **PDF, PNG, HTML,
-.chordmark, or ChordPro**, plus **Export album → songbook PDF** for the whole album as one
-document. PDF and PNG are produced by headless Chrome on the server (Google Chrome / Chromium must
-be on `PATH`, or installed at the standard macOS location); a download shows an "Exported ✓" toast.
+**In-app export** uses the current Preview, including unsaved edits. **Print / Save PDF** opens
+the browser print dialog and **Export PNG** captures the full chart in the same browser.
+HTML, ChordMark, and ChordPro download directly. **Print saved album** builds a songbook from
+the saved songs. The server API can use a separate headless renderer configured with
+`SONGSHEET_CHROME_BIN`.
 
 `scripts/render_chordmark.js` renders a `.chordmark` file to standalone HTML via the fork if you
 want that path outside the server.
@@ -256,7 +299,7 @@ Bars editor. An inline bar proposes the estimated key (**Confirm key** stores it
 undoably). A **player** (▶ + tempo) plays the voicings using inferred timing with a gliding
 playhead (four beats per bar by default; this is not recorded-performance timing).
 **Export** buttons download the analysis as **JSON**, **CSV** (one row per chord
-event), a standalone **HTML** snapshot of the view, or **PDF**.
+event), or a standalone **HTML** snapshot. **Print / Save PDF** opens the browser print dialog.
 
 Server endpoints: `GET /api/harmony/<album>/<file>`, `POST /api/harmony-doc` (in-memory doc),
 `POST /api/convert?fmt=pdf|png` (HTML → file). Roadmap (corpus-wide reports, prediction):

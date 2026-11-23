@@ -50,6 +50,7 @@ async function init() {
     window.ChordNaming.setKeyTonic(songKey());
     renderBars();
     if (state.activeView === "dict") renderDict();
+    if (state.activeView === "preview") renderPreview();
     if (state.sel) openEditor(state.sel.si, state.sel.bi, state.sel.ei);
   });
   // song-list sidebar: search + status filter
@@ -60,8 +61,10 @@ async function init() {
   $("songsFilter").querySelectorAll("[data-filter]").forEach((b) =>
     b.addEventListener("click", () => {
       state.songFilter = b.dataset.filter;
-      $("songsFilter").querySelectorAll("[data-filter]").forEach((x) =>
-        x.classList.toggle("active", x === b));
+      $("songsFilter").querySelectorAll("[data-filter]").forEach((x) => {
+        x.classList.toggle("active", x === b);
+        x.setAttribute("aria-pressed", String(x === b));
+      });
       renderSongList();
     }));
 
@@ -77,7 +80,7 @@ async function init() {
   $("jsonFormat").addEventListener("click", jsonFormat);
   $("reviewRecord").addEventListener("click", ReviewUI.recordSelected);
   $("cmCopy").addEventListener("click", copyChordmark);
-  ["pvStyle", "pvDict", "pvInline", "pvBars"].forEach((id) =>
+  ["pvStyle", "pvDict", "pvDiagrams", "pvBars"].forEach((id) =>
     $(id).addEventListener("change", () => {
       if (state.activeView === "preview") renderPreview();
     }));
@@ -103,6 +106,9 @@ async function init() {
   $("scanToggle").addEventListener("click", () => toggleLayoutPane("pages"));
   $("songsToggle").addEventListener("click", () => toggleLayoutPane("songs"));
   applyLayoutToggles();
+  wireChordReview();
+  wireScanReview();
+  $("kbdHint").addEventListener("click", showShortcutDialog);
 
   window.addEventListener("beforeunload", (e) => {
     if (state.dirty) { e.preventDefault(); e.returnValue = ""; }
@@ -124,8 +130,17 @@ async function init() {
     });
   }
 
-  $("nextFlagBtn").addEventListener("click", nextFlagged);
+  $("nextFlagBtn").addEventListener("click", () => {
+    if (state.activeView === "chordReview") moveChordReview(1, true);
+    else nextFlagged();
+  });
   document.addEventListener("keydown", onKeydown);
+  const header = document.querySelector("header");
+  const syncHeaderHeight = () => {
+    document.documentElement.style.setProperty("--qa-header-height", `${header.offsetHeight}px`);
+  };
+  syncHeaderHeight();
+  if (typeof ResizeObserver === "function") new ResizeObserver(syncHeaderHeight).observe(header);
 
   fillSongs();
   loadSong();
@@ -135,28 +150,87 @@ async function init() {
 // Hide the PDF-scan pane / song list to give the working pane the full width
 // (the three-pane layout gets cramped once lanes + panel are on screen).
 function applyLayoutToggles() {
+  const reviewing = state.activeView === "chordReview";
   const noPages = localStorage.getItem("qaHidePages") === "1";
-  const noSongs = localStorage.getItem("qaHideSongs") === "1";
+  const noSongs = reviewing || localStorage.getItem("qaHideSongs") === "1";
   const layout = document.querySelector(".layout");
+  layout.classList.toggle("chord-review-mode", reviewing);
   layout.classList.toggle("no-pages", noPages);
   layout.classList.toggle("no-songs", noSongs);
   $("scanToggle").classList.toggle("active", !noPages);
   $("songsToggle").classList.toggle("active", !noSongs);
+  $("songsToggle").disabled = reviewing;
 }
 
 function toggleLayoutPane(which) {
   const key = which === "pages" ? "qaHidePages" : "qaHideSongs";
   localStorage.setItem(key, localStorage.getItem(key) === "1" ? "0" : "1");
   applyLayoutToggles();
+  if (which === "pages" && localStorage.getItem(key) !== "1") updateScanSelection(true);
+}
+
+function showShortcutDialog() {
+  const dialog = $("shortcutDialog");
+  if (!dialog.open) dialog.showModal();
+}
+
+function handleChordWorkspaceKey(ev) {
+  const reviewing = state.activeView === "chordReview";
+  if ((!reviewing && state.activeView !== "bars") || !state.doc || ev.defaultPrevented) return false;
+  const key = ev.key.toLowerCase();
+  if (ev.shiftKey && /^[hjkl]$/.test(key)) {
+    const selection = activeChordSelection();
+    if (selection && !ev.repeat) {
+      moveChordSelection(selection, key === "h" || key === "k" ? -1 : 1, key === "h" || key === "l");
+    }
+    return true;
+  }
+  if (key === "h" || key === "l" || key === "arrowleft" || key === "arrowright") {
+    const dir = key === "h" || key === "arrowleft" ? -1 : 1;
+    if (reviewing) moveChordReview(dir, ev.shiftKey);
+    else if (ev.shiftKey) stepFlagged(dir);
+    else stepEntry(dir);
+    return true;
+  }
+  if (key === "j" || key === "k" || key === "arrowdown" || key === "arrowup") {
+    stepBar(key === "j" || key === "arrowdown" ? 1 : -1);
+    return true;
+  }
+  if (/^[1-4]$/.test(key)) {
+    if (!reviewing && !$("editor").classList.contains("open")) return false;
+    const suggestions = $(reviewing ? "chordReviewSuggestions" : "edSuggest");
+    const button = suggestions?.querySelector(`[data-suggestion="${Number(key) - 1}"]`);
+    if (button && !ev.repeat) button.click();
+    return Boolean(button);
+  }
+  const advance = key === " " || ev.code === "Space";
+  if (key === "a" && !reviewing) {
+    if (!state.sel || !$("editor").classList.contains("open")) return false;
+    if (!ev.repeat) submitActiveChord({ usePrinted: true, advance: true });
+    return true;
+  }
+  if (key === "r" || advance) {
+    if (advance && ev.target?.tagName === "BUTTON") return false;
+    const selection = activeChordSelection();
+    const mark = !reviewing && $("editor").classList.contains("open") && $("edMarkReviewed");
+    if (!selection || (!reviewing && !mark)) return false;
+    if (ev.repeat) return true;
+    if (reviewing) decideChordReview("keep", advance);
+    else if (advance) submitActiveChord({ advance: true });
+    else mark.click();
+    return true;
+  }
+  return reviewing && handleChordReviewKey(ev);
 }
 
 // Global keyboard shortcuts. We ignore most keys while typing in a field,
 // except ⌘S/Ctrl+S (Save) and Esc (close editor), which work everywhere.
 function onKeydown(ev) {
+  if ($("shortcutDialog").open) return;
   const el = ev.target;
   const inCM = el && el.closest && el.closest(".CodeMirror");
   const typing = !!inCM ||
-    (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT"));
+    (el && (el.isContentEditable || el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT"));
 
   // ⌘S / Ctrl+S → Save (always)
   if ((ev.metaKey || ev.ctrlKey) && (ev.key === "s" || ev.key === "S")) {
@@ -173,14 +247,28 @@ function onKeydown(ev) {
   }
   // Esc → close editor (always)
   if (ev.key === "Escape") {
-    if ($("editor").classList.contains("open")) {
+    if (state.activeView === "chordReview" && !typing) {
+      showView("bars");
+      $("chordReviewToggle").focus();
+      return;
+    }
+    if (state.activeView === "bars" && $("editor").classList.contains("open")) {
       $("editor").classList.remove("open");
       state.sel = null;
       renderBars();
     }
     return;
   }
-  if (typing || ev.metaKey || ev.ctrlKey || ev.altKey) return;
+  if (typing || ev.isComposing || ev.metaKey || ev.ctrlKey || ev.altKey) return;
+  if (ev.key === "?" || ev.key === "/") {
+    ev.preventDefault();
+    showShortcutDialog();
+    return;
+  }
+  if (handleChordWorkspaceKey(ev)) {
+    ev.preventDefault();
+    return;
+  }
 
   if (ev.key === "\\") { ev.preventDefault(); toggleLayoutPane("pages"); return; }
   if (ev.key === "n") { ev.preventDefault(); stepSong(+1); }

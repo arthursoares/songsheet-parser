@@ -11,6 +11,30 @@
       "pattern": "^(x|\\d{1,2})(,(x|\\d{1,2})){5}$",
       "description": "6 comma-separated strings low-E to high-e: x=muted, or fret number 0-24 (range enforced in code)"
     },
+    "chordReview": {
+      "type": "object",
+      "required": ["status", "snapshot"],
+      "additionalProperties": false,
+      "properties": {
+        "status": { "enum": ["reviewed", "deferred"] },
+        "snapshot": {
+          "type": "object",
+          "required": ["chord", "voicing", "voicing_printed", "observation_id"],
+          "additionalProperties": false,
+          "properties": {
+            "chord": { "type": "string" },
+            "voicing": { "type": ["string", "null"] },
+            "voicing_printed": { "type": ["string", "null"] },
+            "observation_id": {
+              "anyOf": [
+                { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+                { "type": "null" }
+              ]
+            }
+          }
+        }
+      }
+    },
     "chordEntry": {
       "type": "object",
       "required": ["chord"],
@@ -33,7 +57,8 @@
         "text": {
           "type": "string",
           "description": "Syllables sung from this chord's onset, dashes stripped"
-        }
+        },
+        "chord_review": { "$ref": "#/definitions/chordReview" }
       }
     },
     "bar": {

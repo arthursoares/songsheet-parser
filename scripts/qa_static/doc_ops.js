@@ -28,10 +28,50 @@
     return true;
   }
 
+  // Swap entry ei with its immediate neighbor inside the same bar. Unlike
+  // moveChord, this never crosses a bar boundary and preserves entry objects.
+  function canReorderChord(song, si, bi, ei, dir) {
+    if (dir !== -1 && dir !== 1) return false;
+    const bar = song && song.sections && song.sections[si]
+      && song.sections[si].bars && song.sections[si].bars[bi];
+    if (!Array.isArray(bar) || !Number.isInteger(ei) || ei < 0 || ei >= bar.length) return false;
+    const target = ei + dir;
+    return target >= 0 && target < bar.length;
+  }
+
+  function reorderChord(song, si, bi, ei, dir) {
+    if (!canReorderChord(song, si, bi, ei, dir)) return false;
+    const bar = song.sections[si].bars[bi];
+    const target = ei + dir;
+    [bar[ei], bar[target]] = [bar[target], bar[ei]];
+    return true;
+  }
+
   // Insert an empty bar after bar index bi (use bi = -1 to add the first bar to
   // an empty section). An empty bar [] is schema-valid (bars is an array of arrays).
+  function canAddBarAfter(song, si, bi) {
+    const section = song?.sections?.[si];
+    if (!section || !Number.isInteger(bi)) return false;
+    const bars = Array.isArray(section.bars) ? section.bars : [];
+    return bi === -1 ? bars.length === 0 : bi >= 0 && bi < bars.length;
+  }
+
   function addBarAfter(song, si, bi) {
-    song.sections[si].bars.splice(bi + 1, 0, []);
+    if (!canAddBarAfter(song, si, bi)) return false;
+    const section = song.sections[si];
+    if (!Array.isArray(section.bars)) section.bars = [];
+    section.bars.splice(bi + 1, 0, []);
+    return true;
+  }
+
+  function canAddBarBefore(song, si, bi) {
+    const bars = song?.sections?.[si]?.bars;
+    return Array.isArray(bars) && Number.isInteger(bi) && bi >= 0 && bi < bars.length;
+  }
+
+  function addBarBefore(song, si, bi) {
+    if (!canAddBarBefore(song, si, bi)) return false;
+    song.sections[si].bars.splice(bi, 0, []);
     return true;
   }
 
@@ -42,18 +82,27 @@
     return true;
   }
 
-  // Split a bar into two. Multi-entry: split at the midpoint. Single/empty
-  // entry: the new second bar is a "%" continuation (keeps it simple & schema-valid).
-  function splitBar(song, si, bi) {
-    const bars = song.sections[si].bars;
-    const bar = bars[bi];
-    if (bar.length >= 2) {
-      const mid = Math.ceil(bar.length / 2);
-      const tail = bar.splice(mid);
-      bars.splice(bi + 1, 0, tail);
-    } else {
+  // Split before the specified entry, or at the midpoint for the bar control.
+  // splitBar retains the legacy continuation fallback for non-UI callers, while
+  // canSplitBar reports whether the requested real boundary exists.
+  function canSplitBar(song, si, bi, beforeEntry) {
+    const bar = song?.sections?.[si]?.bars?.[bi];
+    if (!Array.isArray(bar)) return false;
+    if (beforeEntry === undefined) return bar.length >= 2;
+    return Number.isInteger(beforeEntry) && beforeEntry > 0 && beforeEntry < bar.length;
+  }
+
+  function splitBar(song, si, bi, beforeEntry) {
+    const bars = song?.sections?.[si]?.bars;
+    const bar = bars?.[bi];
+    if (!Array.isArray(bar)) return false;
+    if (beforeEntry === undefined && bar.length < 2) {
       bars.splice(bi + 1, 0, [{ chord: "%" }]);
+      return true;
     }
+    const boundary = beforeEntry === undefined ? Math.ceil(bar.length / 2) : beforeEntry;
+    if (!canSplitBar(song, si, bi, boundary)) return false;
+    bars.splice(bi + 1, 0, bar.splice(boundary));
     return true;
   }
 
@@ -152,30 +201,35 @@
   //   parse:  segment not ending in whitespace before the next marker ->
   //           store it with a trailing dash
 
-  // Display form of one entry's text: internal continuation dashes collapse
-  // ("tris- te- za e" -> "tristeza e"); a trailing dash is DROPPED here (the
-  // caller expresses it by gluing the next marker instead).
-  function lyDisplayText(text) {
+  function lyContinuesWord(token) {
+    return Boolean(token && token.length > 1 && token.endsWith("-"));
+  }
+
+  // Collapse explicit continuation marks while preserving punctuation and
+  // a trailing marker when there is no following lyric in this display.
+  function lyDisplayText(text, continuationAfter = true) {
     const toks = lySyllables(text);
     let out = "";
     toks.forEach((t, i) => {
-      const cont = t.endsWith("-") && i < toks.length - 1;
+      const cont = lyContinuesWord(t) && (i < toks.length - 1 || continuationAfter);
       out += cont ? t.slice(0, -1) : t + " ";
     });
-    return out.trim().replace(/-$/, "");
+    return out.trim();
   }
 
   // One editable lyric line for a run of entries, ChordMark-style.
   function buildLyricLine(entries) {
     let out = "";
+    let end = entries.length - 1;
+    while (end >= 0 && !lySyllables(entries[end].text).length) end--;
     entries.forEach((e, i) => {
       if (i > 0) {
-        const prevRaw = (entries[i - 1].text || "").trim();
-        out += prevRaw.endsWith("-") ? "_" : " _";
+        const previous = lySyllables(entries[i - 1].text).at(-1);
+        out += i <= end && lyContinuesWord(previous) ? "_" : " _";
       } else {
         out = "_";
       }
-      const seg = lyDisplayText(e.text);
+      const seg = lyDisplayText(e.text, i < end);
       if (seg) out += seg;
     });
     return out;
@@ -213,6 +267,102 @@
     return toks.join(" ");
   }
 
+  // Build the section-wide lyric stream used by the Lyrics reader. Coordinates
+  // are offsets into `text` (and therefore JavaScript UTF-16 offsets). Each
+  // stored token remains addressable even when its continuation dash is not
+  // visible; `syllable` is local to the token's original bar.
+  function buildLyricFlow(section) {
+    const entries = [];
+    const tokens = [];
+    const bars = section && Array.isArray(section.bars) ? section.bars : [];
+
+    bars.forEach((bar, bi) => {
+      let syllable = 0;
+      if (!Array.isArray(bar)) return;
+      bar.forEach((entry, ei) => {
+        const entryTokens = lySyllables(entry && entry.text);
+        const record = { entry, bi, ei, firstToken: tokens.length, tokenCount: entryTokens.length };
+        entries.push(record);
+        entryTokens.forEach((raw, k) => {
+          tokens.push({ raw, bi, ei, k, syllable: syllable++ });
+        });
+      });
+    });
+
+    let text = "";
+    let joinNext = false;
+    const spans = tokens.map((token, index) => {
+      const continuation = lyContinuesWord(token.raw) && index + 1 < tokens.length;
+      const visible = continuation ? token.raw.slice(0, -1) : token.raw;
+
+      if (index > 0 && !joinNext) text += " ";
+      const start = text.length;
+      text += visible;
+      const end = text.length;
+      joinNext = continuation;
+      return {
+        text: visible, start, end,
+        bi: token.bi, ei: token.ei, k: token.k, syllable: token.syllable,
+      };
+    });
+
+    const anchors = [];
+    entries.forEach((record) => {
+      const chord = record.entry && record.entry.chord;
+      if (!chord || chord === "%") return;
+      const at = spans[record.firstToken]?.start ?? text.length;
+      anchors.push({ at, bi: record.bi, ei: record.ei, hasLyric: record.tokenCount > 0 });
+    });
+
+    return { text, spans, anchors };
+  }
+
+  // Wrap a lyric flow without changing its source coordinates. Rows exclude
+  // the separating whitespace at their edges, keep natural words intact, and
+  // own every span/anchor exactly once.
+  function wrapLyricFlow(flow, maxWidth, measure = (value) => Array.from(value.normalize("NFC")).length) {
+    const text = flow && typeof flow.text === "string" ? flow.text : "";
+    if (!text) return [];
+    const spans = flow && Array.isArray(flow.spans) ? flow.spans : [];
+    const anchors = flow && Array.isArray(flow.anchors) ? flow.anchors : [];
+    const limit = Number.isFinite(maxWidth) && maxWidth > 0 ? maxWidth : Infinity;
+    const words = Array.from(text.matchAll(/\S+/g), (match) => ({
+      start: match.index,
+      end: match.index + match[0].length,
+    }));
+    if (!words.length) return [];
+
+    const bounds = [];
+    let first = words[0];
+    let last = first;
+    for (let i = 1; i < words.length; i++) {
+      const word = words[i];
+      const width = measure(text.slice(first.start, word.end));
+      if (width > limit) {
+        bounds.push({ start: first.start, end: last.end });
+        first = word;
+      }
+      last = word;
+    }
+    bounds.push({ start: first.start, end: last.end });
+
+    return bounds.map((bound, rowIndex) => {
+      const isLast = rowIndex === bounds.length - 1;
+      const nextStart = isLast ? text.length : bounds[rowIndex + 1].start;
+      return {
+        start: bound.start,
+        end: bound.end,
+        text: text.slice(bound.start, bound.end),
+        spans: spans.filter((span) =>
+          span.start >= bound.start && span.end <= bound.end
+        ).map((span) => ({ ...span })),
+        anchors: anchors.filter((anchor) =>
+          anchor.at >= bound.start && (anchor.at < nextStart || isLast && anchor.at === text.length)
+        ).map((anchor) => ({ ...anchor })),
+      };
+    });
+  }
+
   // The bar that results from moving chord chordPos to target syllable index,
   // or null if the move is invalid / a no-op. Does not mutate the input bar.
   function reanchoredBar(bar, chordPos, targetSylIdx) {
@@ -224,13 +374,162 @@
     return lyRebuildBar(model);
   }
 
+  // Plan an Arrange-mode chord move without mutating the song. Lyrics stay in
+  // their original bars; only their ownership by entries is rebuilt. A target
+  // is a flat syllable boundary in the destination bar (0..syllable count).
+  //
+  // Return:
+  //   { changes: [{si, bi, bar}], selection: {si, bi, ei} } on success
+  //   { error: "..." } for invalid or unsafe moves
+  //   null for a genuine no-op
+  function planLyricAnchorMove(song, from, to) {
+    const sections = song && song.sections;
+    const coordOk = (c, needsEntry) => {
+      if (!c || !Number.isInteger(c.si) || !Number.isInteger(c.bi)) return false;
+      const section = sections && sections[c.si];
+      const bar = section && Array.isArray(section.bars) && section.bars[c.bi];
+      return Array.isArray(bar) && (!needsEntry ||
+        (Number.isInteger(c.ei) && c.ei >= 0 && c.ei < bar.length));
+    };
+    if (!coordOk(from, true)) return { error: "The source chord no longer exists." };
+    if (!coordOk(to, false)) return { error: "The destination bar no longer exists." };
+    if (!Number.isInteger(to.syllable)) {
+      return { error: "Choose a valid destination syllable." };
+    }
+
+    const sourceBar = sections[from.si].bars[from.bi];
+    const destinationBar = sections[to.si].bars[to.bi];
+    const movedEntry = sourceBar[from.ei];
+    if (!movedEntry || !movedEntry.chord || movedEntry.chord === "%") {
+      return { error: "Only named chords can be arranged; % continuations cannot be moved." };
+    }
+
+    const destinationModel = lyBarModel(destinationBar);
+    const soleDestinationCarry = destinationBar.length === 1 && destinationBar[0].chord === "%";
+    if (soleDestinationCarry && to.syllable !== 0) {
+      return { error: "A continuation bar can only be replaced at its first syllable." };
+    }
+    if (to.syllable < 0 || to.syllable > destinationModel.syllables.length) {
+      return { error: "That syllable is outside the destination bar." };
+    }
+
+    const sameBar = from.si === to.si && from.bi === to.bi;
+    if (sameBar) {
+      const model = destinationModel;
+      const moved = model.chords[from.ei];
+      const alreadyOwnsTie = moved.idx === to.syllable &&
+        !model.chords.slice(from.ei + 1).some((c) => c.idx === to.syllable);
+      if (alreadyOwnsTie) return null;
+
+      // Reinsert last so a tied target gives the moved chord the lyric run.
+      model.chords.splice(from.ei, 1);
+      moved.idx = to.syllable;
+      model.chords.push(moved);
+      const ordered = model.chords.map((c, i) => ({ c, i }))
+        .sort((a, b) => a.c.idx - b.c.idx || a.i - b.i);
+      if (to.syllable > 0 && ordered[0].c === moved) {
+        return { error: "That move would put leading lyrics before their chord." };
+      }
+      const bar = lyRebuildBar(model);
+      return {
+        changes: [{ si: from.si, bi: from.bi, bar }],
+        selection: { si: from.si, bi: from.bi, ei: ordered.findIndex((x) => x.c === moved) },
+      };
+    }
+
+    const sourceModel = lyBarModel(sourceBar);
+    const [moved] = sourceModel.chords.splice(from.ei, 1);
+    if (soleDestinationCarry) destinationModel.chords.length = 0;
+    // The current four-beat renderer needs at least one beat per chord.
+    if (destinationModel.chords.length >= 4) {
+      return { error: "Choose a bar with room for another chord. The renderer needs one beat per chord." };
+    }
+    moved.idx = to.syllable;
+    // Appending makes the moved chord last among target ties, so it owns text.
+    destinationModel.chords.push(moved);
+    const destinationOrder = destinationModel.chords.map((c, i) => ({ c, i }))
+      .sort((a, b) => a.c.idx - b.c.idx || a.i - b.i);
+    if (to.syllable > 0 && destinationOrder[0].c === moved) {
+      return { error: "That move would put leading lyrics before their chord." };
+    }
+
+    const coordBefore = (si, bi, otherSi, otherBi) =>
+      si < otherSi || (si === otherSi && bi < otherBi);
+    const precedingRealChordAfterMove = () => {
+      for (let si = 0; si < sections.length; si++) {
+        const bars = sections[si] && sections[si].bars;
+        if (!Array.isArray(bars)) continue;
+        for (let bi = 0; bi < bars.length; bi++) {
+          if (!coordBefore(si, bi, from.si, from.bi)) return false;
+          if (si === to.si && bi === to.bi) return true; // moved chord is now here
+          if (bars[bi].some((entry) => entry && entry.chord && entry.chord !== "%")) return true;
+        }
+      }
+      return false;
+    };
+    const leavesLeadingContinuation = () => {
+      for (let si = from.si; si < sections.length; si++) {
+        const bars = sections[si].bars || [];
+        for (let bi = si === from.si ? from.bi + 1 : 0; bi < bars.length; bi++) {
+          if (si === to.si && bi === to.bi) return false;
+          const first = bars[bi][0]?.chord;
+          if (first) return first === "%";
+        }
+      }
+      return false;
+    };
+
+    const sourceHasRealChord = sourceModel.chords.some((c) => c.chord && c.chord !== "%");
+    let rebuiltSource;
+    if (sourceHasRealChord) {
+      rebuiltSource = lyRebuildBar(sourceModel);
+    } else {
+      if (sourceModel.chords.length > 1) {
+        return { error: "That move would leave multiple continuations in the source bar." };
+      }
+      const hasPrecedingChord = precedingRealChordAfterMove();
+      if (sourceModel.syllables.length && !hasPrecedingChord) {
+        return { error: "That move would orphan lyrics before the first real chord." };
+      }
+      if (!hasPrecedingChord && (sourceModel.chords.length || leavesLeadingContinuation())) {
+        return { error: "That move would leave a continuation before the first real chord." };
+      }
+      if (sourceModel.chords.length) {
+        rebuiltSource = lyRebuildBar(sourceModel);
+      } else if (hasPrecedingChord) {
+        const text = sourceModel.syllables.map((s) => s.text).join(" ");
+        rebuiltSource = [{ chord: "%", ...(text ? { text } : {}) }];
+      } else {
+        rebuiltSource = [];
+      }
+    }
+
+    const rebuiltDestination = lyRebuildBar(destinationModel);
+    const changes = [
+      { si: from.si, bi: from.bi, bar: rebuiltSource },
+      { si: to.si, bi: to.bi, bar: rebuiltDestination },
+    ].sort((a, b) => a.si - b.si || a.bi - b.bi);
+    return {
+      changes,
+      selection: {
+        si: to.si,
+        bi: to.bi,
+        ei: destinationOrder.findIndex((x) => x.c === moved),
+      },
+    };
+  }
+
   const api = {
     canMoveChord, moveChord,
-    addBarAfter, deleteBar, splitBar,
+    canReorderChord, reorderChord,
+    canAddBarAfter, addBarAfter, canAddBarBefore, addBarBefore,
+    deleteBar, canSplitBar, splitBar,
     canMergeBarWithNext, mergeBarWithNext,
     addSectionAfter, deleteSection,
     lySyllables, lyBarModel, lyRebuildBar, sylIndexInBar, reanchoredBar,
+    planLyricAnchorMove,
     replaceTextToken,
+    buildLyricFlow, wrapLyricFlow,
     lyDisplayText, buildLyricLine, parseLyricLine,
   };
   if (typeof window !== "undefined") window.DocOps = api;

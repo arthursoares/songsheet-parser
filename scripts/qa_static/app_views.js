@@ -1,23 +1,40 @@
 // Tab switching + the Review, Preview (render/source/exports), and JSON
 // (CodeMirror) views.
 function showView(which) {
+  if (!state.doc) which = "bars";
+  const wasChordReview = state.activeView === "chordReview";
+  const reviewing = which === "chordReview";
+  if (state.activeView === "lyrics" && which !== "lyrics" &&
+      typeof stopLyricResize === "function") stopLyricResize();
   if (state.activeView === "harmony" && which !== "harmony" &&
       typeof hmStopPlayback === "function") hmStopPlayback();
+  if (state.activeView === "preview" && which !== "preview") setPreviewSnapshot(null);
   state.activeView = which;
-  $("bars").classList.toggle("hidden", which !== "bars");
+  $("bars").classList.toggle("hidden", which !== "bars" && !reviewing);
+  $("chordReview").classList.toggle("hidden", !reviewing);
+  $("chordReviewToggle").classList.toggle("active", reviewing);
+  $("chordReviewToggle").setAttribute("aria-pressed", String(reviewing));
+  $("chordReviewToggle").disabled = !state.doc || !state.doc.songs?.length;
+  $("flagCount").classList.toggle("hidden", reviewing);
+  $("editor").classList.toggle("hidden", which !== "bars");
   $("lyrics").classList.toggle("hidden", which !== "lyrics");
   $("review").classList.toggle("hidden", which !== "review");
   $("dict").classList.toggle("hidden", which !== "dict");
   $("harmony").classList.toggle("hidden", which !== "harmony");
   $("preview").classList.toggle("hidden", which !== "preview");
   $("json").classList.toggle("hidden", which !== "json");
-  $("tabBars").classList.toggle("active", which === "bars");
-  $("tabLyrics").classList.toggle("active", which === "lyrics");
-  $("tabReview").classList.toggle("active", which === "review");
-  $("tabDict").classList.toggle("active", which === "dict");
-  $("tabHarmony").classList.toggle("active", which === "harmony");
-  $("tabPreview").classList.toggle("active", which === "preview");
-  $("tabJson").classList.toggle("active", which === "json");
+  for (const [label, view] of [
+    ["Bars", "bars"], ["Lyrics", "lyrics"], ["Review", "review"], ["Dict", "dict"],
+    ["Harmony", "harmony"], ["Preview", "preview"], ["Json", "json"],
+  ]) {
+    const tab = $(`tab${label}`);
+    tab.classList.toggle("active", which === view);
+    tab.setAttribute("aria-pressed", String(which === view));
+    tab.disabled = !state.doc && view !== "bars";
+  }
+  if (typeof updateChordReviewEntryPoint === "function") updateChordReviewEntryPoint();
+  if (wasChordReview !== reviewing) applyLayoutToggles();
+  if (wasChordReview && !reviewing) syncChordChip(null);
   if (which === "lyrics") renderLyrics();
   if (which === "review") renderReview();
   if (which === "dict") renderDict();
@@ -197,11 +214,7 @@ function jsonApply() {
 
 // Switch to Bars, select the flagged chip, and open its editor.
 function jumpToFlag(f) {
-  showView("bars");
-  openEditor(f.si, f.bi, f.ei);
-  // bring the freshly-selected chip into view
-  const sel = $("bars").querySelector(".chip.sel");
-  if (sel) sel.scrollIntoView({ block: "center", behavior: "smooth" });
+  jumpToEntry(f);
 }
 
 // ---- sequential chord review (the primary navigation) ----
@@ -220,16 +233,30 @@ function entryCoords() {
   return out;
 }
 
-function jumpToEntry(c) {
+function compareChordCoords(a, b) {
+  return a.si - b.si || a.bi - b.bi || a.ei - b.ei;
+}
+
+function activeChordSelection() {
+  return state.activeView === "chordReview"
+    ? chordReviewCoords()[chordReview.index]
+    : state.sel;
+}
+
+function jumpToEntry(c, { discardDraft = false, reopen = false } = {}) {
+  const same = state.sel && compareChordCoords(c, state.sel) === 0;
+  if (!discardDraft && !same && !confirmChordDraftDiscard()) {
+    syncChordChip(state.sel, true);
+    return;
+  }
   showView("bars");
-  openEditor(c.si, c.bi, c.ei);
-  const sel = $("bars").querySelector(".chip.sel");
-  if (sel) sel.scrollIntoView({ block: "center", behavior: "smooth" });
+  if (same && !reopen && $("editor").classList.contains("open")) syncChordChip(c, true);
+  else openEditor(c.si, c.bi, c.ei, true);
 }
 
 // Step to the next (+1) / previous (-1) chord entry, wrapping. With no
 // selection, +1 starts at the first chord and -1 at the last.
-function stepEntry(dir) {
+function stepEntry(dir, options) {
   if (!state.doc) return;
   const coords = entryCoords();
   if (!coords.length) return;
@@ -239,40 +266,39 @@ function stepEntry(dir) {
       c.si === state.sel.si && c.bi === state.sel.bi && c.ei === state.sel.ei);
   }
   if (idx === -1) {
-    jumpToEntry(dir > 0 ? coords[0] : coords[coords.length - 1]);
+    jumpToEntry(dir > 0 ? coords[0] : coords[coords.length - 1], options);
     return;
   }
-  jumpToEntry(coords[(idx + dir + coords.length) % coords.length]);
+  jumpToEntry(coords[(idx + dir + coords.length) % coords.length], options);
 }
 
-// Jump to the next flagged chord after the current selection (wrapping).
-function nextFlagged() {
+function stepBar(dir) {
+  if (!state.doc) return;
+  const coords = entryCoords();
+  const selection = activeChordSelection();
+  const ordered = dir > 0 ? coords : coords.slice().reverse();
+  const adjacent = ordered.find((c) => !selection ||
+    dir * (c.si - selection.si || c.bi - selection.bi) > 0);
+  if (!adjacent) {
+    if (state.activeView === "chordReview") $("chordReviewMessage").textContent = "No more bars with chords in this direction.";
+    return;
+  }
+  const first = coords.find((c) => c.si === adjacent.si && c.bi === adjacent.bi);
+  if (state.activeView === "chordReview") selectChordReviewEntry(first);
+  else jumpToEntry(first);
+}
+
+function stepFlagged(dir) {
   if (!state.doc) return;
   const flags = state.flags;
   if (!flags.length) { showView("review"); return; }
-  let start = -1;
-  if (state.sel) {
-    start = flags.findIndex((f) =>
-      f.si === state.sel.si && f.bi === state.sel.bi && f.ei === state.sel.ei);
-  }
-  const next = flags[(start + 1) % flags.length];
-  jumpToFlag(next);
+  const ordered = dir > 0 ? flags : flags.slice().reverse();
+  const next = ordered.find((f) => !state.sel || dir * compareChordCoords(f, state.sel) > 0);
+  jumpToFlag(next || ordered[0]);
 }
 
-// Jump to the previous flagged chord before the current selection (wrapping).
-function prevFlagged() {
-  if (!state.doc) return;
-  const flags = state.flags;
-  if (!flags.length) { showView("review"); return; }
-  let start = -1;
-  if (state.sel) {
-    start = flags.findIndex((f) =>
-      f.si === state.sel.si && f.bi === state.sel.bi && f.ei === state.sel.ei);
-  }
-  // start === -1 (no selection / not on a flag) wraps to the last flag
-  const prev = flags[(start - 1 + flags.length) % flags.length];
-  jumpToFlag(prev);
-}
+function nextFlagged() { stepFlagged(1); }
+function prevFlagged() { stepFlagged(-1); }
 
 // Copy the generated ChordMark source (current in-memory edits) to the clipboard.
 function copyChordmark() {
@@ -287,25 +313,79 @@ function copyChordmark() {
 // Render the CURRENT in-memory doc (state.doc) — reflects UNSAVED edits, no Save
 // required. POSTs the doc to render-doc (POST can't use iframe.src, so srcdoc).
 // When the Source toggle is on, also fetch the generated .chordmark source text.
+let previewRequest = 0;
+let previewSnapshot = null;
+const PREVIEW_EXPORTS = {
+  pvExportHtml: "html", pvExportChordmark: "chordmark",
+  pvExportChordpro: "chordpro", cmDownload: "chordmark",
+};
+
+function setPreviewSnapshot(snapshot) {
+  previewSnapshot = snapshot;
+  [...Object.keys(PREVIEW_EXPORTS), "pvExportPdf", "pvExportPng"].forEach((id) => {
+    const button = $(id);
+    if (button) button.disabled = !snapshot;
+  });
+}
+
 async function renderPreview() {
-  if (!state.doc) return;
+  if (!state.doc) {
+    previewRequest += 1;
+    setPreviewSnapshot(null);
+    $("previewFrame").srcdoc = "";
+    $("cmSource").value = "";
+    $("pvPreviewMsg").textContent = "No song loaded.";
+    return;
+  }
+  const request = ++previewRequest;
+  const { album, file, doc } = state;
+  const isCurrent = () => request === previewRequest && state.activeView === "preview" &&
+    state.album === album && state.file === file && state.doc === doc;
+  setPreviewSnapshot(null);
   const frame = $("previewFrame");
+  frame.srcdoc = "";
+  const message = $("pvPreviewMsg");
+  message.textContent = "Rendering…";
   const style = $("pvStyle").value;
-  const dict = $("pvDict").value;
-  const inline = $("pvInline").checked ? "1" : "0";
+  const dictionary = $("pvDict");
+  const dict = dictionary.value;
+  const diagrams = $("pvDiagrams").value;
+  dictionary.disabled = style === "fork" || diagrams === "inline";
   const bars = $("pvBars").value;
   const showSource = $("pvSource").checked;
   // Source pane: textarea + control bar visibility tracks the toggle.
   $("cmSource").classList.toggle("hidden", !showSource);
   $("pvSourceBar").classList.toggle("hidden", !showSource);
+  if (showSource) {
+    $("cmSource").value = "";
+    $("cmCopy").disabled = true;
+  }
 
-  const docBody = JSON.stringify(state.doc);
+  const docBody = JSON.stringify(doc);
   try {
     const res = await fetch(
-      `/api/render-doc?style=${style}&dict=${dict}&inline=${inline}&bars=${bars}`,
+      `/api/render-doc?style=${style}&dict=${dict}&diagrams=${diagrams}&bars=${bars}`,
       { method: "POST", headers: { "Content-Type": "application/json" }, body: docBody });
-    frame.srcdoc = await res.text();
+    const html = await res.text();
+    if (!isCurrent()) return;
+    frame.srcdoc = res.ok
+      ? html.replace(/<head>/i, `$&<meta name="songsheet-preview" content="${request}">`)
+      : html;
+    const fallback = res.headers.get("X-Songsheet-Preview-Style") === "target";
+    if (fallback) {
+      dictionary.disabled = diagrams === "inline";
+      message.textContent = res.headers.get("X-Songsheet-Preview-Reason") === "bar-layout"
+        ? "Showing Lead Sheet to preserve this chart’s bar layout."
+        : "Chord Chart renderer unavailable. Showing Lead Sheet.";
+    } else {
+      message.textContent = "";
+    }
+    if (res.ok) setPreviewSnapshot({
+      album, file, docBody, request, style: fallback ? "target" : style, dict, diagrams, bars,
+    });
   } catch (e) {
+    if (!isCurrent()) return;
+    message.textContent = "";
     frame.srcdoc = "<pre style='color:#b00;padding:20px'>preview failed: " + esc(e) + "</pre>";
   }
 
@@ -314,10 +394,13 @@ async function renderPreview() {
     try {
       const r = await fetch(`/api/chordmark-doc?bars=${bars}`,
         { method: "POST", headers: { "Content-Type": "application/json" }, body: docBody });
-      ta.value = r.ok ? await r.text()
-        : "/* could not build ChordMark: " + (await r.text()) + " */";
+      const source = await r.text();
+      if (isCurrent()) {
+        ta.value = r.ok ? source : "/* could not build ChordMark: " + source + " */";
+        $("cmCopy").disabled = !r.ok;
+      }
     } catch (e) {
-      ta.value = "/* failed to load ChordMark: " + e + " */";
+      if (isCurrent()) ta.value = "/* failed to load ChordMark: " + e + " */";
     }
   }
 }
@@ -327,18 +410,10 @@ async function renderPreview() {
 // "Export failed: …") instead of a fire-and-forget anchor click.
 function wireExport() {
   const a = (id) => encodeURIComponent(id);
-  const songBase = () => `/api/export/${a(state.album)}/${a(state.file)}`;
-  const pvOpts = () =>
-    `style=${$("pvStyle").value}&dict=${$("pvDict").value}` +
-    `&inline=${$("pvInline").checked ? 1 : 0}&bars=${$("pvBars").value}`;
   const flash = (m) => {
     const s = $("pvExportMsg");
     s.textContent = m;
     if (m) setTimeout(() => { if (s.textContent === m) s.textContent = ""; }, 2500);
-  };
-  const guard = () => {
-    if (!state.album || !state.file) { flash("no song selected"); return false; }
-    return true;
   };
 
   // Filename from a Content-Disposition header, or a fallback.
@@ -348,11 +423,41 @@ function wireExport() {
     return (m && m[1]) || fallback;
   };
 
+  function download(blob, filename) {
+    const objUrl = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = objUrl;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(objUrl), 4000);
+  }
+
+  function currentPreview() {
+    const snapshot = previewSnapshot;
+    if (!snapshot || snapshot.album !== state.album || snapshot.file !== state.file) {
+      flash("Wait for the current preview before exporting.");
+      return null;
+    }
+    return snapshot;
+  }
+
+  function loadedPreviewFrame(snapshot) {
+    const frame = $("previewFrame");
+    const marker = frame.contentDocument?.querySelector('meta[name="songsheet-preview"]');
+    if (marker?.content !== String(snapshot.request)) throw new Error("Preview is still loading.");
+    return frame;
+  }
+
   // Fetch a URL, surface progress + completion as a toast, download the blob.
-  async function exportBlob(url, pending, fallbackName) {
+  async function exportBlob(url, pending, fallbackName, docBody) {
     flash(pending);
     try {
-      const res = await fetch(url);
+      const options = docBody ? {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: docBody,
+      } : undefined;
+      const res = await fetch(url, options);
       if (!res.ok) {
         let detail = res.status;
         try { const j = await res.json(); if (j && j.error) detail = j.error; } catch (e) { /* not json */ }
@@ -360,62 +465,56 @@ function wireExport() {
         return;
       }
       const blob = await res.blob();
-      const objUrl = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = objUrl;
-      link.download = filenameFrom(res, fallbackName);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      setTimeout(() => URL.revokeObjectURL(objUrl), 4000);
+      download(blob, filenameFrom(res, fallbackName));
       flash("Exported ✓");
     } catch (e) {
       flash("Export failed: " + e);
     }
   }
 
+  for (const [id, fmt] of Object.entries(PREVIEW_EXPORTS)) {
+    $(id).addEventListener("click", () => {
+      const snapshot = currentPreview();
+      if (!snapshot) return;
+      const { album, file, style, dict, diagrams, bars, docBody } = snapshot;
+      const url = `/api/export-doc/${a(album)}/${a(file)}?fmt=${fmt}` +
+        `&style=${style}&dict=${dict}&diagrams=${diagrams}&bars=${bars}`;
+      exportBlob(url, `Exporting ${fmt}…`, `${file.replace(/\.json$/i, "")}.${fmt}`, docBody);
+    });
+  }
   $("pvExportPdf").addEventListener("click", () => {
-    if (!guard()) return;
-    exportBlob(`${songBase()}?fmt=pdf&${pvOpts()}`, "exporting PDF…", `${state.file}.pdf`);
+    const snapshot = currentPreview();
+    if (!snapshot) return;
+    try {
+      PreviewExport.printPreviewFrame(loadedPreviewFrame(snapshot));
+    } catch (error) {
+      flash("Print failed: " + error.message);
+    }
   });
-  $("pvExportPng").addEventListener("click", () => {
-    if (!guard()) return;
-    exportBlob(`${songBase()}?fmt=png&${pvOpts()}`, "exporting PNG…", `${state.file}.png`);
+  $("pvExportPng").addEventListener("click", async () => {
+    const snapshot = currentPreview();
+    if (!snapshot) return;
+    flash("Preparing PNG…");
+    try {
+      const blob = await PreviewExport.capturePreviewPng(loadedPreviewFrame(snapshot));
+      download(blob, `${snapshot.file.replace(/\.json$/i, "")}.png`);
+      flash("Exported ✓");
+    } catch (error) {
+      flash("PNG export failed: " + error.message);
+    }
   });
-  $("pvExportHtml").addEventListener("click", () => {
-    if (!guard()) return;
-    exportBlob(`${songBase()}?fmt=html&${pvOpts()}`, "exporting HTML…", `${state.file}.html`);
-  });
-  $("pvExportChordmark").addEventListener("click", () => {
-    if (!guard()) return;
-    exportBlob(`${songBase()}?fmt=chordmark&bars=${$("pvBars").value}`,
-      "exporting .chordmark…", `${state.file}.chordmark`);
-  });
-  $("pvExportChordpro").addEventListener("click", () => {
-    if (!guard()) return;
-    exportBlob(`${songBase()}?fmt=chordpro`, "exporting ChordPro…", `${state.file}.chordpro`);
-  });
-  $("pvExportAlbum").addEventListener("click", () => {
+  $("pvExportAlbum").addEventListener("click", async () => {
     if (!state.album) { flash("no album selected"); return; }
-    exportBlob(
-      `/api/export-album/${a(state.album)}?fmt=pdf&style=target&dict=${$("pvDict").value}&bars=${$("pvBars").value}`,
-      "exporting album PDF…", `${state.album}-songbook.pdf`);
-  });
-  // Download .chordmark of the CURRENT in-memory source (the textarea content).
-  $("cmDownload").addEventListener("click", () => {
-    if (!state.album || !state.file) return;
-    const text = $("cmSource").value || "";
-    const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
-    const objUrl = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = objUrl;
-    link.download = `${state.file.replace(/\.json$/i, "")}.chordmark`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    setTimeout(() => URL.revokeObjectURL(objUrl), 4000);
-    const msg = $("cmCopyMsg");
-    msg.textContent = "✓ downloaded";
-    setTimeout(() => (msg.textContent = ""), 1500);
+    flash("Preparing saved album…");
+    try {
+      const url = `/api/export-album/${a(state.album)}?fmt=html&dict=${$("pvDict").value}` +
+        `&diagrams=${$("pvDiagrams").value}&bars=${$("pvBars").value}`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`Could not render saved album (HTTP ${res.status}).`);
+      await PreviewExport.printChartHtml(await res.text());
+      flash("");
+    } catch (error) {
+      flash("Print failed: " + error.message);
+    }
   });
 }

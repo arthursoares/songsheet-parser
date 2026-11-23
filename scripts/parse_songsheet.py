@@ -25,7 +25,7 @@ from datetime import datetime, timezone
 from importlib import metadata
 from pathlib import Path
 
-from extraction_provenance import attach_observations, file_sha256, json_sha256
+from extraction_provenance import attach_observations, entries, file_sha256, json_sha256
 from songsheet_io import write_json_artifact
 from songsheet_version import SCHEMA_VERSION, stamp
 
@@ -303,6 +303,8 @@ def parse_songsheet(image_path: Path, provider: str = "codex", model: str = None
     # Provider output is evidence, never authority to mark a human review done.
     provider_metadata = result.pop("_meta", None)
     provider_status = result.get("document", {}).get("status")
+    for _, entry in entries(result):
+        entry.pop("chord_review", None)
     result["document"]["status"] = "pending"
     result["_meta"] = {}
     result["_meta"]["source"] = image_path.name
