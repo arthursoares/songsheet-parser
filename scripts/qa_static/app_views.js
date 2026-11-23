@@ -1,8 +1,10 @@
 // Tab switching + the Review, Preview (render/source/exports), and JSON
 // (CodeMirror) views.
 function showView(which) {
-  if (!state.doc) which = "bars";
+  if (!state.doc && which !== "shapes") which = "bars";
   const wasChordReview = state.activeView === "chordReview";
+  const wasShapes = state.activeView === "shapes";
+  const shapes = which === "shapes";
   const reviewing = which === "chordReview";
   if (state.activeView === "lyrics" && which !== "lyrics" &&
       typeof stopLyricResize === "function") stopLyricResize();
@@ -10,6 +12,12 @@ function showView(which) {
       typeof hmStopPlayback === "function") hmStopPlayback();
   if (state.activeView === "preview" && which !== "preview") setPreviewSnapshot(null);
   state.activeView = which;
+  $("shapes")?.classList.toggle("hidden", !shapes);
+  for (const [id, active] of [["workspaceSongs", !shapes], ["workspaceShapes", shapes]]) {
+    const button = $(id);
+    button?.classList.toggle("active", active);
+    button?.setAttribute("aria-pressed", String(active));
+  }
   $("bars").classList.toggle("hidden", which !== "bars" && !reviewing);
   $("chordReview").classList.toggle("hidden", !reviewing);
   $("chordReviewToggle").classList.toggle("active", reviewing);
@@ -33,7 +41,7 @@ function showView(which) {
     tab.disabled = !state.doc && view !== "bars";
   }
   if (typeof updateChordReviewEntryPoint === "function") updateChordReviewEntryPoint();
-  if (wasChordReview !== reviewing) applyLayoutToggles();
+  if (wasChordReview !== reviewing || wasShapes !== shapes) applyLayoutToggles();
   if (wasChordReview && !reviewing) syncChordChip(null);
   if (which === "lyrics") renderLyrics();
   if (which === "review") renderReview();
@@ -41,6 +49,30 @@ function showView(which) {
   if (which === "harmony") renderHarmony();
   if (which === "preview") renderPreview();
   if (which === "json") renderJson();
+  if (shapes) renderShapes();
+}
+
+async function openShapesForEntry(si, bi, ei) {
+  if (state.dirty) {
+    $("edErr").textContent = "Save the song before looking up its shape.";
+    return;
+  }
+  const { album, file, songRevision } = state;
+  const params = new URLSearchParams({
+    album, file, song_index: "0", si, bi, ei, revision: songRevision || "",
+  });
+  showView("shapes");
+  const detailGeneration = shapesUI.detailGeneration;
+  const isCurrent = () => state.activeView === "shapes" && state.album === album &&
+    state.file === file && shapesUI.detailGeneration === detailGeneration;
+  try {
+    const result = await api(`/api/shapes/entry?${params}`);
+    if (!isCurrent()) return;
+    if (result.error) throw new Error(result.error);
+    await openShapeGroup(result.id, { library: true });
+  } catch (error) {
+    if (isCurrent()) setShapeStatus(error.message, "error");
+  }
 }
 
 // ---- Raw JSON editor tab (CodeMirror 5) ----

@@ -1,11 +1,19 @@
 // The scan follows immutable observations. A linked page may have no diagram
 // box, in which case the page itself is the only source location we show.
 let scanReview = { request: null, locations: {}, selection: null, follow: false };
+let legacyScanOrder = null;
+let legacyScanLength = 0;
 let scanShowEdits = false;
 try { scanShowEdits = localStorage.getItem("qaShowScanEdits") === "1"; }
 catch (_error) { /* The toggle still works for this session. */ }
 let savedScanEdits = new Map();
 const SCAN_EDIT_FIELDS = [["chord", "Chord"], ["voicing", "Voicing"], ["text", "Lyric"]];
+const SCAN_MATCH_LABELS = {
+  legacy_exact_count: "Scan reading-order match",
+  legacy_unique_alignment: "Aligned by neighboring scan matches",
+  legacy_editorial_fallback: "Scan match from chart fingering",
+};
+const SCAN_PROPOSAL_BASIS = "legacy_anchored_proposal";
 
 function scanEditValue(entry, field) {
   return String(entry?.[field] ?? "").trim();
@@ -97,7 +105,8 @@ function syncScanDocument() {
 function syncSavedScanDocument(savedDoc = state.doc, unchanged = true) {
   if (!isCurrentScan(scanReview.request)) return;
   savedScanEdits = scanEditSnapshot(savedDoc);
-  if (unchanged && scanSourceKey() !== scanReview.savedSourceKey) {
+  if (unchanged && (scanSourceKey() !== scanReview.savedSourceKey ||
+      (!state.doc._meta?.observations && scanReview.request.doc !== state.doc))) {
     renderPages(scanSourceKey());
     syncScanSelection(activeChordSelection(), true);
   } else {
@@ -112,10 +121,20 @@ function renderPages(savedSourceKey) {
   if (savedSourceKey === undefined) {
     savedSourceKey = sourceKey;
     savedScanEdits = scanEditSnapshot(state.doc);
+    const ordered = state.doc._meta?.observations ? [] : entryCoords().map(chordAt);
+    legacyScanOrder = ordered.length ? new WeakMap(ordered.map((entry, i) => [entry, i])) : null;
+    legacyScanLength = ordered.length;
   }
   root.innerHTML = `<div class="scan-toolbar">
     <label class="scan-edits-toggle"><input id="scanShowEdits" type="checkbox" ${scanShowEdits ? "checked" : ""}> Show edits</label>
-    <div id="scanReviewLegend" class="scan-review-legend" hidden><span>Reviewed</span><span>Deferred or changed</span></div>
+    <div id="scanReviewLegend" class="scan-review-legend" hidden>
+      <span style="--legend-color:#1760bd">Unreviewed</span>
+      <span style="--legend-color:#23733b">Reviewed</span>
+      <span style="--legend-color:#a05304">Deferred</span>
+      <span style="--legend-color:#b73531">Needs re-review</span>
+      <span class="scan-proposal-legend">Proposed position</span>
+    </div>
+    <div id="scanFocusStatus" class="muted" role="status" hidden></div>
     <div id="scanEditDetails" class="scan-edit-details" hidden></div>
   </div>` + pages.map((n) => `
     <figure class="scan-page" id="scan-page-${n}">
@@ -125,11 +144,13 @@ function renderPages(savedSourceKey) {
       </div>
       <figcaption class="pagecap">page ${esc(n)}</figcaption>
     </figure>`).join("");
-  const request = { album: state.album, file: state.file };
+  const request = { album: state.album, file: state.file, doc: state.doc, revision: state.songRevision };
   scanReview = {
-    request, locations: {}, edits: new Map(), selection: null, follow: false,
+    request, locations: {}, legacyLocations: new WeakMap(), edits: new Map(),
+    selection: null, follow: false, pending: false,
     sourceKey, savedSourceKey,
   };
+  if (typeof syncActiveChordProposal === "function") syncActiveChordProposal();
   $("scanShowEdits")?.addEventListener("change", (event) => {
     scanShowEdits = event.target.checked;
     try { localStorage.setItem("qaShowScanEdits", scanShowEdits ? "1" : "0"); }
@@ -142,25 +163,87 @@ function renderPages(savedSourceKey) {
       if (isCurrentScan(request) && scanReview.follow) updateScanSelection(true);
     });
   });
-  if (scanReview.sourceKey !== savedSourceKey ||
-      (!state.doc._meta?.page_sources && !state.doc._meta?.diagram_evidence)) return;
-  api(`/api/diagram-location/${encodeURIComponent(request.album)}/${encodeURIComponent(request.file)}`)
+  if (scanReview.sourceKey !== savedSourceKey) return;
+  // Legacy boxes describe the saved revision. Bind them to the original
+  // entry objects so moving a chord still follows its printed position.
+  const legacyEntries = request.revision && !state.doc._meta?.observations
+    ? new Map(entryCoords().map((c) => [`${c.si}:${c.bi}:${c.ei}`, chordAt(c)]))
+    : new Map();
+  scanReview.pending = true;
+  api(`/api/diagram-location/${encodeURIComponent(request.album)}/${encodeURIComponent(request.file)}`,
+    { cache: "no-store" })
     .then((data) => {
       if (!isCurrentScan(request)) return;
       scanReview.locations = data.locations || {};
+      if (request.revision && data.revision === request.revision) {
+        for (const [key, location] of Object.entries(data.coordinates || {})) {
+          const entry = legacyEntries.get(key);
+          if (entry) scanReview.legacyLocations.set(entry, location);
+        }
+      }
       renderScanReviewMarks();
-      updateScanSelection(scanReview.follow);
+      if (typeof syncActiveChordProposal === "function") syncActiveChordProposal();
     })
-    .catch(() => { /* Observation page links still work without precise diagram boxes. */ });
+    .catch(() => { /* Page-level source information is still available. */ })
+    .finally(() => {
+      if (!isCurrentScan(request)) return;
+      scanReview.pending = false;
+      updateScanSelection(scanReview.follow);
+    });
+}
+
+function scanLocation(entry) {
+  return entry.observation_id
+    ? scanReview.locations[entry.observation_id]
+    : scanReview.legacyLocations?.get(entry);
+}
+
+// Keep all consumers on the request guard used by the scan overlay. In
+// particular, an editor opened while the request is pending must not see a
+// location left over from a different song.
+function scanLookup(entry) {
+  if (!entry || !isCurrentScan(scanReview.request)) return null;
+  const location = scanLocation(entry);
+  return location?.basis === SCAN_PROPOSAL_BASIS &&
+    scanReview.request.revision !== state.songRevision ? null : location;
+}
+
+function scanProposal(entry) {
+  const location = scanLookup(entry);
+  if (location?.basis !== SCAN_PROPOSAL_BASIS || typeof location.proposal !== "string") return "";
+  const tokens = location.proposal.split(",").map((token) => token.trim().toLowerCase());
+  if (tokens.length !== 6 || tokens.some((token) => token !== "x" &&
+      (!/^\d{1,2}$/.test(token) || Number(token) > 24))) return "";
+  return tokens.join(",");
+}
+
+function copyLegacyScanLinks(snapshot) {
+  const locations = scanReview.legacyLocations;
+  if (!locations || !isCurrentScan(scanReview.request)) return;
+  for (const coords of entryCoords()) {
+    const from = chordAt(coords);
+    const location = locations.get(from);
+    const entry = snapshot.songs[0].sections[coords.si].bars[coords.bi][coords.ei];
+    if (location) locations.set(entry, location);
+    if (legacyScanOrder?.has(from)) legacyScanOrder.set(entry, legacyScanOrder.get(from));
+  }
+}
+
+function legacyScanOrderChanged() {
+  if (!legacyScanOrder || !isCurrentScan(scanReview.request)) return false;
+  const entries = entryCoords();
+  return entries.length !== legacyScanLength ||
+    entries.some((coords, index) => legacyScanOrder.get(chordAt(coords)) !== index);
 }
 
 function sourcePageForChord(entry) {
+  const located = scanLookup(entry)?.page;
+  if (located !== undefined) return located;
   const meta = state.doc?._meta;
   const id = entry.observation_id;
   if (id) {
-    const located = scanReview.locations[id]?.page;
     const source = meta?.observations?.[id]?.source_id;
-    return located ?? meta?.page_sources?.[source]?.page
+    return meta?.page_sources?.[source]?.page
       ?? meta?.diagram_evidence?.[id]?.record?.page;
   }
   const pages = song().pages || [];
@@ -180,20 +263,25 @@ function renderScanReviewMarks() {
   const pages = new Map();
   for (const coords of entryCoords()) {
     const entry = chordAt(coords);
-    const location = scanReview.locations[entry.observation_id];
+    const location = scanLookup(entry);
     if (!location || !scanReviewBox(location.box)) continue;
     const [left, top, right, bottom] = location.box;
     const status = chordReviewStatus(entry);
     const edit = scanReview.edits.get(entry.observation_id);
     const editStatus = edit ? (edit.unsaved ? "Unsaved edit" : "Saved edit") : "";
+    const matchLabel = SCAN_MATCH_LABELS[location.basis];
+    const proposal = scanProposal(entry);
     const label = `${entry.chord} · ${CHORD_REVIEW_LABELS[status]} · bar ${coords.bi + 1}` +
-      (edit ? ` · ${editStatus}` : "");
+      (edit ? ` · ${editStatus}` : "") + (matchLabel ? ` · ${matchLabel}` : "") +
+      (location.basis === SCAN_PROPOSAL_BASIS
+        ? ` · Proposed position, not verified${proposal ? ` · proposed fingering ${proposal}` : ""}` : "");
     const captions = [];
     if (edit?.rows.some(({ field }) => field === "chord")) captions.push(entry.chord);
     if (edit?.newBar) captions.push(`Starts bar ${coords.bi + 1}`);
     if (edit?.joined) captions.push("Bar joined");
     const badge = edit ? `<span class="scan-edit-badge" data-edit-status="${edit.unsaved ? "unsaved" : "saved"}">${esc(captions.join(" · ") || "Edited")}</span>` : "";
-    const mark = `<button type="button" tabindex="-1" class="scan-review-mark" data-scan-chord="${coords.si}:${coords.bi}:${coords.ei}"
+    const proposalAttr = location.basis === SCAN_PROPOSAL_BASIS ? ' data-scan-proposal="true"' : "";
+    const mark = `<button type="button" tabindex="-1" class="scan-review-mark" data-scan-chord="${coords.si}:${coords.bi}:${coords.ei}"${proposalAttr}
       data-review-status="${status}" aria-label="${esc(label)}" title="${esc(label)}"
       style="left:${left * 100}%;top:${top * 100}%;width:${(right - left) * 100}%;height:${(bottom - top) * 100}%">${badge}</button>`;
     if (!pages.has(location.page)) pages.set(location.page, []);
@@ -242,6 +330,12 @@ function updateScanSelection(follow) {
   renderScanEditDetails(entry, coords);
   const page = entry && $(`scan-page-${sourcePageForChord(entry)}`);
   const mark = page && page.querySelector(`[data-scan-chord="${coords.si}:${coords.bi}:${coords.ei}"]`);
+  const focusStatus = $("scanFocusStatus");
+  if (focusStatus) {
+    focusStatus.hidden = !entry || Boolean(mark);
+    focusStatus.textContent = scanReview.pending
+      ? "Locating chord on the scan…" : "A precise scan position is unavailable for this chord.";
+  }
   const previousPage = root.querySelector(".scan-page.current");
   const previousMark = root.querySelector(".scan-review-mark.selected");
   if (previousPage !== page) {

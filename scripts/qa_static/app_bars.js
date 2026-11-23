@@ -266,6 +266,9 @@ let chordEditorHasDraft = () => false;
 // Bars keyboard shortcuts call this rather than navigating away from a draft.
 // openEditor replaces it for the currently visible editor instance.
 let submitActiveChord = () => false;
+// The scan request may finish after the editor opens. app_scan.js invokes this
+// hook when its guarded lookup receives the current song's locations.
+let syncActiveChordProposal = () => false;
 
 function confirmChordDraftDiscard() {
   return !chordEditorHasDraft() || confirm("Discard the unapplied chord edits?");
@@ -315,6 +318,12 @@ function openEditor(si, bi, ei, focus = false) {
       ? `<img class="printcrop" id="edPrintCrop" alt="" title="the printed diagram"
              src="${esc(diagramCropUrl({ si, bi, ei }, e))}">`
       : ""}
+    <div id="edScanProposal" class="scan-fingering-proposal" hidden>
+      <span>Proposed fingering <b id="edScanProposalValue"></b></span>
+      <button type="button" id="edUseScanProposal">Use proposed fingering</button>
+      <small>Inspect, then Apply manually.</small>
+    </div>
+    ${e.chord === "%" ? "" : '<button type="button" id="edFindShapes" class="tab">Find matching shapes</button>'}
     ${e.voicing_printed && e.voicing_printed !== (e.voicing || "")
       ? `<div class="printhint">print reads <b>${esc(e.voicing_printed)}</b>
            <button id="edUsePrint" title="set the fretboard to what the page prints">use</button>
@@ -355,6 +364,7 @@ function openEditor(si, bi, ei, focus = false) {
   if (ei < barLength - 1) $("edSplitAfter").addEventListener("click", () => splitAt(ei + 1));
   const cropImg = $("edPrintCrop");
   if (cropImg) cropImg.addEventListener("error", () => { cropImg.style.display = "none"; });
+  $("edFindShapes")?.addEventListener("click", () => openShapesForEntry(si, bi, ei));
   const usePrint = $("edUsePrint");
   if (usePrint) {
     usePrint.addEventListener("click", () => {
@@ -369,6 +379,28 @@ function openEditor(si, bi, ei, focus = false) {
       submitActiveChord({ usePrinted: true, advance: true });
     });
   }
+  const editorStillCurrent = () => {
+    const selected = state.sel;
+    return ed.classList.contains("open") && state.activeView === "bars" &&
+      selected?.si === si && selected.bi === bi && selected.ei === ei &&
+      song().sections[si]?.bars[bi]?.[ei] === e;
+  };
+  syncActiveChordProposal = () => {
+    if (!editorStillCurrent()) return false;
+    const proposal = typeof scanProposal === "function" ? scanProposal(e) : "";
+    const panel = $("edScanProposal");
+    panel.hidden = !proposal;
+    $("edScanProposalValue").textContent = proposal;
+    return Boolean(proposal);
+  };
+  $("edUseScanProposal").addEventListener("click", () => {
+    if (!editorStillCurrent()) return;
+    const proposal = typeof scanProposal === "function" ? scanProposal(e) : "";
+    if (!proposal) return;
+    curVoicing = parseVoicing(proposal);
+    fb.set(curVoicing);
+    refreshNaming();
+  });
   $("edName").addEventListener("input", () => { $("edErr").textContent = ""; refreshNaming(); });
   // Enter in the name field applies; Esc cancels (handled here so it works
   // even though the global Esc handler also closes the editor).
@@ -420,6 +452,7 @@ function openEditor(si, bi, ei, focus = false) {
     updateEditorReviewStatus();
   }
   refreshNaming();
+  syncActiveChordProposal();
 
   submitActiveChord = ({ usePrinted = false, advance = false } = {}) => {
     const selected = state.sel;

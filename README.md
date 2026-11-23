@@ -131,6 +131,37 @@ enter accuracy calculations.
 used while tuning the parser is calibration data; its score is not evidence of historical reader
 accuracy. Report generalization only from an untouched, human-reviewed held-out split.
 
+### Repeated chord disagreements
+
+Find guitar-fingering disagreements that recur across songs and review representative
+source crops. The standalone HTML ranks groups by affected songs and highlights the
+strings that differ between the current chart and the recorded diagram reading.
+
+```sh
+.venv/bin/python scripts/repeated_chord_review.py \
+  --songs data/joao-gilberto/songs --pdfs data/joao-gilberto/pdf \
+  --out .local/repeated-chords.html
+```
+
+The report uses exact fingering pairs and preserves each occurrence's label. It
+excludes `-qa-` copies from the counts. Crops are optional and include their pairing
+basis. Keep reports with embedded scan crops in the ignored `.local/` directory.
+
+In QA, open **Shapes** for a library-wide view indexed from the PDF diagrams.
+The first index can take a minute. Search for a chord or song to find matching shapes,
+and use the album selector to narrow which occurrences appear. Exact groups use the
+decoded string states, dot positions, and the visually resolved base fret.
+
+Review the source crops and use **Edit fingering to apply** to adjust the proposed
+fingering. Enter a **Chord name** to rename the selected entries, or leave it blank
+to keep each chart's name. The occurrence list previews the result and identifies
+name and fingering conflicts. Select the chart entries to update and check the
+affected files before applying. Saved edits appear in the selected songs, and the
+latest applied fingering is offered the next time you open that shape. Entries whose
+base fret is unresolved are available for individual inspection. **Undo most recent
+batch** restores the prior files when their saved revisions still match. The index
+cache and undo journal live under `.local/shapes/`.
+
 ### QA correction tool (browser)
 
 Review each extracted song beside its scanned pages and fix chord names, fingerings, and lyrics.
@@ -234,7 +265,14 @@ Review remembers the last selected chord for each song.
 
 The scan follows the selected chord to its recorded source page. When the source
 diagram has a recorded location, the scan shows the chord's review state and lets
-you click the diagram to select the chord.
+you click the diagram to select the chord. The selected outline keeps the chord's
+review color. Older charts highlight exact-count or unambiguous ordered scan matches
+tied to the saved song revision.
+
+Pass `--reading-proposals <local-run-directory>` to the QA server to display provisional
+positions and supported fingering suggestions from a library reading run. The overlay
+checks both the song revision and the PDF fingerprint. **Use proposed fingering** loads
+the suggestion into the chord editor, where it can be inspected and applied.
 Turn on **Show edits** to see corrected chord names, voicing and lyric changes, and
 new bar starts at their source positions. Select a chord to compare **As extracted**
 with **Current**. Dashed badges track unsaved edits and become solid after saving.

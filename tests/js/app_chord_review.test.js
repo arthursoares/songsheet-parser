@@ -20,6 +20,8 @@ function harness({ split = false, savedDoc = null, storage = new Map() } = {}) {
   let undoCount = 0;
   let dirty = false;
   let discardDraft = true;
+  let activeFretboard = null;
+  const scanProposals = new WeakMap();
   function element(id) {
     const classes = new Set();
     const attributes = new Map();
@@ -98,10 +100,12 @@ function harness({ split = false, savedDoc = null, storage = new Map() } = {}) {
       },
       Fretboard: () => {
         let strings;
-        return { set: (next) => { strings = next; }, get: () => strings };
+        activeFretboard = { set: (next) => { strings = next; }, get: () => strings };
+        return activeFretboard;
       },
     },
     parseVoicing: (v) => v.split(","),
+    scanProposal: (entry) => scanProposals.get(entry) || "",
     renderSongList() {},
     syncScanSelection: (coords) => { scanSelection = coords && { ...coords }; },
     pushUndo: () => { previous = structuredClone(state.doc); undoCount += 1; },
@@ -134,6 +138,9 @@ function harness({ split = false, savedDoc = null, storage = new Map() } = {}) {
     undoCount: () => undoCount,
     focused: () => focused, scrolled: () => scrolled, dirty: () => dirty,
     scanSelection: () => scanSelection,
+    draftVoicing: () => activeFretboard?.get().join(","),
+    setScanProposal: (entry, proposal) => scanProposals.set(entry, proposal),
+    refreshScanProposal: () => vm.runInContext("syncActiveChordProposal()", context),
     submit(options) {
       return vm.runInContext(`submitActiveChord(${JSON.stringify(options || {})})`, context);
     },
@@ -271,6 +278,39 @@ test("editor submit commits lyric drafts before applying printed voicing and adv
   assert.equal(app.entries[0].chord_review.status, "reviewed");
   assert.equal(app.get("edName").value, "Dm");
   assert.equal(app.focused(), app.chips[2]);
+});
+
+test("late scan proposal is review-only until the user copies and applies it", () => {
+  const app = harness();
+  app.state.activeView = "bars";
+  app.key("l");
+  const entry = app.entries[0];
+  const original = structuredClone(entry);
+  const selection = { ...app.state.sel };
+
+  assert.equal(app.get("edScanProposal").hidden, true);
+  app.setScanProposal(entry, "x,3,5,5,5,3");
+  assert.equal(app.refreshScanProposal(), true);
+  assert.equal(app.get("edScanProposal").hidden, false);
+  assert.equal(app.get("edScanProposalValue").textContent, "x,3,5,5,5,3");
+  assert.deepEqual(entry, original);
+  assert.equal(app.dirty(), false);
+  assert.equal(app.undoCount(), 0);
+  assert.deepEqual({ ...app.state.sel }, selection);
+
+  app.get("edUseScanProposal").click();
+  assert.equal(app.draftVoicing(), "x,3,5,5,5,3");
+  assert.deepEqual(entry, original);
+  assert.equal(app.dirty(), false);
+  assert.equal(app.undoCount(), 0);
+  assert.deepEqual({ ...app.state.sel }, selection);
+
+  app.get("edApply").click();
+  assert.equal(entry.voicing, "x,3,5,5,5,3");
+  assert.equal(entry.voicing_printed, original.voicing_printed);
+  assert.equal(entry.chord_review.status, "reviewed");
+  assert.equal(app.dirty(), true);
+  assert.equal(app.undoCount(), 1);
 });
 
 test("active editor submit validates its name and refuses unavailable printed voicings", () => {

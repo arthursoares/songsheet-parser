@@ -13,19 +13,18 @@ async function init() {
   albumSel.innerHTML = albums.map((a) => `<option>${esc(a.album)}</option>`).join("");
   const songSel = $("songSel");
 
-  // album switch: remember the previous value so we can revert if the user cancels.
-  let lastAlbum = albumSel.value;
-  let lastSong = songSel.value;
+  $("workspaceSongs").addEventListener("click", () => {
+    if (state.activeView === "shapes") showView("bars");
+  });
+  $("workspaceShapes").addEventListener("click", () => showView("shapes"));
+
   albumSel.addEventListener("change", () => {
-    if (!confirmDiscard()) { albumSel.value = lastAlbum; return; }
-    lastAlbum = albumSel.value;
+    if (!confirmDiscard()) { albumSel.value = state.album; return; }
     fillSongs();
-    lastSong = songSel.value;
     loadSong();
   });
   songSel.addEventListener("change", () => {
-    if (!confirmDiscard()) { songSel.value = lastSong; return; }
-    lastSong = songSel.value;
+    if (!confirmDiscard()) { songSel.value = state.file; return; }
     loadSong();
   });
 
@@ -151,10 +150,13 @@ async function init() {
 // (the three-pane layout gets cramped once lanes + panel are on screen).
 function applyLayoutToggles() {
   const reviewing = state.activeView === "chordReview";
+  const shapes = state.activeView === "shapes";
   const noPages = localStorage.getItem("qaHidePages") === "1";
   const noSongs = reviewing || localStorage.getItem("qaHideSongs") === "1";
   const layout = document.querySelector(".layout");
   layout.classList.toggle("chord-review-mode", reviewing);
+  layout.classList.toggle("shapes-mode", shapes);
+  document.querySelector("header")?.classList.toggle("shapes-mode", shapes);
   layout.classList.toggle("no-pages", noPages);
   layout.classList.toggle("no-songs", noSongs);
   $("scanToggle").classList.toggle("active", !noPages);
@@ -236,6 +238,13 @@ function onKeydown(ev) {
   if ((ev.metaKey || ev.ctrlKey) && (ev.key === "s" || ev.key === "S")) {
     ev.preventDefault();
     save();
+    return;
+  }
+  if (state.activeView === "shapes") {
+    if (!typing && (ev.key === "?" || ev.key === "/")) {
+      ev.preventDefault();
+      showShortcutDialog();
+    }
     return;
   }
   // Undo / redo — only when NOT typing, so native input undo is preserved.

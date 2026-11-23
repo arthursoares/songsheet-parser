@@ -6,6 +6,7 @@
 <link rel="stylesheet" href="vendor/codemirror/codemirror.min.css">
 <link rel="stylesheet" href="vendor/codemirror/material-darker.min.css">
 <link rel="stylesheet" href="vendor/codemirror/lint.min.css">
+<link rel="stylesheet" href="qa_shapes.css">
 <style>
   :root{
     --bg:#0f1115; --bg-deep:#0c0e12; --panel:#171a21; --panel-2:#1e222b;
@@ -168,17 +169,29 @@
   .scan-image{position:relative;border-radius:8px;overflow:hidden;box-shadow:0 0 0 1px var(--border)}
   .scan-image img{display:block;width:100%;background:var(--paper)}
   .scan-page.current .scan-image{box-shadow:0 0 0 2px var(--accent)}
-  .scan-review-marks{position:absolute;inset:0;pointer-events:none}
-  .scan-review-mark{position:absolute;pointer-events:auto;border:0;border-radius:3px;background:transparent;padding:0;cursor:pointer}
-  .scan-review-mark[data-review-status="reviewed"]{box-shadow:0 0 0 2px #268842;background:#4aae5722}
-  .scan-review-mark[data-review-status="deferred"],.scan-review-mark[data-review-status="changed"]{box-shadow:0 0 0 2px #b15b05;background:#d9872426}
-  .scan-review-mark:hover,.scan-review-mark.selected{box-shadow:0 0 0 2px #1760bd,0 0 0 4px #fff;z-index:1}
+  .scan-review-marks{position:absolute;inset:0;z-index:1;pointer-events:none}
+  .scan-review-mark{
+    --scan-mark-color:#1760bd;--scan-mark-fill:transparent;
+    position:absolute;pointer-events:auto;border:0;border-radius:3px;
+    background:var(--scan-mark-fill);padding:0;cursor:pointer
+  }
+  .scan-review-mark[data-review-status="reviewed"]{--scan-mark-color:#23733b;--scan-mark-fill:#46ad5638}
+  .scan-review-mark[data-review-status="deferred"]{--scan-mark-color:#a05304;--scan-mark-fill:#d9872438}
+  .scan-review-mark[data-review-status="changed"]{--scan-mark-color:#b73531;--scan-mark-fill:#f8514938}
+  .scan-review-mark[data-review-status="pending"]{box-shadow:0 0 0 1px #46698d92}
+  .scan-review-mark:not([data-review-status="pending"]){box-shadow:0 0 0 2px var(--scan-mark-color)}
+  .scan-review-mark[data-scan-proposal="true"]::after{content:"";position:absolute;inset:-3px;border:2px dashed #d29922;border-radius:5px;pointer-events:none}
+  .scan-review-mark:hover{box-shadow:0 0 0 2px var(--scan-mark-color),0 0 0 3px #fff;z-index:1}
+  .scan-review-mark.selected{
+    box-shadow:0 0 0 3px var(--scan-mark-color),0 0 0 5px #fff,0 0 0 6px #172336;
+    z-index:2
+  }
   .scan-toolbar{position:sticky;top:0;z-index:2;display:flex;gap:6px 14px;align-items:center;flex-wrap:wrap;background:var(--bg-deep);padding:5px 0;margin-bottom:5px}
   .scan-edits-toggle{display:flex;gap:5px;align-items:center;color:var(--text);font-size:12px;cursor:pointer}
   .scan-edits-toggle input{margin:0;accent-color:var(--accent)}
+  .scan-proposal-legend::before{border:2px dashed #d29922!important;background:transparent!important}
   .scan-review-legend{display:flex;gap:12px;flex-wrap:wrap;color:var(--muted);font-size:11px}
-  .scan-review-legend span::before{content:"";display:inline-block;width:9px;height:9px;margin-right:5px;border-radius:2px;background:#268842}
-  .scan-review-legend span+span::before{background:#b15b05}
+  .scan-review-legend span::before{content:"";display:inline-block;width:9px;height:9px;margin-right:5px;border-radius:2px;background:var(--legend-color)}
   .scan-edit-badge{position:absolute;bottom:100%;left:0;padding:1px 4px;border:1px solid #174988;border-radius:4px;background:#174988;color:#fff;font:600 11px/1.3 system-ui,sans-serif;white-space:nowrap}
   .scan-edit-badge[data-edit-status="unsaved"]{border:1px dashed #f8cf75;background:#543704;color:#fff4d5}
   .scan-edit-details{box-sizing:border-box;width:100%;padding:7px 9px;border:1px solid var(--border);border-radius:6px;background:var(--panel);font-size:12px}
@@ -252,6 +265,9 @@
   .printhint{color:var(--muted);font:12px ui-monospace,monospace;margin-top:6px}
   .printhint button{font-size:11px;margin-left:6px;cursor:pointer}
   .printcrop{display:block;max-width:230px;margin-top:8px;border:1px solid var(--border);border-radius:5px;background:#fff}
+  .scan-fingering-proposal{display:flex;flex-wrap:wrap;align-items:center;gap:5px 8px;margin-top:8px;padding:7px 8px;border:1px dashed #d29922;border-radius:6px;background:#2a2113;color:#e3b341;font:12px ui-monospace,monospace}
+  .scan-fingering-proposal button{cursor:pointer}
+  .scan-fingering-proposal small{flex-basis:100%;color:var(--muted);font:11px/1.35 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
   .dprint{font-size:11px;margin-left:8px;cursor:pointer;color:#d29922;background:none;border:1px solid var(--border);border-radius:5px;padding:2px 7px}
   .ly-edit{font-size:15px;font-family:inherit;background:var(--panel);color:inherit;border:1px solid var(--accent);border-radius:4px;padding:0 3px}
   .ly-modebar{display:flex;gap:6px;margin-bottom:8px}
@@ -432,6 +448,10 @@
 </head>
 <body>
 <header>
+  <nav class="qa-workspaces" aria-label="Workspace">
+    <button type="button" class="tab active" id="workspaceSongs" aria-pressed="true">Songs</button>
+    <button type="button" class="tab" id="workspaceShapes" aria-pressed="false">Shapes</button>
+  </nav>
   <select id="albumSel" aria-label="Album"></select>
   <select id="songSel" class="hidden"></select>
   <span id="currentSongTitle" class="current-song-title" aria-live="polite"></span>
@@ -709,6 +729,7 @@
     </div>
   </div>
   <aside class="editor" id="editor"></aside>
+  <section id="shapes" class="col shapes hidden" aria-label="Library shapes"></section>
 </div>
 <script src="vendor/tonal.bundle.js"></script>
 <script src="vendor/chord-symbol.bundle.js"></script>
@@ -734,6 +755,7 @@
 <script src="app_scan.js"></script>
 <script src="app_review.js"></script>
 <script src="app_dict.js"></script>
+<script src="app_shapes.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

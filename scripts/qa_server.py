@@ -26,7 +26,9 @@ SCRIPTS = Path(__file__).resolve().parent
 ROOT = SCRIPTS.parent
 STATIC_DIR = SCRIPTS / "qa_static"
 PDF_DIR: Path | None = None  # set in main(); sibling pdf/ of --songs by default
+READING_PROPOSALS: dict = {}
 CV_CACHE_DIR = Path("/tmp/cv-cache")  # shared with audit_voicings runs
+_SONG_WRITE_LOCK = threading.Lock()
 
 SAFE = re.compile(r"^[A-Za-z0-9._-]+$")  # path-segment guard (no traversal)
 
@@ -301,7 +303,41 @@ def _h_song_post(req, album, file):
     target = _safe_under(req.root, album, file)
     if target is None:
         return _json(400, {"error": "bad path"})
-    return save_song(target, req.body)
+    from qa_shape_routes import recovery_problem, requires_revision
+
+    revision = req.params.get("revision")
+    with _SONG_WRITE_LOCK:
+        recovery_error = recovery_problem(req.root)
+        if recovery_error:
+            return _json(
+                409,
+                {
+                    "ok": False,
+                    "error": f"Resolve the interrupted Shapes batch first. {recovery_error}",
+                },
+            )
+        if revision is None:
+            if requires_revision(req.root, album, file):
+                return _json(
+                    409,
+                    {
+                        "ok": False,
+                        "error": "Reload this song to get its current revision before saving.",
+                    },
+                )
+        elif not target.is_file() or file_sha256(target) != revision:
+            return _json(
+                409, {"ok": False, "error": "This song changed on disk. Reload it before saving."}
+            )
+        result = save_song(
+            target,
+            req.body,
+            legacy_order_changed=revision is not None
+            and req.params.get("legacy_scan_order") == "changed",
+        )
+        if result[0] == 200 and revision is not None:
+            return _json(200, {"ok": True, "revision": file_sha256(target)})
+        return result
 
 
 def _h_chordmark(req, album, file):
@@ -634,18 +670,112 @@ def _page_diagram_boxes(pdf: Path, page_number: int, records: list[dict]):
     return result
 
 
+def _legacy_diagram_locations(req, album, target, doc, revision):
+    from qa_shape_routes import _cache_path
+    from qa_shapes import legacy_page_records
+
+    if PDF_DIR is None or not PDF_DIR.is_dir():
+        return {}
+    try:
+        with _PDF_LOCK:
+            groups = legacy_page_records(doc, album, PDF_DIR, _cache_path(req.root) / "pages")
+        locations = {}
+        for (pdf, page), records in groups.items():
+            boxes = _page_diagram_boxes(pdf, page, records)
+            for record in records:
+                key = record["observation_id"]
+                if box := boxes.get(key):
+                    locations[key] = {
+                        "page": page,
+                        "box": box,
+                        "basis": record.get("basis", "legacy_exact_count"),
+                    }
+        return locations if file_sha256(target) == revision else {}
+    except (ValueError, OSError, RuntimeError, SystemExit):
+        return {}
+
+
+def _review_proposal_locations(doc, album, file, revision, existing):
+    """Show revision-bound single-gap readings as provisional scan evidence."""
+    overlay = READING_PROPOSALS.get((album, file))
+    if not overlay or overlay["revision"] != revision or not doc["songs"]:
+        return {}
+
+    from diagram_reader import load_page_image
+
+    chart = doc["songs"][0]
+    crop_groups = {}
+    candidates = {}
+    sources = {}
+    for candidate in overlay["entries"]:
+        key = candidate["coordinate"]
+        if key in existing or candidate["page"] not in chart.get("pages", []):
+            continue
+        si, bi, ei = map(int, key.split(":"))
+        try:
+            entry = chart["sections"][si]["bars"][bi][ei]
+        except (IndexError, KeyError, TypeError):
+            continue
+        if (
+            entry.get("observation_id")
+            or entry.get("chord") != candidate["chord"]
+            or entry.get("voicing") != candidate["editorial"]
+            or entry.get("voicing_printed") != candidate["printed"]
+        ):
+            continue
+        name, digest = candidate["pdf"], candidate["pdf_sha256"]
+        source_key = (name, digest)
+        if source_key not in sources:
+            sources[source_key], _ = _evidence_pdf({"name": name, "sha256": digest})
+        pdf = sources[source_key]
+        if pdf:
+            candidates[key] = candidate
+            crop_groups.setdefault((pdf, candidate["page"]), []).append(
+                {"observation_id": key, "crop_box": candidate["box"]}
+            )
+
+    locations = {}
+    for (pdf, page), records in crop_groups.items():
+        try:
+            with _PDF_LOCK:
+                height, width = load_page_image(pdf, page).shape
+            native = {"height": height, "width": width}
+            bounded = [
+                {**record, "native_image": native}
+                for record in records
+                if record["crop_box"][2] < width and record["crop_box"][3] < height
+            ]
+            boxes = _page_diagram_boxes(pdf, page, bounded)
+        except (ValueError, OSError, RuntimeError, SystemExit):
+            continue
+        for key, box in boxes.items():
+            if box:
+                locations[key] = {
+                    "page": page,
+                    "box": box,
+                    "basis": "legacy_anchored_proposal",
+                }
+                if proposed := candidates[key]["proposal"]:
+                    locations[key]["proposal"] = proposed
+    return locations
+
+
 def _h_diagram_location(req, album, file):
     """All observation-linked source locations for a saved song.
 
     Paired diagram evidence includes normalized page geometry.  A validated
     observation with only page context is still useful to the reviewer and is
-    returned with ``box: null``.  Legacy entries without links are not guessed.
+    returned with ``box: null``.  Older charts use an exact reading-order map
+    tied to the saved document revision when the diagrams can be matched.
     """
     target, err = _existing_song(req.root, album, file)
     if err is not None:
         return err
     try:
-        doc = load_document(target)
+        payload = target.read_bytes()
+        revision = hashlib.sha256(payload).hexdigest()
+        doc = json.loads(payload)
+        validate_document(doc)
     except (ValueError, OSError) as exc:
         return _json(422, {"error": str(exc)})
 
@@ -685,6 +815,17 @@ def _h_diagram_location(req, album, file):
             "record": record,
         }
     if not pending:
+        if not observations and not meta.get("legacy_scan_order_changed"):
+            coordinates = _legacy_diagram_locations(req, album, target, doc, revision)
+            coordinates.update(_review_proposal_locations(doc, album, file, revision, coordinates))
+            if coordinates:
+                try:
+                    if file_sha256(target) == revision:
+                        return _json(
+                            200, {"locations": {}, "coordinates": coordinates, "revision": revision}
+                        )
+                except OSError:
+                    pass
         return _json(404, {"error": "no linked source locations"})
 
     groups = {}
@@ -889,6 +1030,10 @@ def handle(method: str, path: str, body: bytes, root: Path):
     path = path.split("?", 1)[0]  # drop query string (e.g. cache-bust ?t=)
     parts = [p for p in path.split("/") if p != ""]
     req = _Request(root, body, params)
+    if parts[:2] == ["api", "shapes"]:
+        from qa_shape_routes import handle_shapes
+
+        return handle_shapes(method, parts[2:], req, PDF_DIR, _SONG_WRITE_LOCK, _PDF_LOCK)
 
     for route_method, pattern_parts, handler in _COMPILED_ROUTES:
         if route_method != method:
@@ -905,13 +1050,17 @@ def handle(method: str, path: str, body: bytes, root: Path):
     return _json(404, {"error": "unknown route"})
 
 
-def save_song(target: Path, body: bytes):
+def save_song(target: Path, body: bytes, *, legacy_order_changed=False):
     try:
         doc = json.loads(body)
     except (json.JSONDecodeError, UnicodeDecodeError) as e:
         return _json(400, {"ok": False, "error": f"invalid JSON: {e}"})
 
     try:
+        if isinstance(doc, dict):
+            meta = doc.setdefault("_meta", {}) if legacy_order_changed else doc.get("_meta", {})
+            if legacy_order_changed and isinstance(meta, dict) and not meta.get("observations"):
+                meta["legacy_scan_order_changed"] = True
         save_document(target, doc, overwrite=True)
     except DocumentError as e:
         return _json(422, {"ok": False, "error": str(e)})
@@ -1143,11 +1292,32 @@ def render_song_html(song_path: Path, bars_per_line=4, *, diagram_layout=None):
 def serve(songs_root: Path, port: int):
     from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
+    from qa_shape_routes import recover_library
+
+    recovery = recover_library(songs_root, _SONG_WRITE_LOCK)
+    if recovery:
+        print(recovery)
+
     class Handler(BaseHTTPRequestHandler):
         def _run(self, method):
             length = int(self.headers.get("Content-Length", 0) or 0)
             body = self.rfile.read(length) if length else b""
-            result = handle(method, self.path, body, songs_root)
+            origin = self.headers.get("Origin")
+            local_port = self.server.server_port
+            if (
+                method == "POST"
+                and origin
+                and origin
+                not in {
+                    f"http://127.0.0.1:{local_port}",
+                    f"http://localhost:{local_port}",
+                }
+            ):
+                result = _json(
+                    403, {"error": "Requests to edit the library must come from local QA."}
+                )
+            else:
+                result = handle(method, self.path, body, songs_root)
             status, ctype, payload = result[0], result[1], result[2]
             extra = result[3] if len(result) > 3 else {}
             self.send_response(status)
@@ -1155,6 +1325,19 @@ def serve(songs_root: Path, port: int):
             self.send_header("Content-Length", str(len(payload)))
             for k, v in extra.items():
                 self.send_header(k, v)
+            if method == "GET" and status == 200 and self.path.startswith("/api/song/"):
+                self.send_header("X-Songsheet-Revision", hashlib.sha256(payload).hexdigest())
+                self.send_header("Cache-Control", "no-store")
+            if (
+                method == "GET"
+                and status == 200
+                and (
+                    self.path == "/"
+                    or self.path.startswith("/app_")
+                    or self.path.startswith("/qa_shapes.css")
+                )
+            ):
+                self.send_header("Cache-Control", "no-store")
             self.end_headers()
             self.wfile.write(payload)
 
@@ -1172,7 +1355,7 @@ def serve(songs_root: Path, port: int):
 
 
 def main():
-    global PDF_DIR
+    global PDF_DIR, READING_PROPOSALS
     ap = argparse.ArgumentParser(description="Songsheet QA correction server")
     ap.add_argument("--songs", type=Path, default=ROOT / "data" / "joao-gilberto" / "songs")
     ap.add_argument("--port", type=int, default=8000)
@@ -1181,8 +1364,18 @@ def main():
         type=Path,
         help="album PDF dir for printed-diagram crops (default: sibling pdf/ of --songs)",
     )
+    ap.add_argument(
+        "--reading-proposals", type=Path, help="local reading report directory for QA review"
+    )
     args = ap.parse_args()
     PDF_DIR = args.pdfs or args.songs.parent / "pdf"
+    if args.reading_proposals:
+        from qa_reading_proposals import load_reading_proposals
+
+        READING_PROPOSALS = load_reading_proposals(args.reading_proposals)
+        if not READING_PROPOSALS:
+            ap.error("no valid reading proposals in the selected report directory")
+        print(f"Loaded reading proposals for {len(READING_PROPOSALS)} charts.")
     serve(args.songs, args.port)
 
 
