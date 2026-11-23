@@ -34,7 +34,11 @@ function markDirty() {
 let undoStack = [];
 let redoStack = [];
 
-function snapshot() { return JSON.parse(JSON.stringify(state.doc)); }
+function snapshot() {
+  const copy = JSON.parse(JSON.stringify(state.doc));
+  if (typeof copyLegacyScanLinks === "function") copyLegacyScanLinks(copy);
+  return copy;
+}
 
 // Record the current state.doc before a mutation, and clear the redo stack.
 // Cap the stack so very long sessions don't grow unbounded.
@@ -84,7 +88,12 @@ function redo() {
 
 async function api(path, opts) {
   const r = await fetch(path, opts);
-  return r.json();
+  const data = await r.json();
+  const revision = r.headers?.get("X-Songsheet-Revision");
+  if (revision && data && typeof data === "object") {
+    data[Symbol.for("songsheetRevision")] = revision;
+  }
+  return data;
 }
 
 const STATUS_LABEL = { pending: "○ pending", in_progress: "◐ in progress", done: "✓ done" };

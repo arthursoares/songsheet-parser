@@ -254,6 +254,107 @@ def test_diagram_locations_do_not_guess_legacy_entries(tmp_path, monkeypatch):
     assert "no linked source" in json.loads(body)["error"]
 
 
+def test_diagram_locations_return_verified_legacy_boxes_with_revision(tmp_path, monkeypatch):
+    import qa_shapes
+    from extraction_provenance import file_sha256
+
+    root = _corpus(tmp_path)
+    pdf = tmp_path / "album.pdf"
+    monkeypatch.setattr(S, "PDF_DIR", tmp_path)
+    monkeypatch.setattr(
+        qa_shapes,
+        "legacy_page_records",
+        lambda *_args: {(pdf, 4): [{"observation_id": "0:0:0", "crop_box": [1, 2, 3, 4]}]},
+    )
+    monkeypatch.setattr(S, "_page_diagram_boxes", lambda *_args: {"0:0:0": [0.1, 0.2, 0.3, 0.4]})
+
+    status, _, body = S.handle("GET", "/api/diagram-location/1-album/01-song-one.json", b"", root)
+
+    assert status == 200
+    assert json.loads(body) == {
+        "locations": {},
+        "coordinates": {
+            "0:0:0": {"page": 4, "box": [0.1, 0.2, 0.3, 0.4], "basis": "legacy_exact_count"}
+        },
+        "revision": file_sha256(root / "1-album" / "01-song-one.json"),
+    }
+
+    path = root / "1-album" / "01-song-one.json"
+    query = f"?revision={file_sha256(path)}&legacy_scan_order=changed"
+    status, _, _ = S.handle(
+        "POST", f"/api/song/1-album/01-song-one.json{query}", path.read_bytes(), root
+    )
+    assert status == 200
+    assert json.loads(path.read_text())["_meta"]["legacy_scan_order_changed"] is True
+    status, _, _ = S.handle("GET", "/api/diagram-location/1-album/01-song-one.json", b"", root)
+    assert status == 404
+
+
+def test_reading_overlay_keeps_exact_boxes_and_exposes_only_supportable_target(
+    tmp_path, monkeypatch
+):
+    import diagram_reader
+    import numpy as np
+    from extraction_provenance import file_sha256
+    from songsheet_io import save_document
+
+    root = _corpus(tmp_path)
+    name = "01-song-one.json"
+    path = root / "1-album" / name
+    doc = json.loads(path.read_text())
+    doc["songs"][0]["pages"] = [4]
+    entry = {"chord": "Dm7", "voicing": "x,5,7,5,6,x", "voicing_printed": "x,5,7,5,6,x"}
+    doc["songs"][0]["sections"][0]["bars"] = [[dict(entry)] for _ in range(3)]
+    save_document(path, doc, overwrite=True)
+    original = path.read_bytes()
+    pdf = tmp_path / "source.pdf"
+    pdf.write_bytes(b"source")
+    revision = file_sha256(path)
+    digest = file_sha256(pdf)
+    proposal = "x,5,x,5,6,x"
+    rows = [
+        {
+            "coordinate": f"0:{i}:0",
+            "chord": "Dm7",
+            "editorial": entry["voicing"],
+            "printed": entry["voicing_printed"],
+            "pdf": pdf.name,
+            "pdf_sha256": digest,
+            "page": 4,
+            "box": [1, 2, 10, 20],
+            "proposal": proposal if i != 2 else None,
+        }
+        for i in range(3)
+    ]
+    groups = {("1-album", name): {"revision": revision, "entries": rows}}
+    exact = {"page": 4, "box": [0, 0, 0.1, 0.1], "basis": "legacy_exact_count"}
+    monkeypatch.setattr(S, "PDF_DIR", tmp_path)
+    monkeypatch.setattr(S, "READING_PROPOSALS", groups)
+    monkeypatch.setattr(S, "_legacy_diagram_locations", lambda *_args: {"0:0:0": exact})
+    monkeypatch.setattr(diagram_reader, "load_page_image", lambda *_args: np.zeros((70, 80)))
+    monkeypatch.setattr(
+        S,
+        "_page_diagram_boxes",
+        lambda _pdf, _page, records: {
+            record["observation_id"]: [0.2, 0.2, 0.4, 0.4] for record in records
+        },
+    )
+
+    url = f"/api/diagram-location/1-album/{name}"
+    status, _, body = S.handle("GET", url, b"", root)
+    coordinates = json.loads(body)["coordinates"]
+    assert status == 200
+    assert coordinates["0:0:0"] == exact
+    assert coordinates["0:1:0"]["basis"] == "legacy_anchored_proposal"
+    assert coordinates["0:1:0"]["proposal"] == proposal
+    assert "proposal" not in coordinates["0:2:0"]
+    assert path.read_bytes() == original
+
+    groups["1-album", name]["revision"] = "0" * 64
+    _, _, body = S.handle("GET", url, b"", root)
+    assert json.loads(body)["coordinates"] == {"0:0:0": exact}
+
+
 def test_list_albums_reads_status(tmp_path):
     root = _corpus(tmp_path)
     p = root / "1-album" / "01-song-one.json"

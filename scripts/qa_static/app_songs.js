@@ -134,6 +134,7 @@ function stepSong(dir) {
 // Friendly empty state when an album has no songs (or none is selected).
 function showEmpty() {
   state.doc = null;
+  state.songRevision = null;
   state.sel = null;
   state.flags = [];
   state.dirty = false;
@@ -155,8 +156,9 @@ function showEmpty() {
 let loadGeneration = 0;
 let loadingSong = false;
 
-function clearSongForLoad(message) {
+function clearSongForLoad(message, view = "bars") {
   state.doc = null;
+  state.songRevision = null;
   state.sel = null;
   state.flags = [];
   state.dirty = false;
@@ -171,10 +173,10 @@ function clearSongForLoad(message) {
   renderProvenance();
   syncCurrentSongTitle();
   renderSongList();
-  showView("bars");
+  showView(view);
 }
 
-async function loadSong() {
+async function loadSong({ view = "bars" } = {}) {
   const generation = ++loadGeneration;
   if (state.activeView === "chordReview") showView("bars");
   $("saveStatus").textContent = "";
@@ -187,25 +189,26 @@ async function loadSong() {
   state.dictMergeOpen = false;
   loadingSong = Boolean(album && file);
   if (!album || !file) { showEmpty(); return; }
-  clearSongForLoad("Loading song…");
+  clearSongForLoad("Loading song…", view);
   let loaded;
   try {
     loaded = await api(`/api/song/${album}/${file}`);
   } catch (_error) {
     if (generation !== loadGeneration) return;
     loadingSong = false;
-    clearSongForLoad("Could not load this song.");
+    clearSongForLoad("Could not load this song.", view);
     if (typeof updateChordReviewEntryPoint === "function") updateChordReviewEntryPoint();
     return;
   }
   if (generation !== loadGeneration) return;
   loadingSong = false;
   if (!loaded || loaded.error || !loaded.songs || !loaded.songs.length) {
-    clearSongForLoad("Could not load this song.");
+    clearSongForLoad("Could not load this song.", view);
     if (typeof updateChordReviewEntryPoint === "function") updateChordReviewEntryPoint();
     return;
   }
   state.doc = loaded;
+  state.songRevision = loaded[Symbol.for("songsheetRevision")] || null;
   state.sel = null;
   state.dirty = false;
   state.editVersion = 0;
@@ -221,7 +224,7 @@ async function loadSong() {
   renderPages();
   renderBars();
   renderSongList();
-  showView("bars");
+  showView(view);
   $("editor").classList.remove("open");
   if (typeof updateChordReviewEntryPoint === "function") updateChordReviewEntryPoint();
 }
@@ -241,12 +244,20 @@ async function saveOnce() {
   const submittedGeneration = loadGeneration;
   const submittedAlbum = state.album;
   const submittedFile = state.file;
+  const params = new URLSearchParams();
+  if (state.songRevision) {
+    params.set("revision", state.songRevision);
+    if (typeof legacyScanOrderChanged === "function" && legacyScanOrderChanged()) {
+      params.set("legacy_scan_order", "changed");
+    }
+  }
+  const query = params.size ? `?${params}` : "";
   const submittedStatus =
     (submittedDoc.document && submittedDoc.document.status) || "pending";
   status.textContent = "saving…"; status.style.color = "var(--muted)";
   let res;
   try {
-    res = await api(`/api/song/${submittedAlbum}/${submittedFile}`,
+    res = await api(`/api/song/${submittedAlbum}/${submittedFile}${query}`,
       { method: "POST", body: submittedJson });
   } catch (error) {
     if (state.doc === submittedDoc) {
@@ -256,6 +267,9 @@ async function saveOnce() {
     return { ok: false, error: String(error) };
   }
   if (res.ok) {
+    if (res.revision && submittedGeneration === loadGeneration) {
+      state.songRevision = res.revision;
+    }
     const sameDocument = state.doc === submittedDoc;
     const unchanged = sameDocument &&
       (state.editVersion || 0) === submittedEditVersion &&
@@ -294,6 +308,51 @@ async function saveOnce() {
     status.style.color = "var(--bad)";
   }
   return res;
+}
+
+function shapeWritesReady(files) {
+  const affectsCurrent = !files?.length ||
+    files.some(({ album, file }) => album === state.album && file === state.file);
+  return !loadingSong && !savePromise &&
+    (!affectsCurrent || (!state.dirty && !chordEditorHasDraft()));
+}
+
+async function refreshAfterShapeWrite(files) {
+  if (!files?.some(({ album, file }) => album === state.album && file === state.file)) return true;
+  if (!shapeWritesReady(files)) return false;
+  await loadSong({ view: state.activeView });
+  return Boolean(state.doc);
+}
+
+async function openShapeOccurrence(item) {
+  if (item.song_index !== 0) {
+    throw new Error("Open the indexed arrangement as a separate song to edit it.");
+  }
+  const sameSong = item.album === state.album && item.file === state.file;
+  const current = sameSong && state.doc && state.songRevision === item.document_sha256;
+  if (!current) {
+    if (!confirmChordDraftDiscard() || !confirmDiscard()) return false;
+    if (!albums.some((album) => album.album === item.album &&
+        album.songs.some((record) => record.file === item.file))) {
+      throw new Error("The song is no longer in the library. Refresh Shapes.");
+    }
+    $("albumSel").value = item.album;
+    fillSongs();
+    $("songSel").value = item.file;
+    await loadSong({ view: "shapes" });
+  } else if (state.dirty) {
+    throw new Error("Save your song edits and refresh Shapes to update the chord positions.");
+  }
+  if (!state.doc || state.album !== item.album || state.file !== item.file ||
+      state.songRevision !== item.document_sha256) {
+    throw new Error("The song changed. Refresh Shapes to locate the chord.");
+  }
+  const selected = { si: item.si, bi: item.bi, ei: item.ei };
+  if (!song().sections[item.si]?.bars[item.bi]?.[item.ei]) {
+    throw new Error("The chord was moved. Refresh Shapes.");
+  }
+  jumpToEntry(selected);
+  if (localStorage.getItem("qaHidePages") === "1") toggleLayoutPane("pages");
 }
 
 function save() {

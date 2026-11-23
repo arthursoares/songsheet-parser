@@ -198,3 +198,109 @@ test("scan edits report actual split boundaries plus unsaved voicing and lyric r
   assert.equal(reverted.has("f"), false);
   assert.equal(context.scanEditsForDocument(doc, context.scanEditSnapshot(doc)).size, 0);
 });
+
+test("legacy scan boxes follow the saved chord object after an unsaved move", async () => {
+  const chord = { chord: "C" };
+  const song = { pages: [4], sections: [{ bars: [[chord], []] }] };
+  const state = { album: "album", file: "song.json", songRevision: "saved", doc: { songs: [song] } };
+  const layer = { innerHTML: "" };
+  const marker = scanElement(40, 65);
+  const page = scanElement(20, 150);
+  page.id = "scan-page-4";
+  page.querySelector = (selector) => selector === ".scan-review-marks" ? layer :
+    (selector.includes("0:1:0") && layer.innerHTML.includes("0:1:0") ? marker : null);
+  const root = {
+    querySelectorAll: (selector) => selector === ".scan-page" ? [page] : [],
+    querySelector: () => null,
+  };
+  let respond;
+  let proposalSyncs = 0;
+  const lookup = { pages: root, "scan-page-4": page, scanFocusStatus: {} };
+  const context = vm.createContext({
+    state, song: () => song, $: (id) => lookup[id], esc: String,
+    entryCoords: () => song.sections[0].bars.flatMap((bar, bi) =>
+      bar.map((_value, ei) => ({ si: 0, bi, ei }))),
+    chordAt: ({ bi, ei }) => song.sections[0].bars[bi][ei],
+    chordReviewStatus: () => "pending", CHORD_REVIEW_LABELS: { pending: "Unreviewed" },
+    syncActiveChordProposal: () => { proposalSyncs += 1; },
+    api: () => new Promise((resolve) => { respond = resolve; }),
+  });
+  vm.runInContext(script, context);
+
+  context.renderPages();
+  song.sections[0].bars = [[], [chord]];
+  context.syncScanSelection({ si: 0, bi: 1, ei: 0 });
+  assert.equal(context.legacyScanOrderChanged(), false);
+  assert.match(lookup.scanFocusStatus.textContent, /Locating chord/);
+  const syncsBeforeResponse = proposalSyncs;
+  const coordinates = { "0:0:0": {
+    page: 4, box: [0.1, 0.2, 0.3, 0.4], basis: "legacy_anchored_proposal",
+    proposal: "x, 3, 2, 0, 1, 0",
+  } };
+  respond({ locations: {}, coordinates, revision: "saved" });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.match(layer.innerHTML, /data-scan-chord="0:1:0"/);
+  assert.match(layer.innerHTML, /data-scan-proposal="true"/);
+  assert.match(layer.innerHTML, /Proposed position, not verified/);
+  assert.match(layer.innerHTML, /proposed fingering x,3,2,0,1,0/);
+  assert.equal(context.scanProposal(chord), "x,3,2,0,1,0");
+  assert.ok(proposalSyncs > syncsBeforeResponse);
+  assert.equal(marker.classList.contains("selected"), true);
+  assert.equal(lookup.scanFocusStatus.hidden, true);
+  const snapshot = JSON.parse(JSON.stringify(state.doc));
+  context.copyLegacyScanLinks(snapshot);
+  assert.equal(context.scanLookup(snapshot.songs[0].sections[0].bars[1][0]).page, 4);
+
+  state.songRevision = "saved-edits";
+  context.syncSavedScanDocument();
+  assert.equal(context.scanProposal(chord), "");
+  assert.doesNotMatch(layer.innerHTML, /data-scan-proposal/);
+
+  context.renderPages();
+  respond({ locations: {}, coordinates, revision: "later" });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(layer.innerHTML, "");
+  context.syncScanSelection({ si: 0, bi: 1, ei: 0 });
+  assert.equal(lookup.scanFocusStatus.hidden, false);
+  assert.match(lookup.scanFocusStatus.textContent, /position is unavailable/);
+  assert.equal(context.scanProposal(chord), "");
+});
+
+test("scan proposals reject malformed fingerings and never treat ordinary matches as proposals", () => {
+  const entry = { chord: "C" };
+  const song = { pages: [], sections: [{ bars: [[entry]] }] };
+  const state = { album: "album", file: "song.json", doc: { songs: [song] } };
+  const root = { innerHTML: "", querySelectorAll: () => [] };
+  const context = vm.createContext({
+    state, song: () => song, $: (id) => id === "pages" ? root : null, esc: String,
+    entryCoords: () => [{ si: 0, bi: 0, ei: 0 }], chordAt: () => entry,
+    api: () => new Promise(() => {}),
+  });
+  vm.runInContext(script, context);
+  context.renderPages();
+  const location = { basis: "legacy_anchored_proposal", proposal: "x,3,2,0,1,25" };
+  context.location = location;
+  vm.runInContext("scanReview.legacyLocations.set(song().sections[0].bars[0][0], location)", context);
+  assert.equal(context.scanProposal(entry), "");
+  location.proposal = "x,3,2,0,1,0";
+  location.basis = "legacy_unique_alignment";
+  assert.equal(context.scanProposal(entry), "");
+});
+
+test("legacy scan order detects reordering even when both printed shapes are identical", () => {
+  const entries = [{ chord: "Em9" }, { chord: "Em9" }];
+  const song = { pages: [], sections: [{ bars: [entries] }] };
+  const root = { innerHTML: "", querySelectorAll: () => [] };
+  const state = { album: "album", file: "song.json", songRevision: "saved", doc: { songs: [song] } };
+  const context = vm.createContext({
+    state, song: () => song, $: (id) => id === "pages" ? root : null, esc: String,
+    entryCoords: () => entries.map((_entry, ei) => ({ si: 0, bi: 0, ei })),
+    chordAt: ({ ei }) => entries[ei],
+    api: () => new Promise(() => {}),
+  });
+  vm.runInContext(script, context);
+  context.renderPages();
+  assert.equal(context.legacyScanOrderChanged(), false);
+  entries.reverse();
+  assert.equal(context.legacyScanOrderChanged(), true);
+});
