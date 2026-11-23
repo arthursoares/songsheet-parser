@@ -20,6 +20,7 @@ import time
 import urllib.error
 import urllib.request
 from pathlib import Path
+from threading import Lock
 from typing import Optional
 
 import openai
@@ -30,6 +31,7 @@ REFRESH_SKEW_SECONDS = 30
 CODEX_BASE_URL = "https://chatgpt.com/backend-api/codex"
 
 DEFAULT_MODEL = "gpt-5.5"
+_AUTH_LOCK = Lock()
 
 
 class CodexAuthError(Exception):
@@ -102,7 +104,12 @@ def borrow_codex_key() -> tuple[str, Optional[str]]:
     Return (access_token, account_id) from the local Codex CLI credentials,
     refreshing the token in place if it is expired or near-expiry.
     """
-    auth_path = _auth_path()
+    # Parallel page parsers share the same rotating refresh token and auth file.
+    with _AUTH_LOCK:
+        return _read_or_refresh_token(_auth_path())
+
+
+def _read_or_refresh_token(auth_path: str) -> tuple[str, Optional[str]]:
     data = _read_auth(auth_path)
 
     tokens = data.get("tokens") or {}

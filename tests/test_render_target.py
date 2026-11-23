@@ -37,7 +37,7 @@ def test_render_bar_held_shows_percent():
     bar = [{"chord": "%", "text": "mi- nha"}]
     out = rt.render_bar_html(bar)
     assert 'class="cn">%<' in out  # held entry uses the % bar-repeat glyph
-    assert "mi-" in out and "nha" in out
+    assert '<span class="ly">minha</span>' in out
 
 
 def test_render_bar_wrapped_in_cell():
@@ -59,6 +59,42 @@ def test_body_bars_per_line_chunks_lines():
     sections = [{"label": None, "bars": [[{"chord": "C"}] for _ in range(8)]}]
     assert rt._body_html(sections, False, bars_per_line=4).count('class="ln"') == 2
     assert rt._body_html(sections, False, bars_per_line=8).count('class="ln"') == 1
+
+
+def test_body_continues_a_line_across_unlabeled_page_sections():
+    sections = [
+        {"label": None, "bars": [[{"chord": "A"}], [{"chord": "B"}]]},
+        {"label": None, "bars": [[{"chord": "C"}], [{"chord": "D"}], [{"chord": "E"}]]},
+    ]
+
+    out = rt._body_html(sections, False, bars_per_line=4)
+
+    assert out.count('class="ln"') == 2
+    first_line = out.split('class="ln"', 1)[1].split('class="ln"', 1)[0]
+    assert first_line.count('class="bar"') == 4
+
+
+def test_body_label_starts_a_new_line_and_unlabeled_continuation_can_fill_it():
+    sections = [
+        {"label": None, "bars": [[{"chord": "A"}], [{"chord": "B"}]]},
+        {"label": "Bridge", "bars": [[{"chord": "C"}]]},
+        {"label": None, "bars": [[{"chord": "D"}], [{"chord": "E"}], [{"chord": "F"}]]},
+    ]
+
+    out = rt._body_html(sections, False, bars_per_line=4)
+
+    assert out.count('class="ln"') == 2
+    assert out.index('class="seclabel"') > out.index('class="ln"')
+    assert out.split('class="seclabel"', 1)[1].count('class="bar"') == 4
+
+
+def test_body_keeps_empty_bars_when_grouping_sections():
+    sections = [{"bars": [[], [{"chord": "C"}], [], [{"chord": "D"}]]}]
+
+    out = rt._body_html(sections, False, bars_per_line=4)
+
+    assert out.count('class="ln"') == 1
+    assert out.count('class="bar"') == 4
 
 
 def test_render_bar_dim_uses_degree_sign():
@@ -119,7 +155,7 @@ def test_render_song_full_page():
     assert 'class="dict"' in out
     assert 'class="body"' in out
     assert "<svg" in out
-    assert "mi-" in out
+    assert '<span class="ly">minha</span>' in out
 
 
 def test_render_song_inline_diagrams_toggle():
@@ -136,7 +172,60 @@ def test_render_song_inline_diagrams_toggle():
     }
     no_inline = rt.render_song(song, inline_diagrams=False)
     with_inline = rt.render_song(song, inline_diagrams=True)
-    assert with_inline.count("<svg") > no_inline.count("<svg")
+    assert no_inline.count('<div class="dict">') == 1
+    assert no_inline.count('<span class="idia">') == 0
+    assert with_inline.count('<div class="dict">') == 1
+    assert with_inline.count('<span class="idia">') == 1
+
+
+def test_render_bar_hides_only_lyric_continuation_dashes_without_mutating_text():
+    bar = [
+        {"chord": "C", "text": "sam- ba ain-"},
+        {"chord": "G", "text": "da good-bye"},
+    ]
+    before = [dict(entry) for entry in bar]
+
+    out = rt.render_bar_html(bar)
+
+    assert '<span class="ly">samba ain</span>' in out
+    assert '<span class="ly">da good-bye</span>' in out
+    assert bar == before
+
+
+def test_render_song_hides_a_continuation_across_bars_on_the_same_line():
+    song = {
+        "title": "T",
+        "sections": [{"bars": [[{"chord": "C", "text": "tris-"}], [{"chord": "G", "text": "te"}]]}],
+    }
+    together = rt.render_song(song, bars_per_line=4)
+    split = rt.render_song(song, bars_per_line=1)
+    assert '<span class="ly">tris</span>' in together
+    assert '<span class="ly">tris-</span>' in split
+
+
+def test_render_song_explicit_diagram_layout_modes():
+    song = {
+        "title": "T",
+        "sections": [
+            {
+                "label": None,
+                "bars": [
+                    [{"chord": "Dm7", "voicing": "x,5,7,5,6,x", "text": "a"}],
+                ],
+            }
+        ],
+    }
+
+    dictionary = rt.render_song(song, diagram_layout="dictionary")
+    inline = rt.render_song(song, diagram_layout="inline")
+    both = rt.render_song(song, diagram_layout="both")
+
+    assert dictionary.count('<div class="dict">') == 1
+    assert dictionary.count('<span class="idia">') == 0
+    assert inline.count('<div class="dict">') == 0
+    assert inline.count('<span class="idia">') == 1
+    assert both.count('<div class="dict">') == 1
+    assert both.count('<span class="idia">') == 1
 
 
 def test_render_songbook_one_doc_many_songs():
@@ -167,6 +256,32 @@ def test_render_songbook_one_doc_many_songs():
     assert "Song A" in out and "Song B" in out  # both titles present
     assert "break-before: page" in out  # page break between songs
     assert out.count('class="song"') == 2  # each song is its own section
+
+
+def test_render_songbook_shares_diagram_layout_across_songs():
+    songs = [
+        {
+            "title": title,
+            "sections": [
+                {
+                    "label": None,
+                    "bars": [[{"chord": chord, "voicing": voicing, "text": title}]],
+                }
+            ],
+        }
+        for title, chord, voicing in (
+            ("Song A", "Dm7", "x,5,7,5,6,x"),
+            ("Song B", "G7", "3,5,3,4,3,3"),
+        )
+    ]
+
+    inline = rt.render_songbook(songs, title="Album", diagram_layout="inline")
+    both = rt.render_songbook(songs, title="Album", diagram_layout="both")
+
+    assert inline.count('<div class="dict">') == 0
+    assert inline.count('<span class="idia">') == 2
+    assert both.count('<div class="dict">') == 2
+    assert both.count('<span class="idia">') == 2
 
 
 def test_dictionary_is_alphabetical():

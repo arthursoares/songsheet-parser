@@ -10,6 +10,10 @@ DEFAULT_BEATS = 4
 PERCENT = "%"
 
 
+class ChordMarkBarError(ValueError):
+    """Raised when a bar cannot be represented without changing its timing."""
+
+
 def normalize_chord_name(name):
     """Map Brazilian tension-slash notation to a chord-symbol-parseable name.
 
@@ -88,6 +92,10 @@ def _distribute_beats(n, beats):
 
 def render_chord_line(bar, beats=DEFAULT_BEATS):
     """Render one bar (list of chord entries) to a ChordMark chord-line string."""
+    if len(bar) > beats:
+        raise ChordMarkBarError(
+            f"cannot render {len(bar)} chord entries in a {beats}-beat ChordMark bar"
+        )
     if len(bar) == 1:
         entry = bar[0]
         if entry["chord"] == PERCENT:
@@ -102,15 +110,46 @@ def render_chord_line(bar, beats=DEFAULT_BEATS):
 
 
 def render_lyric_line(bar):
-    """Render the `_`-anchored lyric line for a bar, or None if no entry has text."""
-    parts = []
-    for entry in bar:
-        text = entry.get("text")
-        if text:
-            parts.append("_" + text.strip())
-    if not parts:
+    """Render one idiomatic ChordMark lyric line, preserving every chord anchor.
+
+    The stored model uses a token-final ``-`` as a syllable-continuation marker.
+    ChordMark can express that without displaying the dash by gluing the next
+    ``_`` chord-position marker to the word (``tris_te_za`` -> ``tristeza``).
+    Empty entries before later lyrics still get a distinct marker; only empty
+    anchors after the final lyric can be omitted.
+    """
+    entries = list(bar)
+    while entries and not (entries[-1].get("text") or "").strip():
+        entries.pop()
+    if not entries:
         return None
-    return " ".join(parts)
+
+    line = ""
+    for index, entry in enumerate(entries):
+        if index:
+            previous = (entries[index - 1].get("text") or "").split()
+            line += "_" if previous and _continues_word(previous[-1]) else " _"
+        else:
+            line = "_"
+        line += lyric_display_text(entry.get("text"), continuation_after=index + 1 < len(entries))
+    return line
+
+
+def _continues_word(token):
+    return len(token) > 1 and token.endswith("-")
+
+
+def lyric_display_text(text, continuation_after=False):
+    """Hide proven continuation dashes; preserve ordinary or terminal hyphens."""
+    tokens = str(text or "").split()
+    out = ""
+    for index, token in enumerate(tokens):
+        continues = index < len(tokens) - 1 or continuation_after
+        if _continues_word(token) and continues:
+            out += token[:-1]
+        else:
+            out += token + " "
+    return out.strip()
 
 
 def _render_chord_definitions(chords_index):
@@ -151,23 +190,55 @@ def _bar_has_lyric(bar):
 
 
 def _group_bars(bars, max_bars=MAX_BARS_PER_LINE):
-    """Group a section's bars into chord lines for ChordMark.
-
-    Consecutive bars are grouped while they share lyric-presence (a sung run vs.
-    an instrumental run), capped at `max_bars` so lines stay readable.
-    This makes the output render as flowing systems instead of one bar per line.
-    Returns a list of bar-lists.
-    """
-    groups, cur, cur_lyric = [], [], None
+    """Split consecutive bars into lines of at most ``max_bars`` bars."""
+    max_bars = max(1, max_bars)
+    groups, cur = [], []
     for bar in bars:
-        has = _bar_has_lyric(bar)
-        if cur and (has != cur_lyric or len(cur) >= max_bars):
+        if len(cur) >= max_bars:
             groups.append(cur)
             cur = []
         cur.append(bar)
-        cur_lyric = has
     if cur:
         groups.append(cur)
+    return groups
+
+
+def _group_section_bars(sections, max_bars=MAX_BARS_PER_LINE, *, keep_empty_bars=True):
+    """Return ``(label, bars)`` systems shared by both renderers.
+
+    Unlabeled section edges commonly represent source-PDF page boundaries, so
+    they do not interrupt a system.  An explicit label starts a new system and
+    is attached to that system; a final short system is retained at song end.
+    ``keep_empty_bars`` lets each renderer preserve its established treatment
+    of fully empty bars.
+
+    A label without any following bars is returned as ``(label, [])`` so it is
+    not silently discarded.
+    """
+    groups = []
+    pending = []
+    pending_label = None
+
+    def flush():
+        nonlocal pending, pending_label
+        if pending or pending_label is not None:
+            groups.append((pending_label, pending))
+            pending = []
+            pending_label = None
+
+    for section in sections or []:
+        label = section.get("label")
+        if label:
+            flush()
+            pending_label = label
+        for bar in section.get("bars", []):
+            if not keep_empty_bars and not bar:
+                continue
+            pending.append(bar)
+            if len(pending) >= max(1, max_bars):
+                flush()
+
+    flush()
     return groups
 
 
@@ -198,9 +269,9 @@ def _resolve_leading_percent(group, last_real):
 def render_song(song, bars_per_line=MAX_BARS_PER_LINE):
     """Render one song dict to a ChordMark string.
 
-    Bars are grouped onto chord lines (by lyric phrase, capped at `bars_per_line`)
-    with the lyric line beneath, matching ChordMark's bar-per-space / lyric-line
-    grammar so it renders as systems rather than a vertical stack.
+    Bars are grouped onto chord lines of exactly ``bars_per_line`` where enough
+    bars remain, with the lyric line beneath, matching ChordMark's bar-per-space
+    / lyric-line grammar so it renders as systems rather than a vertical stack.
     """
     lines = []
 
@@ -215,26 +286,83 @@ def render_song(song, bars_per_line=MAX_BARS_PER_LINE):
         lines.append("")
 
     last_real = None  # most recent struck chord, to de-reference a leading '%'
-    for section in song.get("sections", []):
-        label = section.get("label")
+    for label, group in _group_section_bars(
+        song.get("sections", []), bars_per_line, keep_empty_bars=False
+    ):
         if label:
             lines.append("#" + label)
-        # The vision parse sometimes leaves fully empty bars (no chord, no
-        # text), mostly leading pickup bars; ChordMark has no empty-bar token,
-        # so drop them rather than emit an unparseable line.
-        bars = [bar for bar in section.get("bars", []) if bar]
-        for group in _group_bars(bars, bars_per_line):
-            group = _resolve_leading_percent(group, last_real)
-            lines.append(" ".join(render_chord_line(bar) for bar in group))
-            lyric_parts = [render_lyric_line(bar) for bar in group]
-            lyric_parts = [p for p in lyric_parts if p is not None]
-            if lyric_parts:
-                lines.append(" ".join(lyric_parts))
-            # update the running "currently sounding" chord from this group
-            for bar in group:
-                for entry in bar:
-                    c = entry.get("chord")
-                    if c and c != PERCENT:
-                        last_real = {"chord": c, "voicing": entry.get("voicing")}
+        if not group:
+            continue
+        group = _resolve_leading_percent(group, last_real)
+        lines.append(" ".join(render_chord_line(bar) for bar in group))
+        lyric_line = render_lyric_line([entry for bar in group for entry in bar])
+        if lyric_line:
+            lines.append(lyric_line)
+        # update the running "currently sounding" chord from this group
+        for bar in group:
+            for entry in bar:
+                c = entry.get("chord")
+                if c and c != PERCENT:
+                    last_real = {"chord": c, "voicing": entry.get("voicing")}
 
     return "\n".join(lines) + "\n"
+
+
+def render_chart_source(song, bars_per_line=MAX_BARS_PER_LINE):
+    """Build timing-only Fork input and the exact display data for its slots.
+
+    Older Fork versions cannot parse inline fingerings inside sub-beats or
+    repeated names in a measure. Parse the timing first, then let the renderer
+    attach the real labels and fingerings. Empty measures have one blank slot.
+    """
+    lines = _render_metadata(song) + _render_chord_definitions(song.get("chords"))
+    rows = []
+    for label, bars in _group_section_bars(song.get("sections", []), bars_per_line):
+        if label:
+            lines.append("#" + label)
+        if not bars:
+            continue
+        row = []
+        encoded_bars = []
+        display_entries = []
+        for bar in bars:
+            entries = bar or [{"chord": ""}]
+            if len(entries) > DEFAULT_BEATS * 4:
+                raise ChordMarkBarError("This bar has more chord changes than Chord Chart can fit.")
+            slots = []
+            for entry in entries:
+                voicing = entry.get("voicing")
+                frets = voicing_to_inline(voicing).split(",") if voicing else None
+                slots.append(
+                    {
+                        "name": entry["chord"],
+                        "voicing": [None if fret == "x" else int(fret) for fret in frets]
+                        if frets
+                        else None,
+                    }
+                )
+            row.append(slots)
+            display_entries.extend(entries)
+
+            tokens = ["C" if i % 2 == 0 else "G" for i in range(len(entries))]
+            if len(tokens) == 1:
+                encoded_bars.append(tokens[0])
+            elif len(tokens) <= DEFAULT_BEATS:
+                durations = _distribute_beats(len(tokens), DEFAULT_BEATS)
+                encoded_bars.append(
+                    " ".join(token + "." * beats for token, beats in zip(tokens, durations))
+                )
+            else:
+                groups = []
+                start = 0
+                for size in _distribute_beats(DEFAULT_BEATS, len(tokens)):
+                    group = tokens[start : start + size]
+                    groups.append(group[0] + "." if size == 1 else "[" + " ".join(group) + "]")
+                    start += size
+                encoded_bars.append(" ".join(groups))
+        lines.append(" ".join(encoded_bars))
+        lyric_line = render_lyric_line(display_entries)
+        if lyric_line:
+            lines.append(lyric_line)
+        rows.append(row)
+    return "\n".join(lines) + "\n", rows

@@ -1,55 +1,46 @@
-// ---- Lyrics view (PROTOTYPE) ----
-// A lyrics-first layout: each chord sits ABOVE the first syllable of the text
-// fragment it anchors to. Chords are draggable; syllables are drop targets.
-// Dropping a chord onto a syllable RE-ANCHORS it to that syllable.
-//
-// KNOWN LIMITATION (prototype): re-anchoring is scoped to WITHIN A SINGLE BAR.
-// On drop we treat the bar as (syllables[] = concatenated entry texts) plus a
-// (chord -> syllable-index) map, move the dragged chord to the target syllable,
-// then rebuild the bar's entries so each chord owns the run of syllables from
-// its index up to the next chord's index. Voicings are preserved per chord.
-// Cross-bar drops are detected and no-op gracefully.
+// Flow and Arrange edit chord anchors over rendered lyrics. Text mode is
+// available for editing a whole lyric line at once.
+let lyDrag = null;
+let lyPicked = null;
+let lySelection = null;
+let lyFlowObserver = null;
 
-// Tokenization + bar model + rebuild live in doc_ops.js (window.DocOps).
-const lySyllables = (text) => window.DocOps.lySyllables(text);
-const sylIndexInBar = (bar, chordPos, k) => window.DocOps.sylIndexInBar(bar, chordPos, k);
-
-// Perform the re-anchor: move chord at chordPos within the bar to target
-// syllable index, rebuild entries, mutate state.doc.
-function lyReanchor(si, bi, chordPos, targetSylIdx) {
-  const bar = song().sections[si].bars[bi];
-  const rebuilt = window.DocOps.reanchoredBar(bar, chordPos, targetSylIdx);
-  if (rebuilt === null) return; // invalid or no change
-  pushUndo();
-  song().sections[si].bars[bi] = rebuilt;
-  markDirty();
-  renderLyrics();
+// "grid" is the saved name of the visual mode in existing browser preferences.
+function lyMode() {
+  const saved = localStorage.getItem("qaLyMode");
+  return saved === "text" || saved === "grid" ? saved : "flow";
 }
 
-// Currently-dragged chord descriptor (set on dragstart, read on drop).
-let lyDrag = null;
-
-// Two modes: "text" = free-form ChordMark lyric lines (chords read-only above,
-// `_` markers in editable text); "grid" = the original drag/dblclick prototype.
-function lyMode() { return localStorage.getItem("qaLyMode") || "text"; }
+function stopLyricResize() {
+  lyFlowObserver?.disconnect();
+  lyFlowObserver = null;
+}
 
 function renderLyrics() {
   const root = $("lyrics");
   if (!root) return;
+  stopLyricResize();
   if (!state.doc) { root.innerHTML = `<div class="empty">No song loaded.</div>`; return; }
+  const scrollTop = root.scrollTop;
+  if (lySelection?.doc !== state.doc) lySelection = null;
+  lyDrag = lyPicked = null;
+  root.onkeydown = null;
   root.innerHTML = "";
 
   const bar = document.createElement("div");
   bar.className = "ly-modebar";
-  bar.innerHTML =
-    `<button class="tab ${lyMode() === "text" ? "active" : ""}" data-mode="text">text</button>
-     <button class="tab ${lyMode() === "grid" ? "active" : ""}" data-mode="grid">grid</button>`;
+  const mode = lyMode();
+  bar.innerHTML = [["Flow", "flow"], ["Arrange", "grid"], ["Text", "text"]].map(([label, name]) =>
+    `<button class="tab ${mode === name ? "active" : ""}" aria-pressed="${mode === name}" data-mode="${name}">${label}</button>`
+  ).join("");
   bar.querySelectorAll("[data-mode]").forEach((b) =>
     b.addEventListener("click", () => { localStorage.setItem("qaLyMode", b.dataset.mode); renderLyrics(); }));
   root.appendChild(bar);
 
-  if (lyMode() === "text") renderLyricsText(root);
+  if (mode === "text") renderLyricsText(root);
+  else if (mode === "flow") renderLyricsFlow(root);
   else renderLyricsGrid(root);
+  root.scrollTop = scrollTop;
 }
 
 // ---- text mode: ChordMark lyric lines ----
@@ -109,6 +100,7 @@ function renderLyricsText(root) {
           return;
         }
         errEl.textContent = "";
+        if (!prepareLyricEdit()) return;
         pushUndo();
         if (parsed.leading) {
           if (prevRef) prevRef.text = ((prevRef.text || "") + " " + parsed.leading).trim();
@@ -136,178 +128,455 @@ function renderLyricsText(root) {
   });
 }
 
-// ---- grid mode: the original drag/dblclick prototype ----
-function renderLyricsGrid(root) {
-  const hint = document.createElement("div");
-  hint.className = "ly-hint";
-  hint.textContent = "Drag a chord onto a syllable to re-anchor it (within its bar). " +
-    "Double-click a syllable to edit it — a space splits the word, empty deletes. ⌘Z undoes.";
-  root.appendChild(hint);
+// ---- Arrange mode ----
+function lyChordKey({ si, bi, ei }) { return `${si}:${bi}:${ei}`; }
 
-  song().sections.forEach((sec, si) => {
-    const secEl = document.createElement("div");
-    secEl.className = "ly-section";
-    const lab = document.createElement("div");
-    lab.className = "ly-seclabel";
-    lab.textContent = sec.label || `Section ${si + 1}`;
-    secEl.appendChild(lab);
+function lyArrangeStatus(message) {
+  const status = $("lyArrangeStatus");
+  if (status && status.textContent !== message) status.textContent = message;
+}
 
-    const line = document.createElement("div");
-    line.className = "ly-line";
-    const bars = sec.bars || [];
-    if (!bars.length) {
-      const e = document.createElement("span");
-      e.className = "ly-text empty";
-      e.textContent = "(empty section)";
-      line.appendChild(e);
+function selectLyricChord(coords, { pick = false, focus = false } = {}) {
+  if (!state.doc) return;
+  const entry = song().sections[coords.si]?.bars[coords.bi]?.[coords.ei];
+  if (!entry || entry.chord === "%") return;
+  const root = $("lyrics");
+  const previous = root.querySelector(".ly-chord.selected");
+  if (previous) {
+    previous.classList.remove("selected");
+    previous.setAttribute("aria-pressed", "false");
+  }
+  lySelection = { doc: state.doc, coords };
+  lyPicked = pick ? lySelection : null;
+  const token = root.querySelector(`[data-ly-chord="${lyChordKey(coords)}"]`);
+  if (token) {
+    token.classList.add("selected");
+    token.setAttribute("aria-pressed", String(pick));
+    if (focus) {
+      token.focus({ preventScroll: true });
+      token.scrollIntoView({ block: "nearest" });
     }
-    bars.forEach((bar, bi) => {
-      if (bi > 0) {
-        const sep = document.createElement("span");
-        sep.className = "ly-barsep";
-        sep.textContent = "|";
-        line.appendChild(sep);
-      }
-      line.appendChild(renderLyBar(si, bi, bar));
-    });
-    secEl.appendChild(line);
-    root.appendChild(secEl);
+  }
+  syncScanSelection(coords, true);
+  if (pick) {
+    const destination = lyMode() === "flow" ? "lyric" : "lyric or bar start";
+    lyArrangeStatus(`Moving ${entry.chord}. Choose its new ${destination}.`);
+  }
+}
+
+function prepareLyricEdit() {
+  if (!confirmChordDraftDiscard()) return false;
+  state.sel = null;
+  $("editor").classList.remove("open");
+  return true;
+}
+
+function lyAnchorMove(source, target) {
+  if (!source || source.doc !== state.doc) return;
+  lyDrag = null;
+  const plan = window.DocOps.planLyricAnchorMove(song(), source.coords, target);
+  if (!plan) { lyArrangeStatus("The chord is already at that anchor."); return; }
+  if (plan.error) { lyArrangeStatus(plan.error); return; }
+  if (!prepareLyricEdit()) return;
+  pushUndo();
+  for (const { si, bi, bar } of plan.changes) song().sections[si].bars[bi] = bar;
+  markDirty();
+  lySelection = { doc: state.doc, coords: plan.selection };
+  renderBars();
+  renderLyrics();
+  selectLyricChord(plan.selection, { focus: true });
+  lyArrangeStatus(`Chord moved to bar ${plan.selection.bi + 1}.`);
+}
+
+function wireLyricDrop(element, target, clickTarget = element) {
+  element.addEventListener("dragover", (ev) => {
+    if (!lyDrag || lyDrag.doc !== state.doc) return;
+    ev.preventDefault();
+    const plan = window.DocOps.planLyricAnchorMove(song(), lyDrag.coords, target);
+    const allowed = Boolean(plan?.changes);
+    element.classList.toggle("drop-ok", allowed);
+    element.classList.toggle("drop-blocked", !allowed);
+    if (ev.dataTransfer) ev.dataTransfer.dropEffect = allowed ? "move" : "none";
+    lyArrangeStatus(plan?.error || "");
+  });
+  element.addEventListener("dragleave", (ev) => {
+    if (!element.contains(ev.relatedTarget)) element.classList.remove("drop-ok", "drop-blocked");
+  });
+  element.addEventListener("drop", (ev) => {
+    if (!lyDrag) return;
+    ev.preventDefault();
+    element.classList.remove("drop-ok", "drop-blocked");
+    lyAnchorMove(lyDrag, target);
+  });
+  clickTarget.addEventListener("click", () => {
+    if (lyPicked) lyAnchorMove(lyPicked, target);
   });
 }
 
-// Render one bar as a sequence of syllable columns, each optionally topped by
-// the chord(s) anchored to its first syllable. chordPos is the chord's position
-// within the bar (its index in the bar's entry array), used by re-anchor.
-function renderLyBar(si, bi, bar) {
-  const wrap = document.createElement("span");
-  wrap.className = "ly-bar";
+function addLyricControls(root, message) {
+  const hint = document.createElement("div");
+  hint.className = "ly-hint";
+  hint.textContent = message;
+  root.appendChild(hint);
+  const status = document.createElement("div");
+  status.id = "lyArrangeStatus";
+  status.className = "ly-arrange-message";
+  status.setAttribute("role", "status");
+  root.appendChild(status);
+  root.onkeydown = (ev) => {
+    if (ev.key !== "Escape" || !lyPicked) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    selectLyricChord(lyPicked.coords, { focus: true });
+    lyArrangeStatus("Move cancelled.");
+  };
+}
 
-  // Map each entry to {chord, voicing, syls, chordPos}. The chord shows over the
-  // first syllable; remaining syllables render as bare columns under no chord.
-  let anySyl = false;
-  bar.forEach((e, chordPos) => {
-    const syls = lySyllables(e.text);
-    if (syls.length) {
-      anySyl = true;
-      syls.forEach((syl, k) => {
-        wrap.appendChild(makeSyl(si, bi, syl,
-          k === 0 ? { chord: e.chord, voicing: e.voicing, chordPos } : null,
-          // drop target syllable index within the bar's flat syllable list:
-          sylIndexInBar(bar, chordPos, k),
-          chordPos, k));
+function restoreLyricSelection(root) {
+  if (!lySelection) return;
+  const token = root.querySelector(`[data-ly-chord="${lyChordKey(lySelection.coords)}"]`);
+  if (token) {
+    token.classList.add("selected");
+    token.setAttribute("aria-pressed", String(Boolean(lyPicked)));
+    syncScanSelection(lySelection.coords);
+  }
+}
+
+function renderLyricsGrid(root) {
+  addLyricControls(root, "Drag a chord onto a lyric or bar start, or select the chord and click its destination. Double-click a lyric or press F2 to edit.");
+  song().sections.forEach((section, si) => {
+    const secEl = document.createElement("div");
+    secEl.className = "ly-section";
+    const label = document.createElement("div");
+    label.className = "ly-seclabel";
+    label.textContent = section.label || `Section ${si + 1}`;
+    secEl.appendChild(label);
+    const bars = section.bars || [];
+    for (let start = 0; start < bars.length; start += LY_BARS_PER_ROW) {
+      const line = document.createElement("div");
+      line.className = "ly-line";
+      bars.slice(start, start + LY_BARS_PER_ROW).forEach((bar, i) => {
+        line.appendChild(renderLyBar(si, start + i, bar));
+      });
+      secEl.appendChild(line);
+    }
+    if (!bars.length) {
+      const empty = document.createElement("p");
+      empty.className = "ly-text empty";
+      empty.textContent = "Empty section";
+      secEl.appendChild(empty);
+    }
+    root.appendChild(secEl);
+  });
+  restoreLyricSelection(root);
+}
+
+function lyricFlowGroups(sections) {
+  const groups = [];
+  let group;
+  sections.forEach((section, si) => {
+    const label = typeof section.label === "string" ? section.label.trim() : "";
+    if (!group || label) {
+      group = { label, bars: [], barCoords: [] };
+      groups.push(group);
+    }
+    (section.bars || []).forEach((bar, bi) => {
+      group.bars.push(bar);
+      group.barCoords.push({ si, bi });
+    });
+  });
+  return groups;
+}
+
+function lyFlowColumns(text) { return Array.from(text.normalize("NFC")).length; }
+
+function flowChord(group, anchor) {
+  const entry = group.bars[anchor.bi][anchor.ei];
+  const token = makeLyChord({ ...group.barCoords[anchor.bi], ei: anchor.ei }, entry);
+  if (!anchor.hasLyric) {
+    token.title = entry.voicing ? `${entry.voicing} · No lyric anchor` : "No lyric anchor";
+  }
+  return token;
+}
+
+function renderFlowSystem(section, group, row, layout) {
+  const system = document.createElement("div");
+  system.className = "ly-flow-system";
+  const chordRow = document.createElement("div");
+  chordRow.className = "ly-flow-chords";
+  const lyric = document.createElement("div");
+  lyric.className = "ly-flow-lyric";
+  const fragments = new Map();
+  let last = row.start;
+  for (const span of row.spans) {
+    if (span.start > last) lyric.appendChild(document.createTextNode(
+      row.text.slice(last - row.start, span.start - row.start)
+    ));
+    const text = document.createElement("button");
+    text.type = "button";
+    text.className = "ly-flow-fragment";
+    text.textContent = span.text;
+    const entry = group.bars[span.bi][span.ei];
+    const raw = window.DocOps.lySyllables(entry.text)[span.k];
+    wireLyricEdit(lyric, text, entry, raw, span.k);
+    wireLyricDrop(text, { ...group.barCoords[span.bi], syllable: span.syllable });
+    lyric.appendChild(text);
+    fragments.set(span.start, text);
+    last = span.end;
+  }
+  if (last < row.end) lyric.appendChild(document.createTextNode(row.text.slice(last - row.start)));
+  system.appendChild(chordRow);
+  system.appendChild(lyric);
+  section.appendChild(system);
+
+  // Keep anchored chords at their character positions. Group consecutive
+  // textless chords there so instrumental runs don't create tall label stacks.
+  const labels = [];
+  const clusterWidth = Math.max(14 * layout.unit, layout.width * 0.6);
+  for (const anchor of row.anchors) {
+    const token = flowChord(group, anchor);
+    const width = layout.measure(token.textContent) + 3 * layout.unit;
+    const previous = labels.at(-1);
+    if (!anchor.hasLyric && previous && !previous.hasLyric &&
+        previous.at === anchor.at && previous.width + width <= clusterWidth) {
+      previous.width += width;
+      previous.tokens.push(token);
+    } else {
+      labels.push({ at: anchor.at, width, hasLyric: anchor.hasLyric, tokens: [token] });
+    }
+  }
+  for (const label of labels) {
+    const element = document.createElement("div");
+    element.className = label.hasLyric ? "ly-flow-label" : "ly-flow-label ly-flow-unanchored";
+    label.tokens.forEach((token) => element.appendChild(token));
+    chordRow.appendChild(element);
+    label.element = element;
+  }
+  const lyricLeft = lyric.getBoundingClientRect().left;
+  const finalFragment = fragments.get(row.spans.at(-1)?.start);
+  for (const label of labels) {
+    const point = label.at === row.end ? finalFragment?.getBoundingClientRect().right
+      : fragments.get(label.at)?.getBoundingClientRect().left;
+    label.position = layout.cssUnit === "px" && Number.isFinite(point - lyricLeft)
+      ? point - lyricLeft : layout.measure(row.text.slice(0, label.at - row.start));
+    if (layout.cssUnit === "px") {
+      label.width = Math.max(label.width, label.element.getBoundingClientRect().width);
+    }
+  }
+  labels.sort((a, b) => a.position - b.position || Number(b.hasLyric) - Number(a.hasLyric));
+  const ends = [];
+  for (const { position, width, element } of labels) {
+    let lane = ends.findIndex((end) => end <= position);
+    if (lane < 0) lane = ends.length;
+    ends[lane] = position + width;
+    element.style.insetInlineStart = `${position}${layout.cssUnit}`;
+    element.style.setProperty("--ly-lane", lane);
+  }
+  system.style.setProperty("--ly-lanes", ends.length);
+}
+
+function renderLyricsFlow(root) {
+  addLyricControls(root, "Drag a chord onto a lyric, or select the chord and click its destination. Double-click a lyric or press F2 to edit.");
+  const content = document.createElement("div");
+  content.className = "ly-flow-content";
+  const measure = document.createElement("span");
+  measure.className = "ly-flow-measure";
+  measure.setAttribute("aria-hidden", "true");
+  content.appendChild(measure);
+  const systems = document.createElement("div");
+  content.appendChild(systems);
+  root.appendChild(content);
+
+  const doc = state.doc;
+  const groups = lyricFlowGroups(song().sections).map((group) =>
+    ({ ...group, flow: window.DocOps.buildLyricFlow(group) }));
+  const canvas = document.createElement("canvas").getContext?.("2d");
+  if (canvas && typeof getComputedStyle === "function") {
+    const font = getComputedStyle(content);
+    canvas.font = `${font.fontSize} ${font.fontFamily}`;
+  }
+  let previousWidth = 0;
+  const reflow = () => {
+    if (state.doc !== doc || lyMode() !== "flow" || lyDrag || systems.querySelector(".ly-edit")) return;
+    const glyphWidth = measure.getBoundingClientRect().width;
+    const pixels = Boolean(glyphWidth && content.clientWidth);
+    const unit = pixels ? glyphWidth : 1;
+    const width = pixels ? Math.max(16 * unit, content.clientWidth - 2 * unit) : 56;
+    if (width === previousWidth) return;
+    previousWidth = width;
+    const layout = {
+      width, unit, cssUnit: pixels ? "px" : "ch",
+      measure: pixels && canvas ? (text) => canvas.measureText(text).width
+        : (text) => lyFlowColumns(text) * unit,
+    };
+    const focusedChord = document.activeElement?.dataset.lyChord;
+    systems.innerHTML = "";
+    for (const group of groups) {
+      const section = document.createElement("div");
+      section.className = "ly-flow-section";
+      if (group.label) {
+        const label = document.createElement("div");
+        label.className = "ly-seclabel";
+        label.textContent = group.label;
+        section.appendChild(label);
+      }
+      systems.appendChild(section);
+      if (group.flow.text) {
+        for (const row of window.DocOps.wrapLyricFlow(group.flow, width, layout.measure)) {
+          renderFlowSystem(section, group, row, layout);
+        }
+      } else {
+        const instrumental = document.createElement("div");
+        instrumental.className = "ly-flow-instrumental";
+        for (const anchor of group.flow.anchors) instrumental.appendChild(flowChord(group, anchor));
+        if (!group.flow.anchors.length) instrumental.textContent = "No lyrics in this section";
+        section.appendChild(instrumental);
+      }
+    }
+    restoreLyricSelection(root);
+    if (focusedChord && /^\d+:\d+:\d+$/.test(focusedChord)) {
+      root.querySelector(`[data-ly-chord="${focusedChord}"]`)?.focus({ preventScroll: true });
+    }
+  };
+  reflow();
+  if (typeof ResizeObserver === "function") {
+    lyFlowObserver = new ResizeObserver(reflow);
+    lyFlowObserver.observe(content);
+  }
+}
+
+function renderLyBar(si, bi, bar) {
+  const wrap = document.createElement("div");
+  wrap.className = "ly-bar";
+  const start = document.createElement("button");
+  start.type = "button";
+  start.className = "ly-bar-start";
+  start.textContent = `Bar ${bi + 1}`;
+  start.title = "Move the selected chord to this bar’s start";
+  wireLyricDrop(start, { si, bi, syllable: 0 });
+  wrap.appendChild(start);
+
+  const content = document.createElement("div");
+  content.className = "ly-bar-content";
+  let syllable = 0;
+  bar.forEach((entry, ei) => {
+    const words = window.DocOps.lySyllables(entry.text);
+    if (words.length) {
+      words.forEach((word, k) => {
+        content.appendChild(makeLySyllable({ si, bi, ei }, entry, word, k, syllable++));
       });
     } else {
-      // instrumental / textless entry — standalone chord token, droppable too
-      wrap.appendChild(makeSyl(si, bi, "",
-        { chord: e.chord, voicing: e.voicing, chordPos, inst: true },
-        sylIndexInBar(bar, chordPos, 0),
-        chordPos, 0));
+      content.appendChild(makeLySyllable({ si, bi, ei }, entry, "", 0, syllable));
     }
   });
-  if (!anySyl && !bar.length) {
-    const empty = document.createElement("span");
-    empty.className = "ly-text empty";
-    empty.textContent = "·";
-    wrap.appendChild(empty);
-  }
+  wrap.appendChild(content);
   return wrap;
 }
 
-// Build a syllable column. `chord` (or null) renders a draggable token above;
-// the column itself is a drop target carrying its flat syllable index.
-// ownerPos/k locate the syllable for editing: token k of entry ownerPos.
-function makeSyl(si, bi, sylText, chord, sylIdx, ownerPos, k) {
-  const col = document.createElement("span");
-  col.className = "ly-syl";
+function makeLyChord(coords, entry) {
+  const carry = entry.chord === "%";
+  const token = document.createElement(carry ? "span" : "button");
+  token.className = carry ? "ly-chord pct" : "ly-chord";
+  token.textContent = entry.chord;
+  if (entry.voicing) token.title = entry.voicing;
+  if (carry) return token;
+  token.type = "button";
+  token.draggable = true;
+  token.dataset.lyChord = lyChordKey(coords);
+  token.setAttribute("aria-pressed", "false");
+  token.addEventListener("click", () => selectLyricChord(coords, { pick: true }));
+  token.addEventListener("dragstart", (ev) => {
+    selectLyricChord(coords);
+    lyDrag = lySelection;
+    token.classList.add("dragging");
+    if (ev.dataTransfer) {
+      ev.dataTransfer.effectAllowed = "move";
+      ev.dataTransfer.setData("text/plain", entry.chord);
+    }
+  });
+  token.addEventListener("dragend", () => {
+    token.classList.remove("dragging");
+    lyDrag = null;
+    $("lyrics").querySelectorAll(".drop-ok, .drop-blocked").forEach((target) => {
+      target.classList.remove("drop-ok", "drop-blocked");
+    });
+  });
+  return token;
+}
 
-  if (chord) {
-    const tok = document.createElement("span");
-    const isPct = chord.chord === "%";
-    tok.className = "ly-chord" + (isPct ? " pct" : "") + (chord.inst ? " inst" : "");
-    tok.textContent = chord.chord;
-    if (chord.voicing) tok.title = chord.voicing;
-    tok.draggable = true;
-    tok.addEventListener("dragstart", (ev) => {
-      lyDrag = { si, bi, chordPos: chord.chordPos };
-      tok.classList.add("dragging");
-      if (ev.dataTransfer) {
-        ev.dataTransfer.effectAllowed = "move";
-        ev.dataTransfer.setData("text/plain", chord.chord);
-      }
-    });
-    tok.addEventListener("dragend", () => {
-      tok.classList.remove("dragging");
-      lyDrag = null;
-    });
-    col.appendChild(tok);
+function makeLySyllable(coords, entry, word, wordIndex, syllable) {
+  const column = document.createElement("span");
+  column.className = "ly-syl";
+  if (wordIndex === 0) {
+    column.appendChild(makeLyChord(coords, entry));
   } else {
     const spacer = document.createElement("span");
     spacer.className = "ly-chordrow-spacer";
-    col.appendChild(spacer);
+    column.appendChild(spacer);
   }
 
-  const txt = document.createElement("span");
-  if (chord && chord.inst) {
-    txt.className = "ly-text ly-inst";
-    txt.textContent = "—";
+  const text = document.createElement("button");
+  text.type = "button";
+  text.className = word ? "ly-text" : "ly-text ly-inst";
+  text.textContent = word || "—";
+  if (word) {
+    wireLyricEdit(column, text, entry, word, wordIndex);
   } else {
-    txt.className = "ly-text";
-    txt.textContent = sylText || "·";
+    text.setAttribute("aria-label", "Place chord at this position without lyrics");
   }
-  col.appendChild(txt);
+  column.appendChild(text);
+  wireLyricDrop(column, { si: coords.si, bi: coords.bi, syllable }, text);
+  return column;
+}
 
-  // Inline syllable editing: double-click swaps the span for an input.
-  // Commit rebuilds the owning entry's text token (space = split, empty =
-  // delete); Esc cancels. One undo step per committed edit.
-  if (sylText && !(chord && chord.inst)) {
-    txt.title = "double-click to edit (space splits, empty deletes)";
-    txt.addEventListener("dblclick", (ev) => {
+function wireLyricEdit(container, text, entry, word, wordIndex) {
+  text.title = "Double-click or press F2 to edit";
+  text.setAttribute("aria-keyshortcuts", "F2");
+  const edit = () => editLyricToken(container, text, entry, word, wordIndex);
+  text.addEventListener("dblclick", edit);
+  text.addEventListener("keydown", (ev) => {
+    if (ev.key !== "F2") return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    if (lyPicked) {
+      lyPicked = null;
+      restoreLyricSelection($("lyrics"));
+      lyArrangeStatus("");
+    }
+    edit();
+  });
+}
+
+function editLyricToken(column, text, entry, word, wordIndex) {
+  if (lyPicked) return;
+  const input = document.createElement("input");
+  input.className = "ly-edit";
+  input.value = word;
+  input.size = Math.max(3, word.length + 2);
+  input.setAttribute("aria-label", "Edit lyric");
+  column.replaceChild(input, text);
+  input.focus();
+  input.select();
+  let done = false;
+  const commit = () => {
+    if (done) return;
+    done = true;
+    const next = window.DocOps.replaceTextToken(entry.text, wordIndex, input.value);
+    if (next !== null && next !== entry.text && prepareLyricEdit()) {
+      pushUndo();
+      if (next) entry.text = next; else delete entry.text;
+      markDirty();
+      renderBars();
+    }
+    renderLyrics();
+  };
+  input.addEventListener("keydown", (ev) => {
+    if (ev.key === "Enter") { ev.preventDefault(); commit(); }
+    else if (ev.key === "Escape") {
       ev.stopPropagation();
-      const input = document.createElement("input");
-      input.className = "ly-edit";
-      input.value = sylText;
-      input.size = Math.max(3, sylText.length + 2);
-      col.replaceChild(input, txt);
-      input.focus();
-      input.select();
-      let done = false;
-      const commit = () => {
-        if (done) return;
-        done = true;
-        const e = song().sections[si].bars[bi][ownerPos];
-        const nt = window.DocOps.replaceTextToken(e.text, k, input.value);
-        if (nt === null || nt === (e.text || "")) { renderLyrics(); return; }
-        pushUndo();
-        if (nt) e.text = nt; else delete e.text;
-        markDirty();
-        renderLyrics();
-      };
-      input.addEventListener("keydown", (ev2) => {
-        if (ev2.key === "Enter") { ev2.preventDefault(); commit(); }
-        else if (ev2.key === "Escape") { done = true; renderLyrics(); }
-      });
-      input.addEventListener("blur", commit);
-    });
-  }
-
-  // Drop target: re-anchor the dragged chord onto this syllable (same bar only).
-  col.addEventListener("dragover", (ev) => {
-    if (!lyDrag) return;
-    ev.preventDefault();
-    if (ev.dataTransfer) ev.dataTransfer.dropEffect =
-      (lyDrag.si === si && lyDrag.bi === bi) ? "move" : "none";
-    col.classList.add("drop-ok");
+      done = true;
+      renderLyrics();
+    }
   });
-  col.addEventListener("dragleave", () => col.classList.remove("drop-ok"));
-  col.addEventListener("drop", (ev) => {
-    ev.preventDefault();
-    col.classList.remove("drop-ok");
-    if (!lyDrag) return;
-    const d = lyDrag;
-    lyDrag = null;
-    if (d.si !== si || d.bi !== bi) return; // cross-bar: no-op (prototype scope)
-    lyReanchor(si, bi, d.chordPos, sylIdx);
-  });
-
-  return col;
+  input.addEventListener("blur", commit);
 }

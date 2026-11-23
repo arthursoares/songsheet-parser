@@ -3,6 +3,7 @@ from pathlib import Path
 
 import jsonschema
 import pytest
+from songsheet_io import load_document, save_document
 
 ROOT = Path(__file__).resolve().parent.parent
 SCHEMA_PATH = ROOT / "schemas" / "songsheet.schema.json"
@@ -99,5 +100,76 @@ def test_document_status_enum():
         doc["document"]["status"] = s
         jsonschema.validate(doc, schema)  # valid values
     doc["document"]["status"] = "finished"  # not in enum
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(doc, schema)
+
+
+@pytest.mark.parametrize("status", ["reviewed", "deferred"])
+def test_chord_review_accepts_exact_snapshot_shape_and_round_trips(tmp_path, status):
+    schema = load_schema()
+    doc = json.loads(FIXTURE.read_text())
+    entry = doc["songs"][0]["sections"][0]["bars"][0][0]
+    entry["chord_review"] = {
+        "status": status,
+        "snapshot": {
+            "chord": entry["chord"],
+            "voicing": entry.get("voicing"),
+            "voicing_printed": entry.get("voicing_printed"),
+            "observation_id": None,
+        },
+    }
+
+    jsonschema.validate(doc, schema)
+    target = tmp_path / "reviewed.json"
+    save_document(target, doc)
+    assert load_document(target)["songs"][0]["sections"][0]["bars"][0][0] == entry
+
+
+@pytest.mark.parametrize(
+    "review",
+    [
+        {
+            "status": "pending",
+            "snapshot": {
+                "chord": "C",
+                "voicing": None,
+                "voicing_printed": None,
+                "observation_id": None,
+            },
+        },
+        {
+            "status": "reviewed",
+            "snapshot": {
+                "chord": "C",
+                "voicing": None,
+                "voicing_printed": None,
+            },
+        },
+        {
+            "status": "deferred",
+            "snapshot": {
+                "chord": "C",
+                "voicing": None,
+                "voicing_printed": None,
+                "observation_id": "not-a-sha256",
+            },
+        },
+        {
+            "status": "reviewed",
+            "snapshot": {
+                "chord": "C",
+                "voicing": None,
+                "voicing_printed": None,
+                "observation_id": None,
+                "extra": True,
+            },
+        },
+    ],
+)
+def test_chord_review_rejects_invalid_or_inexact_shape(review):
+    schema = load_schema()
+    doc = json.loads(FIXTURE.read_text())
+    doc["songs"][0]["sections"][0]["bars"][0][0]["chord_review"] = review
+
     with pytest.raises(jsonschema.ValidationError):
         jsonschema.validate(doc, schema)

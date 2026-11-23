@@ -18,7 +18,15 @@ const esc = (s) =>
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
 // Mark the document as having unsaved edits.
-function markDirty() { state.dirty = true; }
+function markDirty() {
+  state.dirty = true;
+  state.editVersion = (state.editVersion || 0) + 1;
+  const status = $("saveStatus");
+  if (status) {
+    status.textContent = "Unsaved changes";
+    status.style.color = "#d29922";
+  }
+}
 
 // ---- Undo / redo ----
 // Deep-JSON snapshots of state.doc. pushUndo() is called at the START of every
@@ -47,6 +55,8 @@ function rerenderAll() {
   window.ChordNaming.setKeyTonic(songKey());
   syncNote();
   renderProvenance();
+  if (typeof syncCurrentSongTitle === "function") syncCurrentSongTitle();
+  syncScanDocument();
   renderBars();
   renderSongList();
   if (state.activeView === "lyrics") renderLyrics();

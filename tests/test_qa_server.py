@@ -146,6 +146,114 @@ def test_unpaired_observation_does_not_fall_back_to_guessed_crop(tmp_path, monke
     assert status == 404 and "no recorded diagram" in json.loads(body)["error"]
 
 
+def test_diagram_locations_map_native_box_through_image_placement(tmp_path, monkeypatch):
+    import diagram_evidence
+    import fitz
+    import numpy as np
+    from extraction_provenance import attach_observations
+    from PIL import Image
+    from songsheet_io import save_document
+
+    root = _corpus(tmp_path)
+    path = root / "1-album" / "01-song-one.json"
+    pdfs = tmp_path / "pdfs"
+    pdfs.mkdir()
+    raster_path = tmp_path / "page.png"
+    raster = np.arange(50 * 100, dtype=np.uint8).reshape(50, 100)
+    Image.fromarray(raster).save(raster_path)
+    pdf = pdfs / "source.pdf"
+    with fitz.open() as document:
+        page = document.new_page(width=300, height=400)
+        page.insert_image(fitz.Rect(20, 30, 220, 130), filename=raster_path, rotate=90)
+        page.set_cropbox(fitz.Rect(10, 20, 280, 380))
+        page.set_rotation(90)
+        document.save(pdf)
+
+    doc = attach_observations(json.loads(path.read_text()), {"kind": "test"})
+    doc = diagram_evidence.enrich_page_result(
+        doc,
+        pdf,
+        1,
+        image_loader=lambda *_: raster,
+        detector=lambda _: [(10, 5, 29, 14)],
+        page_reader=lambda *_: [
+            {
+                "box": [10, 5, 29, 14],
+                "voicing": "x,5,7,5,6,x",
+                "base": 5,
+                "harmonic_base": True,
+                "pattern": "MFFFFM",
+                "error": None,
+            }
+        ],
+    )
+    save_document(path, doc, overwrite=True)
+    observation_id = doc["songs"][0]["sections"][0]["bars"][0][0]["observation_id"]
+    monkeypatch.setattr(S, "PDF_DIR", pdfs)
+
+    status, ctype, body = S.handle(
+        "GET", "/api/diagram-location/1-album/01-song-one.json", b"", root
+    )
+
+    assert status == 200 and ctype == "application/json"
+    location = json.loads(body)["locations"][observation_id]
+    assert location["page"] == 1
+    # The image is offset, rotated within its placement, cropped by the page,
+    # and then the page itself is rotated. Raw pixel/page normalization cannot
+    # produce these rendered-page fractions.
+    assert location["box"] == pytest.approx([260 / 360, 90 / 270, 280 / 360, 100 / 270], abs=1e-9)
+
+    def unavailable(*_args):
+        raise RuntimeError("placement unavailable")
+
+    monkeypatch.setattr(S, "_page_diagram_boxes", unavailable)
+    status, _, body = S.handle("GET", "/api/diagram-location/1-album/01-song-one.json", b"", root)
+    assert status == 200
+    assert json.loads(body)["locations"][observation_id] == {"page": 1, "box": None}
+
+
+def test_diagram_locations_return_page_only_for_unpaired_link(tmp_path, monkeypatch):
+    import fitz
+    from extraction_provenance import attach_observations, file_sha256, seal_page_sources
+    from songsheet_io import save_document
+
+    root = _corpus(tmp_path)
+    path = root / "1-album" / "01-song-one.json"
+    pdfs = tmp_path / "pdfs"
+    pdfs.mkdir()
+    pdf = pdfs / "source.pdf"
+    with fitz.open() as document:
+        document.new_page()
+        document.new_page()
+        document.save(pdf)
+    source_pdf = {"name": pdf.name, "sha256": file_sha256(pdf)}
+    doc = attach_observations(
+        json.loads(path.read_text()), {"kind": "test", "source_pdf": source_pdf, "page": 2}
+    )
+    source_id = next(iter(doc["_meta"]["extraction_sources"]))
+    doc["_meta"]["source_pdf"] = source_pdf
+    doc["_meta"]["page_sources"] = {source_id: {"source_pdf": source_pdf, "page": 2}}
+    seal_page_sources(doc["_meta"])
+    save_document(path, doc, overwrite=True)
+    observation_id = doc["songs"][0]["sections"][0]["bars"][0][0]["observation_id"]
+    monkeypatch.setattr(S, "PDF_DIR", pdfs)
+
+    status, _, body = S.handle("GET", "/api/diagram-location/1-album/01-song-one.json", b"", root)
+
+    assert status == 200
+    assert json.loads(body) == {"locations": {observation_id: {"page": 2, "box": None}}}
+
+
+def test_diagram_locations_do_not_guess_legacy_entries(tmp_path, monkeypatch):
+    root = _corpus(tmp_path)
+    monkeypatch.setattr(S, "PDF_DIR", tmp_path)
+
+    status, _, body = S.handle("GET", "/api/diagram-location/1-album/01-song-one.json", b"", root)
+
+    assert status == 404
+    assert "no linked source" in json.loads(body)["error"]
+
+
 def test_list_albums_reads_status(tmp_path):
     root = _corpus(tmp_path)
     p = root / "1-album" / "01-song-one.json"
@@ -450,6 +558,86 @@ def test_render_doc_target(tmp_path):
     assert b'class="ln"' in body
 
 
+def test_render_doc_uses_target_if_the_fork_fails(tmp_path, monkeypatch):
+    root = _corpus(tmp_path)
+    doc = json.loads((root / "1-album" / "01-song-one.json").read_text())
+    doc["songs"][0]["sections"][0]["bars"][0][0]["voicing"] = "x,5,7,5,6,x"
+    monkeypatch.setattr(
+        S, "render_song_doc", lambda *_args, **_kwargs: S._html_error("Cannot find esbuild")
+    )
+    status, ctype, body, headers = S.handle(
+        "POST", "/api/render-doc?style=fork&diagrams=inline", json.dumps(doc).encode(), root
+    )
+    assert status == 200
+    assert ctype == "text/html"
+    assert b'class="ln"' in body
+    assert b'class="idia"' in body
+    assert b'class="dict"' not in body
+    assert headers["X-Songsheet-Preview-Style"] == "target"
+
+
+def test_render_doc_falls_back_when_fork_cannot_preserve_bar_layout(tmp_path, monkeypatch):
+    root = _corpus(tmp_path)
+    doc = json.loads((root / "1-album" / "01-song-one.json").read_text())
+    section = doc["songs"][0]["sections"][0]
+    section["bars"] = [[{"chord": "C"} for _ in range(17)]] + section["bars"] * 4
+    monkeypatch.setattr("shutil.which", lambda _name: "/fixture/node")
+    status, _, body, headers = S.handle(
+        "POST", "/api/render-doc?style=fork&bars=4", json.dumps(doc).encode(), root
+    )
+    assert status == 200
+    assert headers["X-Songsheet-Preview-Style"] == "target"
+    assert headers["X-Songsheet-Preview-Reason"] == "bar-layout"
+    assert body.count(b'class="ln"') == 2
+    assert body.count(b'class="bar"') == 5
+
+
+def test_render_doc_counts_blank_measures_when_checking_the_fork(tmp_path, monkeypatch):
+    from subprocess import CompletedProcess
+
+    root = _corpus(tmp_path)
+    doc = json.loads((root / "1-album" / "01-song-one.json").read_text())
+    doc["songs"][0]["sections"][0]["bars"] = [
+        [],
+        [{"chord": "C"}],
+        [{"chord": "G"}],
+        [{"chord": "F"}],
+    ]
+
+    calls = []
+
+    def fork_drops_blank(command, **_kwargs):
+        calls.append(command)
+        assert command[command.index("--expected-bars") + 1] == "4"
+        if "--chart-data" not in command:
+            return CompletedProcess(command, 3)
+        rows = json.loads(Path(command[command.index("--chart-data") + 1]).read_text())
+        assert rows[0][0] == [{"name": "", "voicing": None}]
+        assert len(rows[0]) == 4
+        Path(command[3]).write_text("<html>Four bars</html>")
+        return CompletedProcess(command, 0)
+
+    monkeypatch.setattr("shutil.which", lambda _name: "/fixture/node")
+    monkeypatch.setattr("subprocess.run", fork_drops_blank)
+    status, _, body = S.handle(
+        "POST", "/api/render-doc?style=fork&bars=4", json.dumps(doc).encode(), root
+    )
+    assert status == 200
+    assert body == b"<html>Four bars</html>"
+    assert len(calls) == 2
+
+
+def test_render_doc_prefers_the_fork_when_it_succeeds(tmp_path, monkeypatch):
+    root = _corpus(tmp_path)
+    doc = json.loads((root / "1-album" / "01-song-one.json").read_text())
+    fork = (200, "text/html", b"<html>Fork</html>")
+    monkeypatch.setattr(S, "render_song_doc", lambda *_args, **_kwargs: fork)
+    monkeypatch.setattr(
+        S, "render_target_doc", lambda *_args, **_kwargs: pytest.fail("unexpected fallback")
+    )
+    assert S.handle("POST", "/api/render-doc?style=fork", json.dumps(doc).encode(), root) == fork
+
+
 def test_render_doc_bad_json_400(tmp_path):
     root = _corpus(tmp_path)
     status, _, _ = S.handle("POST", "/api/render-doc?style=target", b"{not json", root)
@@ -483,6 +671,155 @@ def test_export_html(tmp_path):
     assert b"<!doctype html>" in body
     assert ".html" in headers["Content-Disposition"]
     assert "attachment" in headers["Content-Disposition"]
+
+
+@pytest.mark.parametrize(
+    ("fmt", "edited_marker", "saved_marker"),
+    [
+        ("html", b"Am7", b"Dm7"),
+        ("chordmark", b"Am7", b"Dm7"),
+        ("chordpro", b"[Am7]", b"[Dm7]"),
+    ],
+)
+def test_export_doc_uses_posted_snapshot_without_mutating_saved_song(
+    tmp_path, fmt, edited_marker, saved_marker
+):
+    root = _corpus(tmp_path)
+    target = root / "1-album" / "01-song-one.json"
+    original = target.read_bytes()
+    doc = json.loads(original)
+    doc["songs"][0]["sections"][0]["bars"][0][0]["chord"] = "Am7"
+
+    result = S.handle(
+        "POST",
+        f"/api/export-doc/1-album/01-song-one.json?fmt={fmt}&style=target",
+        json.dumps(doc).encode(),
+        root,
+    )
+
+    status, body, headers = result[0], result[2], result[3]
+    assert status == 200
+    assert edited_marker in body
+    assert saved_marker not in body
+    assert f".{fmt}" in headers["Content-Disposition"]
+    assert target.read_bytes() == original
+
+
+def test_export_doc_passes_target_layout_options_to_snapshot_renderer(tmp_path, monkeypatch):
+    root = _corpus(tmp_path)
+    doc = json.loads((root / "1-album" / "01-song-one.json").read_text())
+    rendered = {}
+
+    def render(snapshot, **options):
+        rendered["snapshot"] = snapshot
+        rendered["options"] = options
+        return 200, "text/html", b"<html>posted target</html>"
+
+    monkeypatch.setattr(S, "render_target_doc", render)
+    monkeypatch.setattr(S, "_chrome", lambda: "/fake/chrome")
+    monkeypatch.setattr(
+        S,
+        "_chrome_convert",
+        lambda html, fmt: rendered.update(html=html, fmt=fmt) or b"png-snapshot",
+    )
+
+    result = S.handle(
+        "POST",
+        "/api/export-doc/1-album/01-song-one.json"
+        "?fmt=png&style=target&diagrams=both&dict=per_name&bars=6",
+        json.dumps(doc).encode(),
+        root,
+    )
+
+    assert result[:3] == (200, "image/png", b"png-snapshot")
+    assert rendered == {
+        "snapshot": doc,
+        "options": {
+            "dictionary": "per_name",
+            "inline": False,
+            "bars_per_line": 6,
+            "diagram_layout": "both",
+        },
+        "html": "<html>posted target</html>",
+        "fmt": "png",
+    }
+    assert 'filename="01-song-one.png"' in result[3]["Content-Disposition"]
+
+
+def test_export_doc_passes_fork_layout_options_to_snapshot_renderer(tmp_path, monkeypatch):
+    root = _corpus(tmp_path)
+    doc = json.loads((root / "1-album" / "01-song-one.json").read_text())
+    rendered = {}
+
+    def render(snapshot, **options):
+        rendered["snapshot"] = snapshot
+        rendered["options"] = options
+        return 200, "text/html", b"<html>posted fork</html>"
+
+    monkeypatch.setattr(S, "render_song_doc", render)
+    monkeypatch.setattr(
+        S, "render_target_doc", lambda *_args, **_kwargs: pytest.fail("unexpected target render")
+    )
+
+    result = S.handle(
+        "POST",
+        "/api/export-doc/1-album/01-song-one.json?fmt=html&style=fork&diagrams=inline&bars=8",
+        json.dumps(doc).encode(),
+        root,
+    )
+
+    assert result[:3] == (200, "text/html", b"<html>posted fork</html>")
+    assert rendered == {
+        "snapshot": doc,
+        "options": {"bars_per_line": 8, "diagram_layout": "inline"},
+    }
+
+
+@pytest.mark.parametrize(
+    ("payload", "expected_status"),
+    [
+        (b"{not json", 400),
+        (b"\xff", 400),
+        (json.dumps([]).encode(), 422),
+        (json.dumps({"document": {"title": "Album"}, "songs": [{}]}).encode(), 422),
+    ],
+)
+def test_export_doc_rejects_invalid_payload_without_mutating_saved_song(
+    tmp_path, payload, expected_status
+):
+    root = _corpus(tmp_path)
+    target = root / "1-album" / "01-song-one.json"
+    original = target.read_bytes()
+
+    status, _, body = S.handle(
+        "POST", "/api/export-doc/1-album/01-song-one.json?fmt=html", payload, root
+    )
+
+    assert status == expected_status
+    assert "error" in json.loads(body)
+    assert target.read_bytes() == original
+
+
+def test_export_doc_requires_existing_safe_filename(tmp_path):
+    root = _corpus(tmp_path)
+    doc = (root / "1-album" / "01-song-one.json").read_bytes()
+    assert S.handle("POST", "/api/export-doc/1-album/missing.json?fmt=html", doc, root)[0] == 404
+    assert S.handle("POST", "/api/export-doc/../evil.json?fmt=html", doc, root)[0] == 400
+
+
+def test_export_doc_rejects_unknown_format_before_rendering(tmp_path, monkeypatch):
+    root = _corpus(tmp_path)
+    doc = (root / "1-album" / "01-song-one.json").read_bytes()
+    monkeypatch.setattr(
+        S, "render_target_doc", lambda *_args, **_kwargs: pytest.fail("unexpected render")
+    )
+
+    status, _, body = S.handle(
+        "POST", "/api/export-doc/1-album/01-song-one.json?fmt=exe", doc, root
+    )
+
+    assert status == 400
+    assert "unknown fmt" in json.loads(body)["error"]
 
 
 def test_export_rejects_path_traversal(tmp_path):
@@ -588,6 +925,82 @@ def test_harmony_doc_analyzes_first_song_only(tmp_path):
 # ---------------------------------------------------------------------------
 # /api/convert — HTML body -> PDF/PNG via headless Chrome (Harmony exports)
 # ---------------------------------------------------------------------------
+
+
+def test_default_export_renderer_never_searches_for_desktop_chrome(monkeypatch):
+    import shutil
+
+    searched = []
+
+    def which(name):
+        searched.append(name)
+        return None
+
+    monkeypatch.delenv("SONGSHEET_CHROME_BIN", raising=False)
+    monkeypatch.setattr(shutil, "which", which)
+
+    assert S._chrome() is None
+    assert searched == ["chrome-headless-shell", "chromium-headless-shell"]
+
+
+def test_chrome_convert_png_contains_every_printed_page(tmp_path, monkeypatch):
+    from subprocess import CompletedProcess
+
+    import fitz
+    from PIL import Image
+
+    commands = []
+
+    def render_pdf(command, **_kwargs):
+        commands.append(command)
+        output_arg = next(arg for arg in command if arg.startswith("--print-to-pdf="))
+        output = Path(output_arg.split("=", 1)[1])
+        with fitz.open() as document:
+            document.new_page(width=100, height=120)
+            document.new_page(width=100, height=80)
+            document.save(output)
+        return CompletedProcess(command, 0, "", "")
+
+    monkeypatch.setattr(S, "_chrome", lambda: "/fixture/chrome")
+    monkeypatch.setattr("subprocess.run", render_pdf)
+
+    png = S._chrome_convert("<html><body>long chart</body></html>", "png")
+
+    output = tmp_path / "complete.png"
+    output.write_bytes(png)
+    with Image.open(output) as image:
+        assert image.size == (200, 400)
+    assert png.startswith(b"\x89PNG\r\n\x1a\n")
+    assert not any(arg.startswith("--screenshot=") for arg in commands[0])
+    assert any(arg.startswith("--user-data-dir=") for arg in commands[0])
+    assert commands[0][-1].startswith("file://")
+
+
+def test_chrome_convert_reports_signal_when_chrome_aborts(monkeypatch):
+    from subprocess import CompletedProcess
+
+    monkeypatch.setattr(S, "_chrome", lambda: "/fixture/chrome")
+    monkeypatch.setattr(
+        "subprocess.run", lambda command, **_kwargs: CompletedProcess(command, -6, "", "")
+    )
+
+    with pytest.raises(RuntimeError, match=r"Chrome conversion failed \(terminated by SIGABRT\)"):
+        S._chrome_convert("<html></html>", "pdf")
+
+
+def test_chrome_convert_rejects_invalid_output(monkeypatch):
+    from subprocess import CompletedProcess
+
+    def write_invalid_output(command, **_kwargs):
+        output_arg = next(arg for arg in command if arg.startswith("--print-to-pdf="))
+        Path(output_arg.split("=", 1)[1]).write_bytes(b"")
+        return CompletedProcess(command, 0, "", "")
+
+    monkeypatch.setattr(S, "_chrome", lambda: "/fixture/chrome")
+    monkeypatch.setattr("subprocess.run", write_invalid_output)
+
+    with pytest.raises(RuntimeError, match="invalid PDF output"):
+        S._chrome_convert("<html></html>", "pdf")
 
 
 def test_convert_pdf(tmp_path, monkeypatch):

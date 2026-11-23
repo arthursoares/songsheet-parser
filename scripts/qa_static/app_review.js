@@ -85,7 +85,8 @@
     }
     list.innerHTML = "";
     flags.forEach((flag) => {
-      const row = document.createElement("div");
+      const row = document.createElement("button");
+      row.type = "button";
       row.className = "rev-row";
       row.innerHTML =
         `<span class="rnm">${esc(flag.chord || "—")}</span>` +
@@ -123,6 +124,15 @@
 
   function render() {
     const disabled = !state.doc;
+    const progress = $("verificationChordProgress");
+    if (progress && !disabled) {
+      const statuses = entryCoords().map((coords) => chordReviewStatus(chordAt(coords)));
+      const reviewed = statuses.filter((status) => status === "reviewed").length;
+      const deferred = statuses.filter((status) => status === "deferred").length;
+      progress.textContent = `Chord review · ${reviewed} of ${statuses.length} reviewed · ${deferred} deferred`;
+    } else if (progress) {
+      progress.textContent = "";
+    }
     ["reviewField", "reviewStatus", "reviewReviewer", "reviewEvidence", "reviewRecord"].forEach(
       (id) => { const el = $(id); if (el) el.disabled = disabled; });
     $("reviewMsg").textContent = disabled ? "No song loaded." : "";

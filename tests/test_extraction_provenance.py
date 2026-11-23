@@ -2,8 +2,11 @@ import copy
 import json
 import os
 import sys
+from concurrent.futures import ThreadPoolExecutor
+from threading import Barrier
 from types import SimpleNamespace
 
+import codex_client
 import eval_extraction
 import fitz
 import json_to_chordmark
@@ -20,6 +23,44 @@ def page(title="Song", chord="C"):
         "songs": [{"title": title, "sections": [{"bars": [[{"chord": chord}]]}]}],
         "_meta": {"source": "page.png", "model": "test/model", "parsed_at": "test-time"},
     }
+
+
+def test_parallel_codex_token_borrows_refresh_only_once(tmp_path, monkeypatch):
+    auth_path = tmp_path / "auth.json"
+    auth_path.write_text(
+        json.dumps(
+            {
+                "auth_mode": "chatgpt",
+                "tokens": {
+                    "access_token": "expired",
+                    "refresh_token": "original",
+                    "account_id": "test-account",
+                },
+            }
+        )
+    )
+    monkeypatch.setattr(codex_client, "_auth_path", lambda: str(auth_path))
+    monkeypatch.setattr(
+        codex_client, "_jwt_exp", lambda token: float("inf") if token == "renewed" else None
+    )
+    refreshes = []
+    ready = Barrier(4)
+
+    def refresh(refresh_token):
+        refreshes.append(refresh_token)
+        return {"access_token": "renewed", "refresh_token": "rotated"}
+
+    def borrow(_):
+        ready.wait(timeout=3)
+        return codex_client.borrow_codex_key()
+
+    monkeypatch.setattr(codex_client, "_refresh", refresh)
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        tokens = list(executor.map(borrow, range(4)))
+
+    assert tokens == [("renewed", "test-account")] * 4
+    assert refreshes == ["original"]
+    assert json.loads(auth_path.read_text())["tokens"]["refresh_token"] == "rotated"
 
 
 def test_page_evidence_survives_assembly_and_materialization(tmp_path):
@@ -245,3 +286,38 @@ def test_reparse_cli_invalidates_model_cache_and_keeps_actual_page_numbers(tmp_p
     assert calls == ["model-one", "model-two"]
     candidate = json.loads((args.workdir / "song" / "_candidate.json").read_text())
     assert candidate["songs"][0]["pages"] == [8]
+
+
+def test_parse_strips_provider_chord_review_before_sealing_observation(tmp_path, monkeypatch):
+    image = tmp_path / "page.png"
+    image.write_bytes(b"image")
+    claimed = page()
+    provider_entry = claimed["songs"][0]["sections"][0]["bars"][0][0]
+    provider_entry.update(
+        {
+            "voicing": "x,3,2,0,1,0",
+            "text": "true source reading",
+            "chord_review": {
+                "status": "reviewed",
+                "snapshot": {
+                    "chord": "C",
+                    "voicing": "x,3,2,0,1,0",
+                    "voicing_printed": None,
+                    "observation_id": None,
+                },
+            },
+        }
+    )
+    monkeypatch.setattr(parser, "parse_with_codex", lambda *_: copy.deepcopy(claimed))
+
+    result = parser.parse_songsheet(image)
+
+    entry = result["songs"][0]["sections"][0]["bars"][0][0]
+    observation = result["_meta"]["observations"][entry["observation_id"]]["value"]
+    assert "chord_review" not in entry
+    assert "chord_review" not in observation
+    assert observation == {
+        "chord": "C",
+        "voicing": "x,3,2,0,1,0",
+        "text": "true source reading",
+    }
