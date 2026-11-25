@@ -106,17 +106,15 @@ Compose with `QA_IMAGE=songsheet-qa:local docker compose up -d --pull never`.
 ### Initialize private publishing once
 
 Add a classic GitHub token with `write:packages` to the source repository as
-the Actions secret `SONGSHEET_GHCR_BOOTSTRAP_TOKEN`. Run **Initialize private
-QA registry** on `main` from the Actions tab. The workflow pushes an empty
-bootstrap image, verifies that anonymous pulls are denied, and checks that
-the repository workflow token can read it. Keep the `private-bootstrap` tag
-in the package so release jobs can verify they are uploading to an existing
-private package.
+the Actions secret `SONGSHEET_GHCR_TOKEN`. Run **Initialize private QA
+registry** on `main` from the Actions tab. The workflow creates an empty
+bootstrap image and verifies that anonymous pulls are denied. Keep the
+`private-bootstrap` tag so release jobs can verify they are uploading to
+an existing private package.
 
-If workflow access needs to be assigned, give `arthursoares/songsheet-parser`
-**Write** access under **Manage Actions access** in the package settings.
-After initialization succeeds, remove the bootstrap secret and run **CI**
-on `main` to publish the application.
+Run **CI** on `main` to publish the application. Releases use the Actions
+secret to authenticate to GHCR. Keep package access scoped to your account
+and the users who need to pull the image.
 
 ## Usage
 
