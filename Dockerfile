@@ -27,7 +27,7 @@ ARG CHORDMARK_COMMIT
 ARG APP_UID=1000
 ARG APP_GID=1000
 
-LABEL org.opencontainers.image.url="https://github.com/arthursoares/songsheet-parser" \
+LABEL org.opencontainers.image.source="https://github.com/arthursoares/songsheet-parser" \
       org.opencontainers.image.description="Local browser QA for scanned chord-song libraries" \
       io.songsheet.chordmark.commit="${CHORDMARK_COMMIT}"
 
