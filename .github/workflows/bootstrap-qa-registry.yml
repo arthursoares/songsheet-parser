@@ -1,0 +1,45 @@
+name: Initialize private QA registry
+
+on:
+  workflow_dispatch:
+
+jobs:
+  initialize:
+    if: github.repository == 'arthursoares/songsheet-parser' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    env:
+      IMAGE: ghcr.io/arthursoares/songsheet-qa-private
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Create and verify an empty private package
+        env:
+          BOOTSTRAP_TOKEN: ${{ secrets.SONGSHEET_GHCR_BOOTSTRAP_TOKEN }}
+        run: |
+          : "${BOOTSTRAP_TOKEN:?Add SONGSHEET_GHCR_BOOTSTRAP_TOKEN with write:packages}"
+          python3 tests/check_qa_registry_privacy.py "$IMAGE"
+          printf '%s' "$BOOTSTRAP_TOKEN" | docker login ghcr.io --username arthursoares --password-stdin
+          if ! docker buildx imagetools inspect "$IMAGE:private-bootstrap" >/dev/null; then
+            docker build --tag "$IMAGE:private-bootstrap" - <<'DOCKERFILE'
+          FROM scratch
+          LABEL org.opencontainers.image.source="https://github.com/arthursoares/songsheet-parser" \
+                org.opencontainers.image.description="Empty marker for private Songsheet QA releases"
+          DOCKERFILE
+            docker push "$IMAGE:private-bootstrap"
+          fi
+          python3 tests/check_qa_registry_privacy.py "$IMAGE" private-bootstrap
+
+      - name: Verify workflow access to the private package
+        env:
+          GHCR_TOKEN: ${{ github.token }}
+        run: |
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+          if ! docker buildx imagetools inspect "$IMAGE:private-bootstrap" >/dev/null; then
+            echo "::error::Grant the source repository Write access under Manage Actions access in the package settings."
+            exit 1
+          fi

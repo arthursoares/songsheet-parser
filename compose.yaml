@@ -1,6 +1,6 @@
 services:
   qa:
-    image: ${QA_IMAGE:-ghcr.io/arthursoares/songsheet-qa:latest}
+    image: ${QA_IMAGE:-ghcr.io/arthursoares/songsheet-qa-private:latest}
     environment:
       SONGSHEET_ALLOWED_ORIGINS: ${QA_ALLOWED_ORIGINS:-}
     ports:

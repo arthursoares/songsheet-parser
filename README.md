@@ -58,8 +58,8 @@ and have Node installed. For server API PDF/PNG export, use `chrome-headless-she
 ## Run QA with Docker
 
 CI builds and smoke-tests the QA image on Linux amd64 and arm64. Successful
-builds on `main` publish to the private `ghcr.io/arthursoares/songsheet-qa`
-package. Use `latest` or the `sha-<commit>` tag to pin a release.
+builds on `main` publish to the private `ghcr.io/arthursoares/songsheet-qa-private`
+package after it is initialized. Use `latest` or the `sha-<commit>` tag to pin a release.
 
 On the Docker host, log in to GHCR with a classic GitHub token that has
 `read:packages` and access to the package. Run these commands from the
@@ -99,6 +99,24 @@ On a remote host, an SSH tunnel can forward the loopback-only port
 reverse proxy instead, set `QA_ALLOWED_ORIGINS` to the exact browser origin
 (for example, `https://songs.example.net`). The origin setting validates browser
 writes. Put authentication at the proxy.
+
+For a local build, run `docker build -t songsheet-qa:local .` and start
+Compose with `QA_IMAGE=songsheet-qa:local docker compose up -d --pull never`.
+
+### Initialize private publishing once
+
+Add a classic GitHub token with `write:packages` to the source repository as
+the Actions secret `SONGSHEET_GHCR_BOOTSTRAP_TOKEN`. Run **Initialize private
+QA registry** on `main` from the Actions tab. The workflow pushes an empty
+bootstrap image, verifies that anonymous pulls are denied, and checks that
+the repository workflow token can read it. Keep the `private-bootstrap` tag
+in the package so release jobs can verify they are uploading to an existing
+private package.
+
+If workflow access needs to be assigned, give `arthursoares/songsheet-parser`
+**Write** access under **Manage Actions access** in the package settings.
+After initialization succeeds, remove the bootstrap secret and run **CI**
+on `main` to publish the application.
 
 ## Usage
 

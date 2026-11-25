@@ -53,7 +53,7 @@ jobs:
       contents: read
       packages: write
     env:
-      IMAGE: ghcr.io/arthursoares/songsheet-qa
+      IMAGE: ghcr.io/arthursoares/songsheet-qa-private
       TARGET_ARCH: ${{ matrix.arch }}
     steps:
       - uses: actions/checkout@v4
@@ -76,6 +76,10 @@ jobs:
         run: |
           python3 tests/check_qa_registry_privacy.py "$IMAGE"
           printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+          if ! docker buildx imagetools inspect "$IMAGE:private-bootstrap" >/dev/null; then
+            echo "::error::Bootstrap the private QA package before uploading application images."
+            exit 1
+          fi
           tag="$IMAGE:sha-$GITHUB_SHA-$TARGET_ARCH"
           docker tag songsheet-qa:ci "$tag"
           docker push "$tag"
@@ -91,7 +95,7 @@ jobs:
       contents: read
       packages: write
     env:
-      IMAGE: ghcr.io/arthursoares/songsheet-qa
+      IMAGE: ghcr.io/arthursoares/songsheet-qa-private
     steps:
       - uses: actions/checkout@v4
         with:
