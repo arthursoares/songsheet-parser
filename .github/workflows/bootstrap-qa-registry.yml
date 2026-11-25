@@ -1,0 +1,33 @@
+name: Initialize private QA registry
+
+on:
+  workflow_dispatch:
+
+jobs:
+  initialize:
+    if: github.repository == 'arthursoares/songsheet-parser' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    env:
+      IMAGE: ghcr.io/arthursoares/songsheet-qa-private
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Create and verify an empty private package
+        env:
+          GHCR_TOKEN: ${{ secrets.SONGSHEET_GHCR_TOKEN }}
+        run: |
+          : "${GHCR_TOKEN:?Add SONGSHEET_GHCR_TOKEN with write:packages}"
+          python3 tests/check_qa_registry_privacy.py "$IMAGE"
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username arthursoares --password-stdin
+          if ! docker buildx imagetools inspect "$IMAGE:private-bootstrap" >/dev/null; then
+            docker build --tag "$IMAGE:private-bootstrap" - <<'DOCKERFILE'
+          FROM scratch
+          LABEL org.opencontainers.image.description="Empty marker for private Songsheet QA releases"
+          DOCKERFILE
+            docker push "$IMAGE:private-bootstrap"
+          fi
+          python3 tests/check_qa_registry_privacy.py "$IMAGE" private-bootstrap
