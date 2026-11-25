@@ -29,16 +29,14 @@ ARG APP_GID=1000
 
 LABEL org.opencontainers.image.source="https://github.com/arthursoares/songsheet-parser" \
       org.opencontainers.image.description="Local browser QA for scanned chord-song libraries" \
-      org.opencontainers.image.licenses="MIT" \
       io.songsheet.chordmark.commit="${CHORDMARK_COMMIT}"
-
-COPY --from=chordmark /usr/local/bin/node /usr/local/bin/node
-COPY --from=chordmark /opt/chordmark /opt/chordmark
 
 WORKDIR /app
 COPY pyproject.toml ./
 RUN python -m pip install --no-cache-dir --upgrade pip \
     && python -m pip install --no-cache-dir --group core
+COPY --from=chordmark /usr/local/bin/node /usr/local/bin/node
+COPY --from=chordmark /opt/chordmark /opt/chordmark
 COPY schemas ./schemas
 COPY scripts ./scripts
 
