@@ -1,0 +1,11 @@
+services:
+  qa:
+    environment:
+      SONGSHEET_READING_PROPOSALS: /reading-proposals
+    volumes:
+      - type: bind
+        source: ${QA_PROPOSALS_PATH:?Set QA_PROPOSALS_PATH to a local reading report directory}
+        target: /reading-proposals
+        read_only: true
+        bind:
+          create_host_path: false

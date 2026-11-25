@@ -55,6 +55,51 @@ diagrams + comma-form voicings to upstream ChordMark) as a sibling at `../chordm
 and have Node installed. For server API PDF/PNG export, use `chrome-headless-shell` or
 `chromium-headless-shell` on `PATH`, or set `SONGSHEET_CHROME_BIN` to a separate headless renderer.
 
+## Run QA with Docker
+
+CI builds and smoke-tests the QA image on Linux amd64 and arm64. Successful
+builds on `main` publish to the private `ghcr.io/arthursoares/songsheet-qa`
+package. Use `latest` or the `sha-<commit>` tag to pin a release.
+
+On the Docker host, log in to GHCR with a classic GitHub token that has
+`read:packages` and access to the package. Run these commands from the
+repository checkout.
+
+```sh
+docker login ghcr.io --username arthursoares
+export LIBRARY_PATH=/absolute/path/to/joao-gilberto
+docker compose pull
+docker compose up -d
+```
+
+`LIBRARY_PATH` must contain the existing `songs/` and `pdf/` directories. Open
+[QA on port 18491](http://127.0.0.1:18491/) on the Docker host. Set `QA_PORT`
+to remap the host port, or `QA_IMAGE` to select a release.
+
+The container runs as UID/GID 1000. Give that user write access to `songs/` so
+**Save song** and Shapes batches can write each chart. The PDFs are mounted
+read-only. The named `qa-state` volume keeps caches and the Shapes undo
+journal across container replacement. Use a separate Compose project (for
+example, `docker compose -p sheets-test`) for a different library so it has its
+own state. Run one writing instance per library.
+
+For the optional review overlay, mount the local reading report directory.
+
+```sh
+export QA_PROPOSALS_PATH=/absolute/path/to/reading-report
+docker compose -f compose.yaml -f compose.proposals.yaml up -d
+```
+
+The image bundles the ChordMark runtime for **Chord Chart**. Review runs with
+the mounted library and needs no extraction credentials. Run vision extraction
+separately when you want a new reading report.
+
+On a remote host, an SSH tunnel can forward the loopback-only port
+(`ssh -N -L 18491:127.0.0.1:18491 user@host`). If you use an authenticated
+reverse proxy instead, set `QA_ALLOWED_ORIGINS` to the exact browser origin
+(for example, `https://songs.example.net`). The origin setting validates browser
+writes. Put authentication at the proxy.
+
 ## Usage
 
 Run scripts with the project venv (`./.venv/bin/python`).

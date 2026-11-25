@@ -11,12 +11,14 @@ Usage:
 
 import argparse
 import hashlib
+import ipaddress
 import json
 import os
 import re
 import threading
 from html import escape
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from extraction_provenance import entries, file_sha256
 from review_state import record_review, review_summary
@@ -1289,7 +1291,101 @@ def render_song_html(song_path: Path, bars_per_line=4, *, diagram_layout=None):
     return render_song_doc(doc, bars_per_line=bars_per_line, diagram_layout=diagram_layout)
 
 
-def serve(songs_root: Path, port: int):
+def _validated_origin(value: str) -> str:
+    """Return a configured HTTP(S) origin or raise an argparse-friendly error."""
+    if not value or value == "null" or "*" in value or "\\" in value:
+        raise argparse.ArgumentTypeError("origin must be an exact HTTP(S) origin")
+    try:
+        parsed = urlsplit(value)
+        port = parsed.port
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(f"invalid origin {value!r}: {exc}") from exc
+    if (
+        parsed.scheme not in {"http", "https"}
+        or not parsed.hostname
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.path
+        or parsed.query
+        or parsed.fragment
+    ):
+        raise argparse.ArgumentTypeError(f"invalid origin {value!r}: use scheme and authority only")
+    # Accessing .port above validates range and syntax. Keep the configured
+    # spelling because the request Origin must match this allowlist exactly.
+    _ = port
+    return value
+
+
+def _origin_authority(origin: str):
+    """Parse a request origin into (scheme, host, port marker), or return None."""
+    try:
+        parsed = urlsplit(origin)
+        port = parsed.port
+    except ValueError:
+        return None
+    if (
+        parsed.scheme not in {"http", "https"}
+        or not parsed.hostname
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.path
+        or parsed.query
+        or parsed.fragment
+    ):
+        return None
+    return parsed.scheme, parsed.hostname.casefold(), port
+
+
+def _host_authority(value: str):
+    """Parse an HTTP Host header without accepting paths, credentials, or wildcards."""
+    if not value or "*" in value or any(char.isspace() for char in value):
+        return None
+    try:
+        parsed = urlsplit(f"//{value}")
+        port = parsed.port
+    except ValueError:
+        return None
+    if (
+        not parsed.hostname
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.path
+        or parsed.query
+        or parsed.fragment
+    ):
+        return None
+    return parsed.hostname.casefold(), port
+
+
+def _is_loopback(host: str) -> bool:
+    if host == "localhost":
+        return True
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return False
+
+
+def _origin_allowed(origin: str, host: str, local_port: int, allowed_origins) -> bool:
+    """Authorize a browser write origin without trusting an arbitrary Host header."""
+    if origin in allowed_origins:
+        return True
+    parsed_origin = _origin_authority(origin)
+    parsed_host = _host_authority(host)
+    if parsed_origin is None or parsed_host is None:
+        return False
+    _scheme, origin_host, origin_port = parsed_origin
+    host_name, host_port = parsed_host
+    if not _is_loopback(origin_host) or not _is_loopback(host_name):
+        return False
+    if (origin_host, origin_port) == (host_name, host_port):
+        return True
+    # Preserve native clients that moved between localhost and 127.0.0.1 on
+    # the server's own port, while requiring both authorities to be loopback.
+    return origin_port == host_port == local_port
+
+
+def _make_server(songs_root: Path, port: int, host: str, allowed_origins=()):
     from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
     from qa_shape_routes import recover_library
@@ -1307,11 +1403,9 @@ def serve(songs_root: Path, port: int):
             if (
                 method == "POST"
                 and origin
-                and origin
-                not in {
-                    f"http://127.0.0.1:{local_port}",
-                    f"http://localhost:{local_port}",
-                }
+                and not _origin_allowed(
+                    origin, self.headers.get("Host", ""), local_port, allowed_origins
+                )
             ):
                 result = _json(
                     403, {"error": "Requests to edit the library must come from local QA."}
@@ -1350,8 +1444,38 @@ def serve(songs_root: Path, port: int):
         def log_message(self, *a):
             pass
 
-    print(f"QA server on http://localhost:{port}  (songs: {songs_root})")
-    ThreadingHTTPServer(("127.0.0.1", port), Handler).serve_forever()
+    return ThreadingHTTPServer((host, port), Handler)
+
+
+def serve(songs_root: Path, port: int, host="127.0.0.1", allowed_origins=()):
+    server = _make_server(songs_root, port, host, frozenset(allowed_origins))
+    print(f"QA server on http://{host}:{server.server_port}  (songs: {songs_root})")
+    server.serve_forever()
+
+
+def _configured_origins(values):
+    configured = []
+    for value in values:
+        for origin in value.split(","):
+            origin = origin.strip()
+            if origin:
+                configured.append(_validated_origin(origin))
+    return tuple(configured)
+
+
+def _configure_state_dir(state_dir: Path | None):
+    """Move mutable caches under an explicitly persistent runtime directory."""
+    global CV_CACHE_DIR
+    if state_dir is None:
+        return
+    from qa_shape_routes import configure_cache_root
+
+    state_dir.mkdir(parents=True, exist_ok=True)
+    if not state_dir.is_dir():
+        raise NotADirectoryError(state_dir)
+    configure_cache_root(state_dir / "shapes")
+    CV_CACHE_DIR = state_dir / "cv-cache"
+    CV_CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def main():
@@ -1359,15 +1483,38 @@ def main():
     ap = argparse.ArgumentParser(description="Songsheet QA correction server")
     ap.add_argument("--songs", type=Path, default=ROOT / "data" / "joao-gilberto" / "songs")
     ap.add_argument("--port", type=int, default=8000)
+    ap.add_argument("--host", default=os.environ.get("SONGSHEET_HOST") or "127.0.0.1")
+    ap.add_argument(
+        "--state-dir",
+        type=Path,
+        default=os.environ.get("SONGSHEET_STATE_DIR") or None,
+        help="persistent directory for Shapes state and CV cache",
+    )
     ap.add_argument(
         "--pdfs",
         type=Path,
         help="album PDF dir for printed-diagram crops (default: sibling pdf/ of --songs)",
     )
     ap.add_argument(
-        "--reading-proposals", type=Path, help="local reading report directory for QA review"
+        "--reading-proposals",
+        type=Path,
+        default=os.environ.get("SONGSHEET_READING_PROPOSALS") or None,
+        help="local reading report directory for QA review",
+    )
+    ap.add_argument(
+        "--allow-origin",
+        action="append",
+        default=[],
+        help="exact HTTP(S) browser origin allowed to write (repeatable)",
     )
     args = ap.parse_args()
+    try:
+        allowed_origins = _configured_origins(
+            [os.environ.get("SONGSHEET_ALLOWED_ORIGINS", ""), *args.allow_origin]
+        )
+        _configure_state_dir(args.state_dir)
+    except (argparse.ArgumentTypeError, OSError) as exc:
+        ap.error(str(exc))
     PDF_DIR = args.pdfs or args.songs.parent / "pdf"
     if args.reading_proposals:
         from qa_reading_proposals import load_reading_proposals
@@ -1376,7 +1523,7 @@ def main():
         if not READING_PROPOSALS:
             ap.error("no valid reading proposals in the selected report directory")
         print(f"Loaded reading proposals for {len(READING_PROPOSALS)} charts.")
-    serve(args.songs, args.port)
+    serve(args.songs, args.port, host=args.host, allowed_origins=allowed_origins)
 
 
 if __name__ == "__main__":

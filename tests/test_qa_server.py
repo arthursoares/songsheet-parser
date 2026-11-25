@@ -1,6 +1,10 @@
+import argparse
 import json
 import os
 import sys
+import threading
+from contextlib import contextmanager
+from http.client import HTTPConnection
 from pathlib import Path
 
 import pytest
@@ -8,6 +12,35 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 import qa_server as S
 from songsheet_version import SCHEMA_VERSION
+
+
+@contextmanager
+def _live_server(root, allowed_origins=()):
+    server = S._make_server(root, 0, "127.0.0.1", frozenset(allowed_origins))
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        yield server.server_port
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
+
+
+def _post(port, *, host=None, origin=None):
+    headers = {"Content-Type": "application/json"}
+    if host is not None:
+        headers["Host"] = host
+    if origin is not None:
+        headers["Origin"] = origin
+    connection = HTTPConnection("127.0.0.1", port, timeout=2)
+    try:
+        connection.request("POST", "/api/not-a-route", body=b"{}", headers=headers)
+        response = connection.getresponse()
+        response.read()
+        return response.status
+    finally:
+        connection.close()
 
 
 def _corpus(tmp_path):
@@ -1136,3 +1169,129 @@ def test_convert_chrome_failure_500(tmp_path, monkeypatch):
     monkeypatch.setattr(S, "_chrome_convert", boom)
     status, _, _ = S.handle("POST", "/api/convert?fmt=pdf", b"<html>x</html>", root)
     assert status == 500
+
+
+def test_http_write_origin_accepts_remapped_loopback_authority(tmp_path):
+    root = _corpus(tmp_path)
+    with _live_server(root) as port:
+        assert _post(port, host="localhost:43123", origin="http://localhost:43123") == 404
+        assert _post(port, host="[::1]:43123", origin="http://[::1]:43123") == 404
+        assert _post(port, host=f"127.0.0.1:{port}", origin=f"http://localhost:{port}") == 404
+        assert _post(port) == 404
+
+
+def test_http_write_origin_rejects_external_and_untrusted_host_authorities(tmp_path):
+    root = _corpus(tmp_path)
+    with _live_server(root) as port:
+        assert _post(port, host="qa.example:43123", origin="http://qa.example:43123") == 403
+        assert _post(port, host="evil.example:43123", origin="http://localhost:43123") == 403
+        assert _post(port, host="localhost:43123", origin="null") == 403
+
+
+def test_http_write_origin_honors_only_exact_configured_origin(tmp_path):
+    root = _corpus(tmp_path)
+    with _live_server(root, {"https://qa.example"}) as port:
+        assert _post(port, host="internal:8001", origin="https://qa.example") == 404
+        assert _post(port, host="internal:8001", origin="https://qa.example/") == 403
+
+
+@pytest.mark.parametrize(
+    "origin",
+    [
+        "http://localhost",
+        "http://127.0.0.1:8001",
+        "http://[::1]:8001",
+        "https://qa.example",
+    ],
+)
+def test_origin_configuration_accepts_http_authorities(origin):
+    assert S._validated_origin(origin) == origin
+
+
+@pytest.mark.parametrize(
+    "origin",
+    [
+        "null",
+        "*",
+        "https://*.example",
+        "ftp://qa.example",
+        "https://user@qa.example",
+        "https://qa.example/path",
+        "https://qa.example\\path",
+        "https://qa.example?query",
+        "https://qa.example#fragment",
+        "https://qa.example:99999",
+    ],
+)
+def test_origin_configuration_rejects_non_origins(origin):
+    with pytest.raises(argparse.ArgumentTypeError):
+        S._validated_origin(origin)
+
+
+def test_configured_origins_support_repeatable_and_comma_separated_values():
+    assert S._configured_origins(
+        ["https://one.example, http://127.0.0.1:8001", "http://[::1]:8001"]
+    ) == (
+        "https://one.example",
+        "http://127.0.0.1:8001",
+        "http://[::1]:8001",
+    )
+
+
+def test_explicit_state_dir_persists_shapes_and_cv_cache(tmp_path, monkeypatch):
+    import qa_shape_routes as routes
+
+    state = tmp_path / "state"
+    songs = tmp_path / "songs"
+    monkeypatch.setattr(routes, "CACHE_ROOT", tmp_path / "native-shapes")
+    monkeypatch.setattr(S, "CV_CACHE_DIR", tmp_path / "native-cv")
+
+    S._configure_state_dir(state)
+    batch = routes._cache_path(songs) / "batches" / "shape-test"
+    batch.mkdir(parents=True)
+    (batch / "state.json").write_text('{"state":"committed"}', encoding="utf-8")
+    (S.CV_CACHE_DIR / "cached-page").write_bytes(b"cache")
+
+    S._configure_state_dir(state)
+
+    assert routes.CACHE_ROOT == state / "shapes"
+    assert (batch / "state.json").is_file()
+    assert S.CV_CACHE_DIR == state / "cv-cache"
+    assert (S.CV_CACHE_DIR / "cached-page").read_bytes() == b"cache"
+
+
+def test_main_uses_container_environment_defaults_and_combines_cli_origins(tmp_path, monkeypatch):
+    import qa_reading_proposals
+
+    captured = {}
+    proposals = tmp_path / "proposals"
+    monkeypatch.setenv("SONGSHEET_HOST", "0.0.0.0")
+    monkeypatch.setenv("SONGSHEET_STATE_DIR", str(tmp_path / "state"))
+    monkeypatch.setenv("SONGSHEET_READING_PROPOSALS", str(proposals))
+    monkeypatch.setenv("SONGSHEET_ALLOWED_ORIGINS", "https://one.example,http://127.0.0.1:8001")
+    monkeypatch.setattr(sys, "argv", ["qa_server.py", "--allow-origin", "http://[::1]:8001"])
+    monkeypatch.setattr(S, "READING_PROPOSALS", {})
+    monkeypatch.setattr(
+        qa_reading_proposals,
+        "load_reading_proposals",
+        lambda path: {("album", "song.json"): {"path": path}},
+    )
+    monkeypatch.setattr(S, "_configure_state_dir", lambda path: captured.update(state=path))
+    monkeypatch.setattr(
+        S,
+        "serve",
+        lambda songs, port, **options: captured.update(songs=songs, port=port, options=options),
+    )
+
+    S.main()
+
+    assert captured["state"] == tmp_path / "state"
+    assert captured["options"] == {
+        "host": "0.0.0.0",
+        "allowed_origins": (
+            "https://one.example",
+            "http://127.0.0.1:8001",
+            "http://[::1]:8001",
+        ),
+    }
+    assert S.READING_PROPOSALS[("album", "song.json")]["path"] == proposals

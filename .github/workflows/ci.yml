@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
 
 jobs:
   test:
@@ -36,3 +37,116 @@ jobs:
 
       - name: JS tests (doc ops, dictionary, chord-naming parity)
         run: node --test "tests/js/*.test.js"
+
+  container:
+    needs: test
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+      packages: write
+    env:
+      IMAGE: ghcr.io/arthursoares/songsheet-qa
+      TARGET_ARCH: ${{ matrix.arch }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Build QA image
+        run: |
+          docker build --pull --platform "linux/$TARGET_ARCH" \
+            --label "org.opencontainers.image.revision=$GITHUB_SHA" \
+            --tag songsheet-qa:ci .
+
+      - name: Smoke test QA image
+        run: tests/smoke_qa_container.sh songsheet-qa:ci
+
+      - name: Publish tested architecture image
+        if: github.repository == 'arthursoares/songsheet-parser' && github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        env:
+          GHCR_TOKEN: ${{ github.token }}
+        run: |
+          status=$(curl --silent --show-error --retry 3 --output /dev/null --write-out '%{http_code}' \
+            https://api.github.com/users/arthursoares/packages/container/songsheet-qa)
+          if [[ "$status" != 404 ]]; then
+            echo "::error::Could not confirm that the GHCR package is private or absent (HTTP $status)."
+            exit 1
+          fi
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+          tag="$IMAGE:sha-$GITHUB_SHA-$TARGET_ARCH"
+          docker tag songsheet-qa:ci "$tag"
+          docker push "$tag"
+
+  publish-container:
+    needs: container
+    if: github.repository == 'arthursoares/songsheet-parser' && github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    concurrency:
+      group: songsheet-qa-ghcr-publish
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      packages: write
+    env:
+      IMAGE: ghcr.io/arthursoares/songsheet-qa
+    steps:
+      - name: Publish both architectures under one tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          status=$(curl --silent --show-error --retry 3 --output /dev/null --write-out '%{http_code}' \
+            https://api.github.com/users/arthursoares/packages/container/songsheet-qa)
+          if [[ "$status" != 404 ]]; then
+            echo "::error::Could not confirm that the GHCR package is private (HTTP $status)."
+            exit 1
+          fi
+          printf '%s' "$GH_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+          tag="$IMAGE:sha-$GITHUB_SHA"
+          docker buildx imagetools create --tag "$tag" "$tag-amd64" "$tag-arm64"
+          docker buildx imagetools inspect --raw "$tag" | jq -e \
+            '[.manifests[].platform | select(.os == "linux") | .architecture] | sort == ["amd64","arm64"]'
+
+      - name: Verify anonymous registry pulls are denied
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          from urllib.error import HTTPError
+          from urllib.parse import urlencode
+          from urllib.request import Request, urlopen
+
+          name = os.environ["IMAGE"].removeprefix("ghcr.io/")
+          tag = "sha-" + os.environ["GITHUB_SHA"]
+          query = urlencode({"service": "ghcr.io", "scope": f"repository:{name}:pull"})
+          try:
+              with urlopen("https://ghcr.io/token?" + query, timeout=30) as response:
+                  token = json.load(response)["token"]
+              request = Request(
+                  f"https://ghcr.io/v2/{name}/manifests/{tag}",
+                  headers={"Authorization": f"Bearer {token}",
+                           "Accept": "application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.list.v2+json"},
+              )
+              with urlopen(request, timeout=30):
+                  raise SystemExit("The tested tag is accessible without authentication.")
+          except HTTPError as error:
+              if error.code not in {401, 403, 404}:
+                  raise
+              print(f"Anonymous pull denied (HTTP {error.code}).")
+          PY
+
+      - name: Promote latest when this commit is still on main
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          main=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq .object.sha)
+          if [[ "$main" == "$GITHUB_SHA" ]]; then
+            docker buildx imagetools create --tag "$IMAGE:latest" "$IMAGE:sha-$GITHUB_SHA"
+          fi
