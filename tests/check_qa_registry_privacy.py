@@ -27,7 +27,10 @@ def check_privacy(image: str, tag: str | None = None) -> None:
         with urlopen(request, timeout=30):
             raise SystemExit(f"Anonymous access to {image}/{resource} is enabled.")
     except HTTPError as error:
-        if error.code not in {401, 403, 404}:
+        if error.code not in {401, 403}:
+            raise
+        codes = {item["code"] for item in json.load(error)["errors"]}
+        if not codes.intersection({"DENIED", "UNAUTHORIZED"}):
             raise
         print(f"Anonymous access to {image}/{resource} denied (HTTP {error.code}).")
 
