@@ -1,0 +1,20 @@
+**
+!Dockerfile
+!.dockerignore
+!pyproject.toml
+!schemas/
+!schemas/**
+!scripts/
+!scripts/**
+
+# Never send local environments, source material, credentials, or Git history.
+.git
+.github
+.local
+.venv
+data
+docs
+tests
+**/__pycache__
+**/*.pyc
+**/.DS_Store

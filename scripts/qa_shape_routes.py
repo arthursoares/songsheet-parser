@@ -20,6 +20,13 @@ _EDITED_FILES = set()
 _RECOVERY_ERRORS = {}
 
 
+def configure_cache_root(path):
+    """Select the persistent Shapes cache root before the server starts."""
+    global CACHE_ROOT
+    CACHE_ROOT = Path(path)
+    CACHE_ROOT.mkdir(parents=True, exist_ok=True)
+
+
 def requires_revision(root, album, file):
     return (root.resolve(), album, file) in _EDITED_FILES
 

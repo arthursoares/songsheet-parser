@@ -1,0 +1,26 @@
+services:
+  qa:
+    image: ${QA_IMAGE:-ghcr.io/arthursoares/songsheet-qa:latest}
+    environment:
+      SONGSHEET_ALLOWED_ORIGINS: ${QA_ALLOWED_ORIGINS:-}
+    ports:
+      - "${QA_BIND_ADDRESS:-127.0.0.1}:${QA_PORT:-18491}:8001"
+    volumes:
+      - type: bind
+        source: ${LIBRARY_PATH:?Set LIBRARY_PATH to a directory containing songs and pdf}/songs
+        target: /library/songs
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${LIBRARY_PATH:?Set LIBRARY_PATH to a directory containing songs and pdf}/pdf
+        target: /library/pdf
+        read_only: true
+        bind:
+          create_host_path: false
+      - qa-state:/state
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+
+volumes:
+  qa-state:
