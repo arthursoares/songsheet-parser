@@ -58,15 +58,13 @@ and have Node installed. For server API PDF/PNG export, use `chrome-headless-she
 ## Run QA with Docker
 
 CI builds and smoke-tests the QA image on Linux amd64 and arm64. Successful
-builds on `main` publish to the private `ghcr.io/arthursoares/songsheet-qa-private`
-package after it is initialized. Use `latest` or the `sha-<commit>` tag to pin a release.
+builds on `main` publish to the public `ghcr.io/arthursoares/songsheet-qa`
+package using the built-in GitHub Actions token. Use `latest` or the
+`sha-<commit>` tag to pin a release. Docker can pull the image anonymously.
 
-On the Docker host, log in to GHCR with a classic GitHub token that has
-`read:packages` and access to the package. Run these commands from the
-repository checkout.
+Run these commands from the repository checkout.
 
 ```sh
-docker login ghcr.io --username arthursoares
 export LIBRARY_PATH=/absolute/path/to/joao-gilberto
 docker compose pull
 docker compose up -d
@@ -102,19 +100,6 @@ writes. Put authentication at the proxy.
 
 For a local build, run `docker build -t songsheet-qa:local .` and start
 Compose with `QA_IMAGE=songsheet-qa:local docker compose up -d --pull never`.
-
-### Initialize private publishing once
-
-Add a classic GitHub token with `write:packages` to the source repository as
-the Actions secret `SONGSHEET_GHCR_TOKEN`. Run **Initialize private QA
-registry** on `main` from the Actions tab. The workflow creates an empty
-bootstrap image and verifies that anonymous pulls are denied. Keep the
-`private-bootstrap` tag so release jobs can verify they are uploading to
-an existing private package.
-
-Run **CI** on `main` to publish the application. Releases use the Actions
-secret to authenticate to GHCR. Keep package access scoped to your account
-and the users who need to pull the image.
 
 ## Usage
 
