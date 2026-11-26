@@ -2,6 +2,8 @@
 // Run with: node --test tests/js/
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const vm = require("node:vm");
 
 const Shapes = require("../../scripts/qa_static/app_shapes.js");
 
@@ -56,8 +58,8 @@ test("current-equals-scanner rows preview and request a changed manual target", 
   assert.match(html, /data-shape-select="occ-1"/);
   assert.match(html, /<span>Current fingering<\/span>/);
   assert.match(html, /<span>Target fingering<\/span>/);
-  assert.match(html, /shape-changed[^>]*title="B"[^>]*>1<\/span>/);
-  assert.match(html, /shape-changed[^>]*title="B"[^>]*>3<\/span>/);
+  assert.match(html, /shape-changed[^>]*aria-label="B: 1"[^>]*title="B: 1"[^>]*>1<\/span>/);
+  assert.match(html, /shape-changed[^>]*aria-label="B: 3"[^>]*title="B: 3"[^>]*>3<\/span>/);
   assert.deepEqual(Shapes.shapeApplyPayload([item]), {
     selected: ["occ-1"], voicing: target,
   });
@@ -268,6 +270,384 @@ test("basis labels and changed strings are human-readable", () => {
   assert.equal(Shapes.shapeBasisLabel("recorded_evidence"), "Recorded source link");
   assert.equal(Shapes.shapeBasisLabel("legacy_exact_count"), "Legacy reading-order match");
   const html = Shapes.renderOccurrenceFingering("0,2,x,0,3,2", "0,2,0,0,3,2");
-  assert.match(html, /shape-changed[^>]*title="D"/);
-  assert.match(html, />muted<\/span>/);
+  assert.match(html, /shape-changed[^>]*aria-label="D: muted"[^>]*title="D: muted"[^>]*>×<\/span>/);
+});
+
+test("unresolved base-fret shapes cannot enable checkboxes, chord-name inputs, or Apply", () => {
+  global.window = { ChordNaming: {
+    validateName: () => ({ valid: true }), suggestNames: () => [{ name: "Am" }],
+    nameMatchesVoicing: () => true,
+  } };
+  const occ = {
+    id: "unresolved-1", editable: true, editorial: "x,0,2,2,1,0",
+    label: "Am", title: "Song", file: "song.json", album: "Book",
+  };
+  assert.equal(Shapes.isSelectableShapeOccurrence(occ, "", "C"), false);
+
+  const elements = {
+    shapeDetail: { innerHTML: "", scrollTop: 0 },
+    shapeSelection: { innerHTML: "" },
+    shapeApply: { disabled: false },
+    shapeStatus: { textContent: "", dataset: {}, setAttribute() {} },
+  };
+  const selectAllBtn = { disabled: false };
+  const container = {
+    querySelector: (sel) => sel === "[data-shape-select-all]" ? selectAllBtn : null,
+    querySelectorAll: () => [],
+  };
+  global.$ = (id) => elements[id];
+  Object.assign(Shapes.shapesUI, {
+    container,
+    detail: { id: "g-unresolved", voicing: null, pattern: "MFFFFM", songs: 1, matches: 1, occurrences: [occ] },
+    targetVoicing: "",
+    targetName: "",
+    selected: new Set(["unresolved-1"]),
+    listPending: false,
+    detailPending: false,
+    writePending: false,
+  });
+
+  const nameHtml = Shapes.shapeNameControl(Shapes.shapesUI.detail);
+  assert.doesNotMatch(nameHtml, /id="shapeChordName"/);
+  assert.doesNotMatch(nameHtml, /data-shape-name-suggestion/);
+  assert.match(nameHtml, /unavailable until the scan fingering is resolved/);
+  assert.equal(Shapes.setShapeNameProposal("C", { announce: false }), false);
+  assert.equal(Shapes.shapeTargetName(), "");
+
+  Shapes.renderShapeDetail();
+  assert.doesNotMatch(elements.shapeDetail.innerHTML, /id="shapeChordName"/);
+  assert.doesNotMatch(elements.shapeDetail.innerHTML, /data-shape-select=/);
+  assert.match(elements.shapeDetail.innerHTML, /Group fingering is unresolved; edit this occurrence in its song\./);
+  assert.doesNotMatch(elements.shapeDetail.innerHTML, /already agree/);
+  assert.equal(selectAllBtn.disabled, true);
+  assert.equal(elements.shapeApply.disabled, true);
+
+  delete global.$;
+  delete global.window;
+  Object.assign(Shapes.shapesUI, {
+    container: null, detail: null, targetVoicing: "", targetName: "", selected: new Set(),
+  });
+});
+
+test("occurrence voicings render spaced guitar pills and handle unresolved blank targets cleanly", () => {
+  const html = Shapes.renderOccurrenceFingering("x,0,2,2,1,0", "x,0,2,2,1,0");
+  assert.match(html, /aria-label="low E: muted" title="low E: muted">×<\/span> <span[^>]*aria-label="A: open" title="A: open">0<\/span>/);
+  assert.match(html, /<span[^>]*aria-label="high E: open" title="high E: open">0<\/span>$/);
+  assert.doesNotMatch(html, /shape-changed/);
+
+  const blankTarget = Shapes.renderOccurrenceFingering("", "x,0,2,2,1,0");
+  assert.equal(blankTarget, '<span class="shape-occurrence-string shape-unresolved">—</span>');
+  assert.doesNotMatch(blankTarget, /shape-changed/);
+
+  const vsBlankTarget = Shapes.renderOccurrenceFingering("x,0,2,2,1,0", "");
+  assert.doesNotMatch(vsBlankTarget, /shape-changed/);
+  assert.match(vsBlankTarget, />×<\/span>/);
+});
+
+test("proposal edits preserve compatible selections, checked state, and scrollTop while pruning incompatible ones", () => {
+  global.window = { ChordNaming: {
+    validateName: () => ({ valid: true }),
+    suggestNames: () => [{ name: "C" }],
+    nameMatchesVoicing: (label, voicing) => {
+      if (label === "Am" && voicing.join(",") === "x,3,2,0,3,0") return false;
+      if (label === "C" && voicing.join(",") === "x,3,2,0,1,0") return true;
+      if (label === "F" && voicing.join(",") === "x,3,2,0,1,0") return false;
+      return true;
+    },
+  } };
+  const occKeep = {
+    id: "keep", editable: true, editorial: "x,3,2,0,2,0", label: "C",
+    album: "A", file: "keep.json", title: "Keep",
+  };
+  const occDropByName = {
+    id: "drop-name", editable: true, editorial: "x,3,2,0,2,0", label: "F",
+    album: "A", file: "drop.json", title: "Drop",
+  };
+  const occAlreadySame = {
+    id: "same-after-voicing", editable: true, editorial: "x,3,2,0,3,0", label: "C",
+    album: "A", file: "same.json", title: "Same",
+  };
+  const elements = {
+    shapeOccurrenceList: { innerHTML: "", scrollTop: 145 },
+    shapeDetail: { scrollTop: 80 },
+    shapeSelection: { innerHTML: "" },
+    shapeEffectiveVoicing: { textContent: "" },
+    shapeApply: { disabled: false },
+    shapeStatus: { textContent: "", dataset: {}, setAttribute() {} },
+  };
+  const container = {
+    querySelector: () => null,
+    querySelectorAll: () => [],
+  };
+  global.$ = (id) => elements[id];
+  Object.assign(Shapes.shapesUI, {
+    container,
+    detail: { id: "g1", voicing: "x,3,2,0,1,0", occurrences: [occKeep, occDropByName, occAlreadySame] },
+    targetVoicing: "x,3,2,0,1,0",
+    targetName: "",
+    selected: new Set(["keep", "drop-name"]),
+    listPending: false, detailPending: false, writePending: false,
+  });
+
+  // Changing targetName to "C" makes "drop-name" match if explicit name overrides retained label,
+  // so test dropping via explicit incompatible name "F":
+  Shapes.shapesUI.selected = new Set(["keep", "drop-name"]);
+  // Add an occurrence that becomes incompatible with "C" by already agreeing (same voicing + same name):
+  occAlreadySame.editorial = "x,3,2,0,1,0";
+  occAlreadySame.label = "C";
+  Shapes.shapesUI.selected = new Set(["keep", "same-after-voicing"]);
+  assert.equal(Shapes.setShapeNameProposal("C", { announce: false, refreshControl: false }), true);
+  assert.deepEqual([...Shapes.shapesUI.selected], ["keep"]);
+  assert.equal(elements.shapeStatus.textContent, "1 selected occurrence became incompatible and was deselected.");
+  assert.equal(elements.shapeOccurrenceList.scrollTop, 145);
+  assert.equal(elements.shapeDetail.scrollTop, 80);
+  assert.match(elements.shapeOccurrenceList.innerHTML, /data-shape-select="keep" checked/);
+
+  // Changing voicing target to x,3,2,0,3,0 retains "keep" and prunes an occurrence whose editorial equals x,3,2,0,3,0
+  occAlreadySame.editorial = "x,3,2,0,3,0";
+  occAlreadySame.label = "Dm";
+  Shapes.shapesUI.targetName = "";
+  Shapes.shapesUI.selected = new Set(["keep", "same-after-voicing"]);
+  assert.equal(Shapes.setShapeProposal("x,3,2,0,3,0", { announce: false }), true);
+  assert.deepEqual([...Shapes.shapesUI.selected], ["keep"]);
+  assert.equal(elements.shapeStatus.textContent, "1 selected occurrence became incompatible and was deselected.");
+  assert.equal(elements.shapeOccurrenceList.scrollTop, 145);
+  assert.match(elements.shapeOccurrenceList.innerHTML, /data-shape-select="keep" checked/);
+
+  delete global.$;
+  delete global.window;
+  Object.assign(Shapes.shapesUI, {
+    container: null, detail: null, targetVoicing: "", targetName: "", selected: new Set(),
+  });
+});
+
+test("typing valid voicing in .fb-text updates target on input and blur-into-Apply does not wipe selection", async () => {
+  const listeners = {};
+  let fretboardSetCalls = 0;
+  let applyCalls = 0;
+  const fbInput = {
+    value: "x,3,2,0,3,0",
+    attrs: {},
+    setAttribute(k, v) { this.attrs[k] = v; },
+    focus() {},
+    closest: (sel) => sel.includes(".fb-text") ? fbInput : null,
+  };
+  const elements = {
+    shapeSearch: { addEventListener() {}, value: "", disabled: false },
+    shapeAlbum: { addEventListener() {}, value: "", disabled: false },
+    shapeOccurrenceList: { innerHTML: "", scrollTop: 32 },
+    shapeDetail: { scrollTop: 0 },
+    shapeSelection: { innerHTML: "" },
+    shapeEffectiveVoicing: { textContent: "" },
+    shapeApply: { disabled: false },
+    shapeStatus: { textContent: "", dataset: {}, setAttribute() {} },
+  };
+  const container = {
+    addEventListener(type, fn) { listeners[type] = fn; },
+    querySelector: (sel) => sel.includes(".fb-text") ? fbInput : null,
+    querySelectorAll: () => [],
+  };
+  global.$ = (id) => elements[id];
+  global.api = async (_path, options) => {
+    applyCalls += 1;
+    assert.deepEqual(JSON.parse(options.body), { selected: ["occ-1"], voicing: "x,3,2,0,3,0" });
+    return { ok: true, batch_id: "b2", entries: 1, songs: 1, files: [] };
+  };
+  global.shapeWritesReady = () => true;
+  const occ = { id: "occ-1", editable: true, editorial: "x,3,2,0,1,0", album: "A", file: "s.json", title: "S" };
+  Object.assign(Shapes.shapesUI, {
+    container,
+    detail: { id: "g1", voicing: "x,3,2,0,1,0", occurrences: [occ] },
+    targetVoicing: "x,3,2,0,1,0",
+    targetName: "",
+    selected: new Set(["occ-1"]),
+    fretboard: { set() { fretboardSetCalls += 1; } },
+    listPending: false, detailPending: false, writePending: false,
+  });
+
+  Shapes.wireShapesWorkspace(container);
+  listeners.input({ target: fbInput });
+  assert.equal(Shapes.shapeTargetVoicing(), "x,3,2,0,3,0");
+  assert.equal(fretboardSetCalls, 0);
+  assert.equal(fbInput.attrs["aria-invalid"], "false");
+  assert.deepEqual([...Shapes.shapesUI.selected], ["occ-1"]);
+  assert.equal(elements.shapeApply.disabled, false);
+
+  // Simulated blur -> change from fretboard.js keeps selection & Apply enabled
+  listeners.change({ target: fbInput });
+  assert.deepEqual([...Shapes.shapesUI.selected], ["occ-1"]);
+  assert.equal(elements.shapeApply.disabled, false);
+
+  await Shapes.applySelectedShapeOccurrences();
+  assert.equal(applyCalls, 1);
+
+  delete global.$;
+  delete global.api;
+  delete global.shapeWritesReady;
+  Object.assign(Shapes.shapesUI, {
+    container: null, detail: null, targetVoicing: "", targetName: "", selected: new Set(),
+    fretboard: null, latestBatch: null, groups: [], loaded: false,
+  });
+});
+
+test("Refresh index button, first-run indexing latency feedback, and renderShapes stale reload work cleanly", async () => {
+  const apiPaths = [];
+  const elements = {
+    shapeSearch: { addEventListener() {}, value: "", disabled: false },
+    shapeAlbum: { addEventListener() {}, value: "", innerHTML: "", disabled: false },
+    shapeStatus: { textContent: "", dataset: {}, setAttribute() {} },
+    shapeResults: { innerHTML: "" },
+    shapePager: { innerHTML: "" },
+    shapeDetail: { innerHTML: "" },
+    shapeRefresh: { disabled: false },
+  };
+  let rootContainer;
+  const makeContainer = () => ({
+    dataset: {},
+    innerHTML: "",
+    addEventListener() {},
+    querySelector: () => null,
+    querySelectorAll: () => [],
+  });
+  rootContainer = makeContainer();
+  elements.shapes = rootContainer;
+  global.$ = (id) => elements[id];
+
+  let resolveList;
+  const listPromise = new Promise((resolve) => { resolveList = resolve; });
+  global.api = async (path) => {
+    apiPaths.push(path);
+    if (path.startsWith("/api/shapes?")) return listPromise;
+    return { id: "g1", voicing: "x,3,2,0,1,0", occurrences: [] };
+  };
+
+  Object.assign(Shapes.shapesUI, {
+    container: null, groups: [], loaded: false, stale: false, detail: null,
+    listPending: false, detailPending: false, writePending: false,
+    listGeneration: 0, detailGeneration: 0, listTimer: null,
+  });
+
+  Shapes.ensureShapesWorkspace();
+  assert.match(rootContainer.innerHTML, /id="shapeRefresh" data-shape-refresh>Refresh index<\/button>/);
+
+  const loadPromise = Shapes.loadShapeGroups();
+  assert.match(elements.shapeStatus.textContent, /Indexing library shapes \(first run may take 10–60s\)/);
+  assert.match(elements.shapeResults.innerHTML, /Indexing library shapes \(first run may take 10–60s\)/);
+  assert.equal(elements.shapeRefresh.disabled, true);
+  assert.notEqual(Shapes.shapesUI.listTimer, null);
+
+  resolveList({ groups: [{ id: "g1", voicing: "x,3,2,0,1,0", songs: 1, matches: 1 }], counts: { groups: 1 }, albums: [], page: 1, pages: 1 });
+  assert.equal(await loadPromise, true);
+  assert.equal(Shapes.shapesUI.loaded, true);
+  assert.equal(Shapes.shapesUI.stale, false);
+  assert.equal(Shapes.shapesUI.listTimer, null);
+  assert.equal(elements.shapeRefresh.disabled, false);
+
+  // Clicking Refresh index reloads groups and reopens active detail
+  apiPaths.length = 0;
+  global.api = async (path) => {
+    apiPaths.push(path);
+    if (path.startsWith("/api/shapes?")) {
+      return { groups: [{ id: "g1", voicing: "x,3,2,0,1,0", songs: 1, matches: 1 }], counts: { groups: 1 }, albums: [], page: 1, pages: 1 };
+    }
+    return { id: "g1", voicing: "x,3,2,0,1,0", occurrences: [] };
+  };
+  Shapes.shapesUI.detail = { id: "g1", voicing: "x,3,2,0,1,0", occurrences: [] };
+  const refreshBtn = { disabled: false };
+  Shapes.handleShapesClick({ target: { closest: (sel) => sel === "[data-shape-refresh]" ? refreshBtn : null } });
+  await new Promise((r) => setTimeout(r, 0));
+  assert.equal(apiPaths[0], "/api/shapes?page=1");
+  assert.equal(apiPaths[1], "/api/shapes/g1");
+
+  // Stale invalidation triggers reload on renderShapes()
+  apiPaths.length = 0;
+  Shapes.shapesUI.loaded = false;
+  Shapes.shapesUI.stale = true;
+  Shapes.shapesUI.detail = null;
+  Shapes.renderShapes();
+  await new Promise((r) => setTimeout(r, 0));
+  assert.deepEqual(apiPaths, ["/api/shapes?page=1"]);
+
+  delete global.$;
+  delete global.api;
+  Object.assign(Shapes.shapesUI, {
+    container: null, detail: null, groups: [], loaded: false, stale: false,
+    listPending: false, detailPending: false, writePending: false, listTimer: null,
+  });
+});
+
+test("openShapesForEntry shows loading/error state in #shapeDetail and works without app_shapes.js", async () => {
+  const source = fs.readFileSync(require.resolve("../../scripts/qa_static/app_views.js"), "utf8");
+
+  // 1. Isolated context without app_shapes.js (no ReferenceError)
+  const isolatedEls = {
+    edErr: { textContent: "" },
+    shapeDetail: { innerHTML: "Choose a shape" },
+    bars: { classList: { toggle() {} } },
+    chordReview: { classList: { toggle() {} } },
+    chordReviewToggle: { classList: { toggle() {}, }, setAttribute() {}, disabled: false },
+    flagCount: { classList: { toggle() {} } },
+    editor: { classList: { toggle() {} } },
+    lyrics: { classList: { toggle() {} } },
+    review: { classList: { toggle() {} } },
+    dict: { classList: { toggle() {} } },
+    harmony: { classList: { toggle() {} } },
+    preview: { classList: { toggle() {} } },
+    json: { classList: { toggle() {} } },
+    tabBars: { classList: { toggle() {} }, setAttribute() {} },
+    tabLyrics: { classList: { toggle() {} }, setAttribute() {} },
+    tabReview: { classList: { toggle() {} }, setAttribute() {} },
+    tabDict: { classList: { toggle() {} }, setAttribute() {} },
+    tabHarmony: { classList: { toggle() {} }, setAttribute() {} },
+    tabPreview: { classList: { toggle() {} }, setAttribute() {} },
+    tabJson: { classList: { toggle() {} }, setAttribute() {} },
+  };
+  const isolatedCtx = vm.createContext({
+    state: { doc: { songs: [{}] }, album: "A", file: "s.json", songRevision: "rev1", dirty: false, activeView: "bars" },
+    $: (id) => isolatedEls[id],
+    applyLayoutToggles() {},
+    renderShapes() {},
+    esc: (v) => String(v),
+    api: async () => ({ id: "g1" }),
+    URLSearchParams,
+    setInterval,
+    clearInterval,
+  });
+  vm.runInContext(source, isolatedCtx);
+  await vm.runInContext("openShapesForEntry(0, 1, 2)", isolatedCtx);
+  assert.match(isolatedEls.shapeDetail.innerHTML, /Finding matching shape in library index/);
+
+  // 2. Context with shapesUI verifying loading -> error handling and cleanup
+  let resolveEntry;
+  const entryPending = new Promise((r) => { resolveEntry = r; });
+  const statuses = [];
+  const withShapesEls = { ...isolatedEls, shapeDetail: { innerHTML: "Choose a shape" } };
+  const withShapesCtx = vm.createContext({
+    state: { doc: { songs: [{}] }, album: "A", file: "s.json", songRevision: "rev1", dirty: false, activeView: "bars" },
+    shapesUI: { detailGeneration: 1, detailPending: false, detail: { id: "old" }, selected: new Set(["x"]) },
+    $: (id) => withShapesEls[id],
+    applyLayoutToggles() {},
+    renderShapes() {},
+    syncShapeControls() {},
+    setShapeStatus: (msg, kind) => statuses.push({ msg, kind }),
+    openShapeGroup: async () => true,
+    esc: (v) => String(v),
+    api: async () => entryPending,
+    URLSearchParams,
+    setInterval,
+    clearInterval,
+  });
+  vm.runInContext(source, withShapesCtx);
+  const run = vm.runInContext("openShapesForEntry(0, 1, 2)", withShapesCtx);
+  assert.equal(withShapesCtx.shapesUI.detailGeneration, 2);
+  assert.equal(withShapesCtx.shapesUI.detailPending, true);
+  assert.equal(withShapesCtx.shapesUI.detail, null);
+  assert.equal(withShapesCtx.shapesUI.selected.size, 0);
+  assert.match(withShapesEls.shapeDetail.innerHTML, /Finding matching shape in library index/);
+
+  resolveEntry({ error: "No matching shape" });
+  await run;
+  assert.equal(withShapesCtx.shapesUI.detailPending, false);
+  assert.match(withShapesEls.shapeDetail.innerHTML, /shape-error.*No matching shape/);
+  assert.deepEqual(statuses.at(-1), { msg: "No matching shape", kind: "error" });
 });

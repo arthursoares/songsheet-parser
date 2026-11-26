@@ -303,6 +303,10 @@ async function saveOnce() {
     }
     // refresh the preview (it renders the in-memory doc, so this just re-syncs)
     if (sameDocument && state.activeView === "preview") renderPreview();
+    if (typeof shapesUI === "object" && shapesUI) {
+      shapesUI.loaded = false;
+      shapesUI.stale = true;
+    }
   } else if (state.doc === submittedDoc) {
     status.textContent = "Unsaved changes · save failed: " + res.error;
     status.style.color = "var(--bad)";
