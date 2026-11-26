@@ -276,6 +276,7 @@ let chordEditorHasDraft = () => false;
 // Bars keyboard shortcuts call this rather than navigating away from a draft.
 // openEditor replaces it for the currently visible editor instance.
 let submitActiveChord = () => false;
+let syncChordEditorUneditedText = () => {};
 // The scan request may finish after the editor opens. app_scan.js invokes this
 // hook when its guarded lookup receives the current song's locations.
 let syncActiveChordProposal = () => false;
@@ -359,6 +360,17 @@ function openEditor(si, bi, ei, focus = false) {
     refreshNaming();
   });
   fb.set(curVoicing);
+  let baselineText = e.text || "";
+  syncChordEditorUneditedText = () => {
+    if (!ed.classList.contains("open")) return;
+    const entry = currentEntry();
+    const edTextEl = $("edText");
+    if (!entry || !edTextEl) return;
+    if (edTextEl.value.trim() === baselineText.trim()) {
+      edTextEl.value = entry.text || "";
+      baselineText = entry.text || "";
+    }
+  };
   chordEditorHasDraft = () => {
     if (!ed.classList.contains("open")) return false;
     const entry = currentEntry();
@@ -512,6 +524,7 @@ function openEditor(si, bi, ei, focus = false) {
     entry.chord = name;
     const text = $("edText").value.trim();
     if (text) entry.text = text; else delete entry.text;
+    baselineText = entry.text || "";
     if (usePrinted) entry.voicing = entry.voicing_printed;
     else {
       const vc = fb.get();

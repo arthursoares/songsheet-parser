@@ -812,7 +812,7 @@ test("Regression 2: #keySel change and #spellToggle click guard unapplied chord 
   assert.equal(app.chordEditorHasDraft(), false);
 });
 
-test("Regression 3: stranded blurred .ly-line-edit and .ly-edit flush on #saveBtn save()", async () => {
+test("Regression 3: stranded blurred .ly-line-edit and .ly-edit flush alongside chord draft on #saveBtn save() without confirm()", async () => {
   const app = await createAppHarness({ lyMode: "text" });
   app.context.openEditor(0, 0, 0);
   app.dom.get("edName").value = "Cmaj7";
@@ -823,32 +823,26 @@ test("Regression 3: stranded blurred .ly-line-edit and .ly-edit flush on #saveBt
   lyInput.focus();
   lyInput.value = "_one _two _three";
   app.confirmQueue.push(false);
-  app.dom.get("saveBtn").focus(); // blurs lyInput onto saveBtn
+  app.dom.get("saveBtn").focus(); // blurs lyInput onto saveBtn -> prompts once and strands lyInput
+  assert.equal(app.confirmPrompts.length, 1);
   assert.equal(app.state.doc.songs[0].sections[0].bars[0][0].text, "hel-");
   assert.equal(app.dom.document.activeElement, app.dom.get("saveBtn"));
 
-  // Clicking #saveBtn while still declining discard blocks save() and preserves both drafts
-  app.confirmQueue.push(false);
+  // Clicking #saveBtn flushes stranded lyric edit AND applies chord draft without prompting confirm()
   app.dom.get("saveBtn").click();
   await new Promise((r) => setImmediate(r));
-  assert.equal(app.apiCalls.filter((c) => c.opts?.method === "POST").length, 0);
-  assert.equal(app.dom.get("saveStatus").style.color, "var(--bad)");
-  assert.equal(lyInput.value, "_one _two _three");
-  assert.equal(app.dom.get("edName").value, "Cmaj7");
-
-  // Clicking #saveBtn and confirming discard flushes stranded lyric edit and saves it
-  app.confirmQueue.push(true);
-  app.dom.get("saveBtn").click();
-  await new Promise((r) => setImmediate(r));
+  assert.equal(app.confirmPrompts.length, 1);
   const posts = app.apiCalls.filter((c) => c.path.startsWith("/api/song/") && c.opts?.method === "POST");
   assert.equal(posts.length, 1);
-  assert.equal(JSON.parse(posts[0].opts.body).songs[0].sections[0].bars[0][0].text, "one");
+  const saved1 = JSON.parse(posts[0].opts.body);
+  assert.equal(saved1.songs[0].sections[0].bars[0][0].text, "one");
+  assert.equal(saved1.songs[0].sections[0].bars[0][0].chord, "Cmaj7");
   assert.equal(app.state.dirty, false);
   // Subsequent blur of stale lyInput does not double-push undo or re-dirty
   lyInput.blur();
   assert.equal(app.state.dirty, false);
 
-  // Also verify stranded .ly-edit in grid mode flushes on #saveBtn save() without double-undo
+  // Also verify stranded .ly-edit in grid mode flushes alongside chord draft on #saveBtn save()
   app.setLyMode("grid");
   app.context.showView("bars");
   app.context.openEditor(0, 0, 0);
@@ -860,20 +854,23 @@ test("Regression 3: stranded blurred .ly-line-edit and .ly-edit flush on #saveBt
   lyEdit.value = "moon";
   app.confirmQueue.push(false);
   app.dom.get("saveBtn").focus();
+  assert.equal(app.confirmPrompts.length, 2);
   assert.equal(app.state.doc.songs[0].sections[0].bars[1][0].text, "three");
 
-  app.confirmQueue.push(true);
   app.dom.get("saveBtn").click();
   await new Promise((r) => setImmediate(r));
+  assert.equal(app.confirmPrompts.length, 2);
   const postsAfter = app.apiCalls.filter((c) => c.path.startsWith("/api/song/") && c.opts?.method === "POST");
   assert.equal(postsAfter.length, 2);
-  assert.equal(JSON.parse(postsAfter[1].opts.body).songs[0].sections[0].bars[1][0].text, "moon");
+  const saved2 = JSON.parse(postsAfter[1].opts.body);
+  assert.equal(saved2.songs[0].sections[0].bars[1][0].text, "moon");
+  assert.equal(saved2.songs[0].sections[0].bars[0][0].chord, "Gmaj7");
   assert.equal(app.state.dirty, false);
   lyEdit.blur();
   assert.equal(app.state.dirty, false);
 });
 
-test("Regression 4 (R2-Edge8): Cmd+S commits both valid stranded .ly-line-edit and active .ly-line-edit via deferred render", async () => {
+test("Regression 4 (R2-Edge8): Cmd+S commits valid stranded .ly-line-edit, active .ly-line-edit, and chord draft without confirm()", async () => {
   const app = await createAppHarness({ lyMode: "text" });
   app.context.openEditor(0, 0, 0);
   app.dom.get("edName").value = "Cmaj7";
@@ -887,13 +884,14 @@ test("Regression 4 (R2-Edge8): Cmd+S commits both valid stranded .ly-line-edit a
   edits[0].value = "_one _two _three";
   app.confirmQueue.push(false);
   edits[1].focus();
+  assert.equal(app.confirmPrompts.length, 1);
   assert.equal(app.state.doc.songs[0].sections[0].bars[0][0].text, "hel-");
 
-  // Edit active row 1 and press Cmd+S confirming discard -> both rows must save
+  // Edit active row 1 and press Cmd+S -> commits both rows AND chord draft without prompting confirm()
   edits[1].value = "_four";
-  app.confirmQueue.push(true);
   app.cmdS(edits[1]);
   await new Promise((r) => setImmediate(r));
+  assert.equal(app.confirmPrompts.length, 1);
 
   const posts = app.apiCalls.filter((c) => c.path.startsWith("/api/song/") && c.opts?.method === "POST");
   assert.equal(posts.length, 1);
@@ -902,7 +900,7 @@ test("Regression 4 (R2-Edge8): Cmd+S commits both valid stranded .ly-line-edit a
   assert.equal(savedDoc.songs[0].sections[0].bars[0][1].text, "two");
   assert.equal(savedDoc.songs[0].sections[0].bars[1][0].text, "three");
   assert.equal(savedDoc.songs[0].sections[1].bars[0][0].text, "four");
-  assert.equal(savedDoc.songs[0].sections[0].bars[0][0].chord, "C");
+  assert.equal(savedDoc.songs[0].sections[0].bars[0][0].chord, "Cmaj7");
   assert.equal(app.state.dirty, false);
 });
 
@@ -956,12 +954,13 @@ test("Regression 6 (R2-Edge1 / R2-Edge5): valid stranded row + invalid stranded 
   edits[1].focus();
   edits[1].value = "invalid no markers";
   app.dom.get("saveBtn").focus();
+  assert.equal(app.confirmPrompts.length, 1);
   assert.match(errs[1].textContent, /needs exactly 1 markers/);
 
-  // 1st click on #saveBtn (confirm OK) -> blocks in Phase 1, preserves live DOM & error text
-  app.confirmQueue.push(true);
+  // 1st click on #saveBtn -> blocks in Phase 1 without confirm(), preserves live DOM & error text
   app.dom.get("saveBtn").click();
   await new Promise((r) => setImmediate(r));
+  assert.equal(app.confirmPrompts.length, 1);
   assert.equal(app.apiCalls.filter((c) => c.opts?.method === "POST").length, 0);
   assert.equal(app.dom.get("saveStatus").style.color, "var(--bad)");
   assert.equal(app.state.dirty, false);
@@ -976,22 +975,170 @@ test("Regression 6 (R2-Edge1 / R2-Edge5): valid stranded row + invalid stranded 
   assert.match(liveErrs[1].textContent, /needs exactly 1 markers/);
 
   // 2nd click on #saveBtn -> STILL blocks with 0 POSTs (not silently dropped on retry)
-  app.confirmQueue.push(true);
   app.dom.get("saveBtn").click();
   await new Promise((r) => setImmediate(r));
+  assert.equal(app.confirmPrompts.length, 1);
   assert.equal(app.apiCalls.filter((c) => c.opts?.method === "POST").length, 0);
   assert.equal(app.dom.get("lyrics").querySelectorAll(".ly-line-edit")[1].value, "invalid no markers");
   assert.match(app.dom.get("lyrics").querySelectorAll(".ly-line-err")[1].textContent, /needs exactly 1 markers/);
 
-  // Fixing row 1 and saving flushes both rows cleanly
+  // Fixing row 1 and saving flushes both rows AND chord draft without confirm()
   edits[1].value = "_four";
-  app.confirmQueue.push(true);
   app.dom.get("saveBtn").click();
   await new Promise((r) => setImmediate(r));
+  assert.equal(app.confirmPrompts.length, 1);
   const posts = app.apiCalls.filter((c) => c.path.startsWith("/api/song/") && c.opts?.method === "POST");
   assert.equal(posts.length, 1);
   const savedDoc = JSON.parse(posts[0].opts.body);
   assert.equal(savedDoc.songs[0].sections[0].bars[0][0].text, "one");
+  assert.equal(savedDoc.songs[0].sections[0].bars[0][0].chord, "Cmaj7");
   assert.equal(savedDoc.songs[0].sections[1].bars[0][0].text, "four");
   assert.equal(app.state.dirty, false);
+});
+
+test("Regression 7: open chord draft + valid .ly-line-edit on Lyrics tab save() commits BOTH without confirm()", async () => {
+  const app = await createAppHarness({ lyMode: "text" });
+  app.context.openEditor(0, 0, 0);
+  app.dom.get("edName").value = "Cmaj7";
+  assert.equal(app.chordEditorHasDraft(), true);
+
+  app.context.showView("lyrics");
+  const lyInput = app.dom.get("lyrics").querySelector(".ly-line-edit");
+  lyInput.focus();
+  lyInput.value = "_one _two _three";
+
+  await app.context.save();
+  assert.equal(app.confirmPrompts.length, 0);
+  const posts = app.apiCalls.filter((c) => c.path.startsWith("/api/song/") && c.opts?.method === "POST");
+  assert.equal(posts.length, 1);
+  const savedDoc = JSON.parse(posts[0].opts.body);
+  assert.equal(savedDoc.songs[0].sections[0].bars[0][0].chord, "Cmaj7");
+  assert.equal(savedDoc.songs[0].sections[0].bars[0][0].text, "one");
+  assert.equal(savedDoc.songs[0].sections[0].bars[0][1].text, "two");
+  assert.equal(savedDoc.songs[0].sections[0].bars[1][0].text, "three");
+  assert.equal(app.state.dirty, false);
+});
+
+test("Regression 8: open chord draft + valid .ly-edit in Arrange mode save() commits BOTH without confirm()", async () => {
+  const app = await createAppHarness({ lyMode: "grid" });
+  app.context.openEditor(0, 0, 0);
+  app.dom.get("edName").value = "Cmaj7";
+  assert.equal(app.chordEditorHasDraft(), true);
+
+  app.context.showView("lyrics");
+  const wordBtn = app.dom.get("lyrics").querySelectorAll(".ly-text").find((b) => b.textContent === "hel-");
+  wordBtn.dispatch("dblclick");
+  const lyEdit = app.dom.get("lyrics").querySelector(".ly-edit");
+  assert.ok(lyEdit);
+  lyEdit.value = "hi-";
+
+  await app.context.save();
+  assert.equal(app.confirmPrompts.length, 0);
+  const posts = app.apiCalls.filter((c) => c.path.startsWith("/api/song/") && c.opts?.method === "POST");
+  assert.equal(posts.length, 1);
+  const savedDoc = JSON.parse(posts[0].opts.body);
+  assert.equal(savedDoc.songs[0].sections[0].bars[0][0].chord, "Cmaj7");
+  assert.equal(savedDoc.songs[0].sections[0].bars[0][0].text, "hi-");
+  assert.equal(app.state.dirty, false);
+});
+
+test("Regression 9: invalid chord draft (.fb-text) + valid .ly-line-edit blocks save() with #edErr/#saveStatus and zero confirm()/POST", async () => {
+  const app = await createAppHarness({ lyMode: "text" });
+  app.context.openEditor(0, 0, 0);
+  const fbText = app.dom.get("edFb").querySelector(".fb-text");
+  fbText.value = "x,3,2,0,1";
+  fbText.dispatch("input");
+  assert.equal(app.chordEditorHasDraft(), true);
+
+  app.context.showView("lyrics");
+  const lyInput = app.dom.get("lyrics").querySelector(".ly-line-edit");
+  lyInput.focus();
+  lyInput.value = "_one _two _three";
+
+  const res = await app.context.save();
+  assert.equal(res.blocked, true);
+  assert.equal(app.confirmPrompts.length, 0);
+  assert.equal(app.apiCalls.filter((c) => c.opts?.method === "POST").length, 0);
+  assert.equal(app.state.activeView, "bars");
+  assert.match(app.dom.get("edErr").textContent, /Invalid voicing/);
+  assert.equal(app.dom.get("saveStatus").style.color, "var(--bad)");
+  assert.match(app.dom.get("saveStatus").textContent, /fix or apply chord edits before saving/);
+
+  // Fixing .fb-text afterwards and saving persists BOTH the lyric edit and the corrected voicing
+  fbText.value = "x,3,2,0,1,3";
+  fbText.dispatch("input");
+  await app.context.save();
+  assert.equal(app.confirmPrompts.length, 0);
+  const posts = app.apiCalls.filter((c) => c.path.startsWith("/api/song/") && c.opts?.method === "POST");
+  assert.equal(posts.length, 1);
+  const savedDoc = JSON.parse(posts[0].opts.body);
+  assert.equal(savedDoc.songs[0].sections[0].bars[0][0].text, "one");
+  assert.equal(savedDoc.songs[0].sections[0].bars[0][0].voicing, "x,3,2,0,1,3");
+});
+
+test("Regression 10: isolated app_core.js + app_lyrics.js (without app_bars.js) prepareLyricEdit() does not throw ReferenceError", () => {
+  // Part A: $("editor") returns null and confirmChordDraftDiscard is undefined
+  const ctxNull = vm.createContext({
+    window: { DocOps },
+    document: { getElementById: () => null },
+    localStorage: { getItem: () => null, setItem() {} },
+  });
+  for (const filename of ["app_core.js", "app_lyrics.js"]) {
+    const source = readFileSync(join(__dirname, "../../scripts/qa_static", filename), "utf8");
+    vm.runInContext(source, ctxNull, { filename });
+  }
+  vm.runInContext("state.sel = { si: 0, bi: 0, ei: 0 }", ctxNull);
+  assert.equal(vm.runInContext("prepareLyricEdit()", ctxNull), true);
+  assert.equal(vm.runInContext("state.sel", ctxNull), null);
+
+  // Part B: #editor element present and .open set, confirmChordDraftDiscard still undefined
+  const dom = createMockDom();
+  const ctxDom = vm.createContext({
+    window: { DocOps },
+    document: dom.document,
+    localStorage: { getItem: () => null, setItem() {} },
+  });
+  for (const filename of ["app_core.js", "app_lyrics.js"]) {
+    const source = readFileSync(join(__dirname, "../../scripts/qa_static", filename), "utf8");
+    vm.runInContext(source, ctxDom, { filename });
+  }
+  const editor = dom.get("editor");
+  editor.classList.add("open");
+  vm.runInContext("state.sel = { si: 0, bi: 0, ei: 0 }", ctxDom);
+  assert.equal(vm.runInContext("prepareLyricEdit()", ctxDom), true);
+  assert.equal(editor.classList.contains("open"), false);
+  assert.equal(vm.runInContext("state.sel", ctxDom), null);
+});
+
+test("Regression 11: unedited #edText syncs after lyric flush while explicit #edText draft is preserved on save()", async () => {
+  // Part A: #editor open without draft -> lyric edit on selected chord is NOT reverted by stale #edText
+  const app1 = await createAppHarness({ lyMode: "text" });
+  app1.context.openEditor(0, 0, 0);
+  app1.context.showView("lyrics");
+  const ly1 = app1.dom.get("lyrics").querySelector(".ly-line-edit");
+  ly1.focus();
+  ly1.value = "_one _two _three";
+  await app1.context.save();
+  assert.equal(app1.confirmPrompts.length, 0);
+  const posts1 = app1.apiCalls.filter((c) => c.path.startsWith("/api/song/") && c.opts?.method === "POST");
+  assert.equal(posts1.length, 1);
+  assert.equal(JSON.parse(posts1[0].opts.body).songs[0].sections[0].bars[0][0].text, "one");
+
+  // Part B: #editor has explicit #edText draft + #edName draft -> both #edText draft and other lyric edits persist
+  const app2 = await createAppHarness({ lyMode: "text" });
+  app2.context.openEditor(0, 0, 0);
+  app2.dom.get("edName").value = "Cmaj7";
+  app2.dom.get("edText").value = "custom";
+  app2.context.showView("lyrics");
+  const ly2 = app2.dom.get("lyrics").querySelector(".ly-line-edit");
+  ly2.focus();
+  ly2.value = "_hel- _two _three";
+  await app2.context.save();
+  assert.equal(app2.confirmPrompts.length, 0);
+  const posts2 = app2.apiCalls.filter((c) => c.path.startsWith("/api/song/") && c.opts?.method === "POST");
+  assert.equal(posts2.length, 1);
+  const saved2 = JSON.parse(posts2[0].opts.body);
+  assert.equal(saved2.songs[0].sections[0].bars[0][0].chord, "Cmaj7");
+  assert.equal(saved2.songs[0].sections[0].bars[0][0].text, "custom");
+  assert.equal(saved2.songs[0].sections[0].bars[0][1].text, "two");
 });

@@ -111,7 +111,7 @@ function renderLyricsText(root) {
         const parsed = parseDraft();
         if (parsed === false) return false;
         if (parsed === null) return true;
-        if (!prepareLyricEdit()) return false;
+        if (!opts?.skipChordDraftDiscard && !prepareLyricEdit()) return false;
         original = input.value;
         pushUndo();
         if (parsed.leading) {
@@ -184,9 +184,9 @@ function selectLyricChord(coords, { pick = false, focus = false } = {}) {
 }
 
 function prepareLyricEdit() {
-  if (!confirmChordDraftDiscard()) return false;
+  if (typeof confirmChordDraftDiscard === "function" && !confirmChordDraftDiscard()) return false;
   state.sel = null;
-  $("editor").classList.remove("open");
+  $("editor")?.classList.remove("open");
   return true;
 }
 
@@ -581,7 +581,7 @@ function editLyricToken(column, text, entry, word, wordIndex) {
     if (done) return true;
     const next = window.DocOps.replaceTextToken(entry.text, wordIndex, input.value);
     if (next !== null && next !== entry.text) {
-      if (!prepareLyricEdit()) return false;
+      if (!opts?.skipChordDraftDiscard && !prepareLyricEdit()) return false;
       done = true;
       pushUndo();
       if (next) entry.text = next; else delete entry.text;

@@ -407,6 +407,7 @@ function flushBlurCommittedInputs() {
   const onCommit = () => { needsRender = true; };
   const flushDeferredRender = () => {
     if (!needsRender) return;
+    if (typeof syncChordEditorUneditedText === "function") syncChordEditorUneditedText();
     if (typeof renderSongList === "function") renderSongList();
     if (typeof renderBars === "function") renderBars();
     if (typeof renderLyrics === "function") renderLyrics();
@@ -417,7 +418,7 @@ function flushBlurCommittedInputs() {
   };
   for (const el of candidates) {
     if (typeof el._commitOnSave === "function") {
-      if (el._commitOnSave({ deferRender: true, onCommit }) === false) {
+      if (el._commitOnSave({ deferRender: true, onCommit, skipChordDraftDiscard: true }) === false) {
         flushDeferredRender();
         return false;
       }
