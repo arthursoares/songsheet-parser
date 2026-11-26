@@ -23,10 +23,37 @@
     stale: "Stale — values changed",
     invalid: "Invalid review record",
   };
+  const VALID_INPUT_STATUSES = new Set(["pending", "in_progress", "verified"]);
   let requestToken = 0;
+  let syncedDoc = null;
+  let syncedField = null;
 
   function documentStillCurrent(doc, serialized) {
     return state.doc === doc && JSON.stringify(state.doc) === serialized;
+  }
+
+  function storedFieldReview(doc, field) {
+    const review = doc && doc._meta && doc._meta.review;
+    if (!review || typeof review !== "object" || review.version !== 1) return null;
+    if (!review.fields || typeof review.fields !== "object") return null;
+    const record = review.fields[field];
+    return record && typeof record === "object" ? record : null;
+  }
+
+  function syncInputs() {
+    const fieldEl = $("reviewField");
+    const field = fieldEl && fieldEl.value ? fieldEl.value : "structure";
+    const record = state.doc ? storedFieldReview(state.doc, field) : null;
+    const statusEl = $("reviewStatus");
+    if (statusEl) {
+      statusEl.value = record && VALID_INPUT_STATUSES.has(record.status) ? record.status : "pending";
+    }
+    const evidenceEl = $("reviewEvidence");
+    if (evidenceEl) {
+      evidenceEl.value = record && typeof record.evidence === "string" ? record.evidence : "";
+    }
+    syncedDoc = state.doc || null;
+    syncedField = field;
   }
 
   function rows(summary) {
@@ -45,6 +72,18 @@
         timestamp: record.timestamp || "",
       };
     });
+  }
+
+  function clearSummary() {
+    const body = $("reviewStatusBody");
+    if (body) body.innerHTML = "";
+  }
+
+  function paintLoading() {
+    const body = $("reviewStatusBody");
+    if (body) {
+      body.innerHTML = '<tr><td colspan="4" class="muted">Loading verification status…</td></tr>';
+    }
   }
 
   function paintSummary(summary) {
@@ -97,35 +136,87 @@
     });
   }
 
+  function resetForDocument() {
+    requestToken += 1;
+    syncInputs();
+    clearSummary();
+    const disabled = !state.doc;
+    ["reviewField", "reviewStatus", "reviewReviewer", "reviewEvidence", "reviewRecord"].forEach(
+      (id) => { const el = $(id); if (el) el.disabled = disabled; });
+    const msg = $("reviewMsg");
+    if (msg) msg.textContent = "";
+    if (disabled) {
+      const progress = $("verificationChordProgress");
+      if (progress) progress.textContent = "";
+      const sourceBox = $("reviewSourceIssues");
+      if (sourceBox) {
+        sourceBox.classList?.add("hidden");
+        sourceBox.innerHTML = "";
+      }
+      const flags = $("reviewFlags");
+      if (flags) flags.innerHTML = "";
+    }
+  }
+
   async function refresh() {
     const doc = state.doc;
     const serialized = doc ? JSON.stringify(doc) : "";
     const token = ++requestToken;
     if (!doc) {
-      paintSummary(null);
+      clearSummary();
       return;
     }
-    const result = await api("/api/review-doc", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: `{"doc":${serialized}}`,
-    });
+    paintLoading();
+    let result;
+    try {
+      result = await api("/api/review-doc", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: `{"doc":${serialized}}`,
+      });
+    } catch (error) {
+      if (token !== requestToken) return;
+      if (!documentStillCurrent(doc, serialized)) {
+        if (state.doc) void refresh();
+        else clearSummary();
+        return;
+      }
+      clearSummary();
+      const msg = $("reviewMsg");
+      if (msg) msg.textContent = `Could not read review: ${String(error)}`;
+      return;
+    }
     if (token !== requestToken) return;
     if (!documentStillCurrent(doc, serialized)) {
-      void refresh();
+      if (state.doc) void refresh();
+      else clearSummary();
       return;
     }
-    if (!result.ok) {
-      $("reviewMsg").textContent = `Could not read review: ${result.error || "unknown error"}`;
+    if (!result || !result.ok) {
+      clearSummary();
+      const msg = $("reviewMsg");
+      if (msg) msg.textContent = `Could not read review: ${(result && result.error) || "unknown error"}`;
       return;
+    }
+    const msg = $("reviewMsg");
+    if (msg && msg.textContent && msg.textContent.startsWith("Could not read review:")) {
+      msg.textContent = "";
     }
     paintSummary(result.review);
   }
 
   function render() {
     const disabled = !state.doc;
+    const fieldEl = $("reviewField");
+    const field = fieldEl && fieldEl.value ? fieldEl.value : "structure";
+    if (!state.doc || state.doc !== syncedDoc || field !== syncedField) {
+      syncInputs();
+    }
     const progress = $("verificationChordProgress");
-    if (progress && !disabled) {
+    if (progress && !disabled &&
+        typeof entryCoords === "function" &&
+        typeof chordReviewStatus === "function" &&
+        typeof chordAt === "function") {
       const statuses = entryCoords().map((coords) => chordReviewStatus(chordAt(coords)));
       const reviewed = statuses.filter((status) => status === "reviewed").length;
       const deferred = statuses.filter((status) => status === "deferred").length;
@@ -135,17 +226,16 @@
     }
     ["reviewField", "reviewStatus", "reviewReviewer", "reviewEvidence", "reviewRecord"].forEach(
       (id) => { const el = $(id); if (el) el.disabled = disabled; });
-    $("reviewMsg").textContent = disabled ? "No song loaded." : "";
+    const msg = $("reviewMsg");
+    if (msg) msg.textContent = disabled ? "No song loaded." : "";
     const sourceBox = $("reviewSourceIssues");
     if (sourceBox) {
       const issues = sourceIssues(state.doc);
-      sourceBox.classList.toggle("hidden", !issues.length);
+      sourceBox.classList?.toggle("hidden", !issues.length);
       sourceBox.innerHTML = issues.map((message) => `<p>${esc(message)}</p>`).join("");
     }
     paintFlags();
-    refresh().catch((error) => {
-      $("reviewMsg").textContent = `Could not read review: ${String(error)}`;
-    });
+    void refresh();
   }
 
   async function recordSelected() {
@@ -154,39 +244,46 @@
     const message = $("reviewMsg");
     const doc = state.doc;
     const serialized = JSON.stringify(doc);
-    button.disabled = true;
-    message.textContent = "recording…";
+    const fieldEl = $("reviewField");
+    const field = fieldEl && fieldEl.value ? fieldEl.value : "structure";
+    if (button) button.disabled = true;
+    if (message) message.textContent = "recording…";
     try {
       const result = await api("/api/review-doc", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           doc: JSON.parse(serialized),
-          field: $("reviewField").value,
+          field,
           status: $("reviewStatus").value,
           reviewer: $("reviewReviewer").value,
           evidence: $("reviewEvidence").value,
         }),
       });
+      if (state.doc !== doc) return;
       if (!documentStillCurrent(doc, serialized)) {
-        message.textContent = "Document changed while review was recording; try again.";
+        if (message) message.textContent = "Document changed while review was recording; try again.";
         void refresh();
         return;
       }
-      if (!result.ok) {
-        message.textContent = result.error || "Could not record review.";
+      if (!result || !result.ok) {
+        if (message) message.textContent = (result && result.error) || "Could not record review.";
         return;
       }
+      requestToken += 1;
       pushUndo();
       state.doc = result.doc;
+      syncedDoc = result.doc || null;
+      syncedField = field;
       markDirty();
       renderProvenance();
       paintSummary(result.review);
-      message.textContent = "Recorded in memory — Save song to persist.";
+      if (message) message.textContent = "Recorded in memory — Save song to persist.";
     } catch (error) {
-      message.textContent = `Could not record review: ${String(error)}`;
+      if (state.doc !== doc) return;
+      if (message) message.textContent = `Could not record review: ${String(error)}`;
     } finally {
-      button.disabled = false;
+      if (button) button.disabled = !state.doc;
     }
   }
 
@@ -196,6 +293,8 @@
     rows,
     sourceIssues,
     documentStillCurrent,
+    syncInputs,
+    resetForDocument,
     render,
     refresh,
     recordSelected,
@@ -203,3 +302,4 @@
 });
 
 function renderReview() { ReviewUI.render(); }
+function resetReviewInputs() { ReviewUI.resetForDocument(); }
