@@ -51,14 +51,18 @@ function renderBars() {
     // commit label on blur or Enter (one undo per logical rename)
     let labStart = sec.label || "";
     labInput.addEventListener("focus", () => { labStart = labInput.value; });
-    const commitLabel = () => {
+    const commitLabel = (opts = {}) => {
       const next = labInput.value;
       if (next === labStart) return true;
       pushUndo();
       sec.label = next === "" ? null : next;
       labStart = next;
       markDirty();
-      renderSongList();
+      if (opts?.deferRender) {
+        opts.onCommit?.();
+      } else {
+        renderSongList();
+      }
       return true;
     };
     labInput._commitOnSave = commitLabel;

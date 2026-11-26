@@ -364,35 +364,69 @@ async function openShapeOccurrence(item) {
   if (localStorage.getItem("qaHidePages") === "1") toggleLayoutPane("pages");
 }
 
+function hasClass(el, name) {
+  if (!el) return false;
+  const cl = el.classList;
+  if (cl && typeof cl.contains === "function") return cl.contains(name);
+  const cls = typeof el.className === "string" ? el.className.split(/\s+/) : [];
+  return cls.includes(name);
+}
+
+function isFretboardTextInput(el) {
+  return hasClass(el, "fb-text");
+}
+
 function isBlurCommittedInput(el) {
   if (!el) return false;
   if (el.id === "songNote") return true;
-  const cl = el.classList;
-  if (cl && typeof cl.contains === "function") {
-    return cl.contains("seclabel") || cl.contains("ly-line-edit") || cl.contains("ly-edit");
-  }
-  const cls = typeof el.className === "string" ? el.className.split(/\s+/) : [];
-  return cls.includes("seclabel") || cls.includes("ly-line-edit") || cls.includes("ly-edit");
+  return hasClass(el, "seclabel") || hasClass(el, "ly-line-edit") || hasClass(el, "ly-edit");
 }
 
 function flushBlurCommittedInputs() {
   if (typeof document === "undefined") return true;
   const active = document.activeElement;
-  if (active) {
-    if (typeof active._commitOnSave === "function") {
-      if (active._commitOnSave() === false) return false;
-    } else if (isBlurCommittedInput(active) && typeof active.blur === "function") {
-      active.blur();
-    }
-  }
+  const candidates = [];
+  const seen = new Set();
+  const addCandidate = (el) => {
+    if (!el || seen.has(el) || isFretboardTextInput(el)) return;
+    seen.add(el);
+    candidates.push(el);
+  };
+  addCandidate(active);
   if (typeof document.querySelectorAll === "function") {
     for (const el of document.querySelectorAll(".ly-line-edit, .ly-edit, .seclabel")) {
-      if (el === active) continue;
-      if (typeof el._commitOnSave === "function" && el._commitOnSave() === false) {
-        return false;
-      }
+      addCandidate(el);
     }
   }
+  for (const el of candidates) {
+    if (typeof el._validateOnSave === "function" && el._validateOnSave() === false) {
+      return false;
+    }
+  }
+  let needsRender = false;
+  const onCommit = () => { needsRender = true; };
+  const flushDeferredRender = () => {
+    if (!needsRender) return;
+    if (typeof renderSongList === "function") renderSongList();
+    if (typeof renderBars === "function") renderBars();
+    if (typeof renderLyrics === "function") renderLyrics();
+    if (typeof state === "object" && state && state.activeView === "preview" &&
+        typeof renderPreview === "function") {
+      renderPreview();
+    }
+  };
+  for (const el of candidates) {
+    if (typeof el._commitOnSave === "function") {
+      if (el._commitOnSave({ deferRender: true, onCommit }) === false) {
+        flushDeferredRender();
+        return false;
+      }
+    } else if (el === active && isBlurCommittedInput(el) &&
+        typeof el._validateOnSave !== "function" && typeof el.blur === "function") {
+      el.blur();
+    }
+  }
+  flushDeferredRender();
   return true;
 }
 

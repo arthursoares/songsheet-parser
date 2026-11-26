@@ -872,3 +872,126 @@ test("Regression 3: stranded blurred .ly-line-edit and .ly-edit flush on #saveBt
   lyEdit.blur();
   assert.equal(app.state.dirty, false);
 });
+
+test("Regression 4 (R2-Edge8): Cmd+S commits both valid stranded .ly-line-edit and active .ly-line-edit via deferred render", async () => {
+  const app = await createAppHarness({ lyMode: "text" });
+  app.context.openEditor(0, 0, 0);
+  app.dom.get("edName").value = "Cmaj7";
+
+  app.context.showView("lyrics");
+  const edits = app.dom.get("lyrics").querySelectorAll(".ly-line-edit");
+  assert.equal(edits.length, 2);
+
+  // Edit row 0, focus row 1 while declining confirmChordDraftDiscard() so row 0 stays stranded
+  edits[0].focus();
+  edits[0].value = "_one _two _three";
+  app.confirmQueue.push(false);
+  edits[1].focus();
+  assert.equal(app.state.doc.songs[0].sections[0].bars[0][0].text, "hel-");
+
+  // Edit active row 1 and press Cmd+S confirming discard -> both rows must save
+  edits[1].value = "_four";
+  app.confirmQueue.push(true);
+  app.cmdS(edits[1]);
+  await new Promise((r) => setImmediate(r));
+
+  const posts = app.apiCalls.filter((c) => c.path.startsWith("/api/song/") && c.opts?.method === "POST");
+  assert.equal(posts.length, 1);
+  const savedDoc = JSON.parse(posts[0].opts.body);
+  assert.equal(savedDoc.songs[0].sections[0].bars[0][0].text, "one");
+  assert.equal(savedDoc.songs[0].sections[0].bars[0][1].text, "two");
+  assert.equal(savedDoc.songs[0].sections[0].bars[1][0].text, "three");
+  assert.equal(savedDoc.songs[0].sections[1].bars[0][0].text, "four");
+  assert.equal(savedDoc.songs[0].sections[0].bars[0][0].chord, "C");
+  assert.equal(app.state.dirty, false);
+});
+
+test("Regression 5 (R2-Edge4): invalid stranded .ly-line-edit blocks Cmd+S from active valid row and keeps live error", async () => {
+  const app = await createAppHarness({ lyMode: "text" });
+  app.context.showView("lyrics");
+  const edits = app.dom.get("lyrics").querySelectorAll(".ly-line-edit");
+  const errs = app.dom.get("lyrics").querySelectorAll(".ly-line-err");
+  assert.equal(edits.length, 2);
+
+  // Blur row 0 with invalid markers -> displays .ly-line-err and stays in DOM
+  edits[0].focus();
+  edits[0].value = "invalid missing markers";
+  edits[1].focus();
+  assert.match(errs[0].textContent, /needs exactly 3 markers/);
+
+  // Enter valid markers in row 1 and press Cmd+S -> must block with 0 POSTs and zero mutation
+  edits[1].value = "_four";
+  app.cmdS(edits[1]);
+  await new Promise((r) => setImmediate(r));
+
+  const posts = app.apiCalls.filter((c) => c.path.startsWith("/api/song/") && c.opts?.method === "POST");
+  assert.equal(posts.length, 0);
+  assert.equal(app.dom.get("saveStatus").style.color, "var(--bad)");
+  assert.equal(app.state.dirty, false);
+  assert.equal(app.state.doc.songs[0].sections[0].bars[0][0].text, "hel-");
+  assert.equal(app.state.doc.songs[0].sections[1].bars[0][0].text, undefined);
+
+  const liveEdits = app.dom.get("lyrics").querySelectorAll(".ly-line-edit");
+  const liveErrs = app.dom.get("lyrics").querySelectorAll(".ly-line-err");
+  assert.equal(liveEdits[0], edits[0]);
+  assert.equal(liveEdits[0].value, "invalid missing markers");
+  assert.match(liveErrs[0].textContent, /needs exactly 3 markers/);
+  assert.equal(liveEdits[1].value, "_four");
+});
+
+test("Regression 6 (R2-Edge1 / R2-Edge5): valid stranded row + invalid stranded row keeps live error and blocks retry saves", async () => {
+  const app = await createAppHarness({ lyMode: "text" });
+  app.context.openEditor(0, 0, 0);
+  app.dom.get("edName").value = "Cmaj7";
+
+  app.context.showView("lyrics");
+  const edits = app.dom.get("lyrics").querySelectorAll(".ly-line-edit");
+  const errs = app.dom.get("lyrics").querySelectorAll(".ly-line-err");
+  assert.equal(edits.length, 2);
+
+  // Strand valid row 0 (decline confirm) and invalid row 1 (blur fails validation)
+  edits[0].focus();
+  edits[0].value = "_one _two _three";
+  app.confirmQueue.push(false);
+  edits[1].focus();
+  edits[1].value = "invalid no markers";
+  app.dom.get("saveBtn").focus();
+  assert.match(errs[1].textContent, /needs exactly 1 markers/);
+
+  // 1st click on #saveBtn (confirm OK) -> blocks in Phase 1, preserves live DOM & error text
+  app.confirmQueue.push(true);
+  app.dom.get("saveBtn").click();
+  await new Promise((r) => setImmediate(r));
+  assert.equal(app.apiCalls.filter((c) => c.opts?.method === "POST").length, 0);
+  assert.equal(app.dom.get("saveStatus").style.color, "var(--bad)");
+  assert.equal(app.state.dirty, false);
+  assert.equal(app.state.doc.songs[0].sections[0].bars[0][0].text, "hel-");
+
+  const liveEdits = app.dom.get("lyrics").querySelectorAll(".ly-line-edit");
+  const liveErrs = app.dom.get("lyrics").querySelectorAll(".ly-line-err");
+  assert.equal(liveEdits[0], edits[0]);
+  assert.equal(liveEdits[0].value, "_one _two _three");
+  assert.equal(liveEdits[1], edits[1]);
+  assert.equal(liveEdits[1].value, "invalid no markers");
+  assert.match(liveErrs[1].textContent, /needs exactly 1 markers/);
+
+  // 2nd click on #saveBtn -> STILL blocks with 0 POSTs (not silently dropped on retry)
+  app.confirmQueue.push(true);
+  app.dom.get("saveBtn").click();
+  await new Promise((r) => setImmediate(r));
+  assert.equal(app.apiCalls.filter((c) => c.opts?.method === "POST").length, 0);
+  assert.equal(app.dom.get("lyrics").querySelectorAll(".ly-line-edit")[1].value, "invalid no markers");
+  assert.match(app.dom.get("lyrics").querySelectorAll(".ly-line-err")[1].textContent, /needs exactly 1 markers/);
+
+  // Fixing row 1 and saving flushes both rows cleanly
+  edits[1].value = "_four";
+  app.confirmQueue.push(true);
+  app.dom.get("saveBtn").click();
+  await new Promise((r) => setImmediate(r));
+  const posts = app.apiCalls.filter((c) => c.path.startsWith("/api/song/") && c.opts?.method === "POST");
+  assert.equal(posts.length, 1);
+  const savedDoc = JSON.parse(posts[0].opts.body);
+  assert.equal(savedDoc.songs[0].sections[0].bars[0][0].text, "one");
+  assert.equal(savedDoc.songs[0].sections[1].bars[0][0].text, "four");
+  assert.equal(app.state.dirty, false);
+});

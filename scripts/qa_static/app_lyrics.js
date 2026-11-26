@@ -90,11 +90,11 @@ function renderLyricsText(root) {
       errEl.className = "ly-line-err";
       const prevRef = prevEntry; // entry preceding this row, frozen at render
       let cancelled = false;
-      const commit = () => {
-        if (cancelled) return true;
+      const parseDraft = () => {
+        if (cancelled) return null;
         if (input.value === original) {
           errEl.textContent = "";
-          return true;
+          return null;
         }
         const parsed = window.DocOps.parseLyricLine(input.value, entries.length);
         if (parsed === null) {
@@ -104,6 +104,13 @@ function renderLyricsText(root) {
           return false;
         }
         errEl.textContent = "";
+        return parsed;
+      };
+      const validate = () => parseDraft() !== false;
+      const commit = (opts = {}) => {
+        const parsed = parseDraft();
+        if (parsed === false) return false;
+        if (parsed === null) return true;
         if (!prepareLyricEdit()) return false;
         original = input.value;
         pushUndo();
@@ -116,10 +123,15 @@ function renderLyricsText(root) {
           if (frag) e.text = frag; else delete e.text;
         });
         markDirty();
-        renderBars();
-        renderLyrics();
+        if (opts?.deferRender) {
+          opts.onCommit?.();
+        } else {
+          renderBars();
+          renderLyrics();
+        }
         return true;
       };
+      input._validateOnSave = validate;
       input._commitOnSave = commit;
       input.addEventListener("keydown", (ev) => {
         if (ev.key === "Enter") { ev.preventDefault(); commit(); }
@@ -565,7 +577,7 @@ function editLyricToken(column, text, entry, word, wordIndex) {
   input.focus();
   input.select();
   let done = false;
-  const commit = () => {
+  const commit = (opts = {}) => {
     if (done) return true;
     const next = window.DocOps.replaceTextToken(entry.text, wordIndex, input.value);
     if (next !== null && next !== entry.text) {
@@ -574,11 +586,20 @@ function editLyricToken(column, text, entry, word, wordIndex) {
       pushUndo();
       if (next) entry.text = next; else delete entry.text;
       markDirty();
-      renderBars();
+      if (opts?.deferRender) {
+        opts.onCommit?.();
+      } else {
+        renderBars();
+        renderLyrics();
+      }
     } else {
       done = true;
+      if (opts?.deferRender) {
+        opts.onCommit?.();
+      } else {
+        renderLyrics();
+      }
     }
-    renderLyrics();
     return true;
   };
   input._commitOnSave = commit;
