@@ -116,8 +116,14 @@ function updateProgress() {
 
 // If there are unsaved edits, confirm before switching away. Returns true to proceed.
 function confirmDiscard() {
-  if (!state.dirty) return true;
-  return confirm("Discard unsaved changes?");
+  const jsonEdits = typeof hasUnappliedJsonEdits === "function" && hasUnappliedJsonEdits();
+  if (!state.dirty && !jsonEdits) return true;
+  const msg = state.dirty && jsonEdits
+    ? "Discard unsaved changes and unapplied JSON edits?"
+    : jsonEdits
+      ? "Discard unapplied JSON edits?"
+      : "Discard unsaved changes?";
+  return confirm(msg);
 }
 
 // Move to the next/previous song in the current filtered sidebar list
@@ -149,6 +155,7 @@ function showEmpty() {
   renderProvenance();
   syncCurrentSongTitle();
   renderSongList();
+  if (typeof resetJsonEditorState === "function") resetJsonEditorState();
   showView("bars");
   if (typeof updateChordReviewEntryPoint === "function") updateChordReviewEntryPoint();
 }
@@ -173,6 +180,7 @@ function clearSongForLoad(message, view = "bars") {
   renderProvenance();
   syncCurrentSongTitle();
   renderSongList();
+  if (typeof resetJsonEditorState === "function") resetJsonEditorState();
   showView(view);
 }
 
@@ -358,6 +366,11 @@ async function openShapeOccurrence(item) {
 function save() {
   if (!state.doc) return Promise.resolve();
   if (savePromise) return savePromise;
+  if (typeof hasUnappliedJsonEdits === "function" && hasUnappliedJsonEdits()) {
+    if (typeof jsonApply !== "function" || !jsonApply()) {
+      return Promise.resolve({ ok: false, error: "Invalid JSON edits" });
+    }
+  }
   const button = $("saveBtn");
   if (button) button.disabled = true;
   savePromise = saveOnce().finally(() => {
@@ -368,5 +381,5 @@ function save() {
 }
 
 if (typeof module === "object" && module.exports) {
-  module.exports = { fillSongs, loadSong, renderSongList, save };
+  module.exports = { confirmDiscard, fillSongs, loadSong, renderSongList, save };
 }

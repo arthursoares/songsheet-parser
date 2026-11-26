@@ -286,9 +286,12 @@
   #cmSource.hidden{display:none}
   #json{display:flex;flex-direction:column;height:calc(100vh - var(--qa-header-height,49px) - 51px)}
   #json.hidden{display:none}
-  #json .row{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+  #json .row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:8px}
+  .json-dirty-badge{display:inline-flex;align-items:center;gap:5px;padding:2px 9px;border-radius:20px;border:1px solid #d29922;background:#2a2113;color:#e3b341;font-size:12px;font-weight:600}
+  #jsonDirtyBadge.hidden{display:none}
   #jsonMsg.err{color:var(--bad)}
   #jsonMsg.ok{color:var(--ok)}
+  #jsonMsg.clickable,#jsonMsg.jumpable{cursor:pointer;text-decoration:underline dotted}
   #jsonSource{flex:1;width:100%;box-sizing:border-box;background:var(--bg-deep);color:#cfe3d8;border:1px solid var(--border);border-radius:8px;padding:10px;font:12px/1.55 ui-monospace,monospace;resize:none;white-space:pre;tab-size:2;overflow:auto}
   #previewFrame{flex:1;height:100%;border:1px solid var(--border);border-radius:8px;background:var(--paper)}
   .drow{border:1px solid var(--border);border-radius:8px;padding:8px;margin-bottom:8px;background:var(--panel)}
@@ -520,6 +523,7 @@
           <dt><kbd>N</kbd> / <kbd>P</kbd></dt><dd>Next / previous song</dd>
           <dt><kbd>\</kbd></dt><dd>Toggle PDF scan pane</dd>
           <dt><kbd>⌘/Ctrl</kbd>+<kbd>S</kbd></dt><dd>Save song</dd>
+          <dt><kbd>⌘/Ctrl</kbd>+<kbd>Enter</kbd></dt><dd>Apply JSON edits to model (JSON tab)</dd>
           <dt><kbd>⌘/Ctrl</kbd>+<kbd>Z</kbd></dt><dd>Undo</dd>
           <dt><kbd>⌘⇧Z</kbd> / <kbd>Ctrl+Y</kbd></dt><dd>Redo</dd>
           <dt><kbd>Enter</kbd></dt><dd>Apply and mark reviewed in the chord name or anchored lyric field. Apply edits in fretboard or song lyric fields.</dd>
@@ -719,9 +723,10 @@
     </div>
     <div id="json" class="hidden">
       <div class="row">
-        <button id="jsonApply" class="btn-primary">Apply to model</button>
+        <button id="jsonApply" class="btn-primary" title="Apply JSON edits to model (⌘Enter / Ctrl+Enter)">Apply to model</button>
         <button id="jsonReload" class="tab">Reload from model</button>
         <button id="jsonFormat" class="tab">Format</button>
+        <span id="jsonDirtyBadge" class="json-dirty-badge hidden" role="status" aria-live="polite" hidden>Unapplied JSON edits</span>
         <span id="jsonMsg" class="muted"></span>
       </div>
       <div id="jsonEditor"></div>
