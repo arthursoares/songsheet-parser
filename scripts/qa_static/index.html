@@ -312,6 +312,7 @@
   .dmergeform input[type=text]{background:var(--field);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:6px}
   .dmergeform button{border-radius:6px;padding:6px 12px;border:1px solid var(--border);background:var(--panel);color:var(--text);cursor:pointer}
   .dmergeform button.apply{background:var(--accent);color:var(--accent-ink);border:0;font-weight:600}
+  .dmergeform .err{flex-basis:100%;margin-top:0}
   .dsort{display:flex;gap:6px;align-items:center;color:var(--muted);font-size:12px;margin-bottom:8px}
   .ed-actions{display:flex;gap:8px;margin-top:16px}
   .ed-actions button{flex:1;border-radius:6px;padding:9px;border:1px solid var(--border);background:var(--panel);color:var(--text);cursor:pointer}
@@ -491,27 +492,27 @@
           <dt><kbd>L</kbd> / <kbd>→</kbd> / <kbd>]</kbd></dt><dd>Next chord</dd>
           <dt><kbd>J</kbd> / <kbd>↓</kbd></dt><dd>Next bar</dd>
           <dt><kbd>K</kbd> / <kbd>↑</kbd></dt><dd>Previous bar</dd>
-          <dt class="flagged"><kbd>Shift</kbd>+<kbd>←</kbd> / <kbd>{</kbd></dt><dd class="flagged">Previous flagged chord</dd>
-          <dt class="flagged"><kbd>Shift</kbd>+<kbd>→</kbd> / <kbd>}</kbd></dt><dd class="flagged">Next flagged chord</dd>
+          <dt class="flagged"><kbd>Shift</kbd>+<kbd>←</kbd> / <kbd>{</kbd></dt><dd class="flagged">Previous flagged chord (also <kbd>Shift</kbd>+<kbd>H</kbd> in Chord Review)</dd>
+          <dt class="flagged"><kbd>Shift</kbd>+<kbd>→</kbd> / <kbd>}</kbd></dt><dd class="flagged">Next flagged chord (also <kbd>Shift</kbd>+<kbd>L</kbd> in Chord Review)</dd>
         </dl>
       </section>
       <section class="shortcut-group">
         <h3>Arrange chords</h3>
         <dl class="shortcut-list">
-          <dt><kbd>Shift</kbd>+<kbd>H</kbd></dt><dd>Move earlier within bar</dd>
-          <dt><kbd>Shift</kbd>+<kbd>L</kbd></dt><dd>Move later within bar</dd>
-          <dt><kbd>Shift</kbd>+<kbd>J</kbd></dt><dd>Move to next bar</dd>
-          <dt><kbd>Shift</kbd>+<kbd>K</kbd></dt><dd>Move to previous bar</dd>
-          <dt><kbd>1</kbd>–<kbd>4</kbd></dt><dd>Apply numbered chord name</dd>
+          <dt><kbd>Shift</kbd>+<kbd>H</kbd></dt><dd>Move earlier within bar (Bars)</dd>
+          <dt><kbd>Shift</kbd>+<kbd>L</kbd></dt><dd>Move later within bar (Bars)</dd>
+          <dt><kbd>Shift</kbd>+<kbd>J</kbd></dt><dd>Move to next bar (Bars)</dd>
+          <dt><kbd>Shift</kbd>+<kbd>K</kbd></dt><dd>Move to previous bar (Bars)</dd>
+          <dt><kbd>1</kbd>–<kbd>4</kbd></dt><dd>Apply numbered chord name and mark reviewed</dd>
         </dl>
       </section>
       <section class="shortcut-group">
         <h3>Chord review</h3>
         <dl class="shortcut-list">
-          <dt><kbd>A</kbd></dt><dd>Apply edits with the printed fingering, mark reviewed and advance</dd>
+          <dt><kbd>A</kbd></dt><dd>Apply printed voicing (when different), mark reviewed and advance</dd>
           <dt><kbd>R</kbd></dt><dd>Mark reviewed and stay in Bars or Chord Review</dd>
           <dt><kbd>Space</kbd></dt><dd>Apply edits, mark reviewed and advance in Bars or Chord Review</dd>
-          <dt><kbd>S</kbd></dt><dd>Defer this chord</dd>
+          <dt><kbd>S</kbd></dt><dd>Defer this chord (advances in Chord Review)</dd>
         </dl>
       </section>
       <section class="shortcut-group">
@@ -602,7 +603,7 @@
             <button id="chordReviewSkip" type="button" aria-keyshortcuts="S">Defer <span class="chord-review-key">S</span></button>
             <button id="chordReviewEdit" type="button">Edit chord</button>
           </div>
-          <div class="chord-review-help">Shift + ← / → (or { / }) moves between flagged chords.</div>
+          <div class="chord-review-help">Shift + ← / →, Shift + H / L, or { / } moves between flagged chords.</div>
         </div>
       </section>
     </div>

@@ -130,10 +130,19 @@ async function init() {
   }
 
   $("nextFlagBtn").addEventListener("click", () => {
-    if (state.activeView === "chordReview") moveChordReview(1, true);
-    else nextFlagged();
+    if (state.activeView === "chordReview") {
+      if (typeof moveChordReview === "function") moveChordReview(1, true);
+    } else nextFlagged();
   });
   document.addEventListener("keydown", onKeydown);
+  document.addEventListener("pointerdown", () => { keyboardFocus = false; }, true);
+  document.addEventListener("mousedown", () => { keyboardFocus = false; }, true);
+  document.addEventListener("click", (ev) => {
+    const btn = ev.target?.closest?.("button");
+    if (btn && ev.detail > 0 && !btn.hasAttribute("aria-pressed")) {
+      btn.blur?.();
+    }
+  });
   const header = document.querySelector("header");
   const syncHeaderHeight = () => {
     document.documentElement.style.setProperty("--qa-header-height", `${header.offsetHeight}px`);
@@ -176,21 +185,25 @@ function showShortcutDialog() {
   if (!dialog.open) dialog.showModal();
 }
 
+let keyboardFocus = false;
+
 function handleChordWorkspaceKey(ev) {
   const reviewing = state.activeView === "chordReview";
   if ((!reviewing && state.activeView !== "bars") || !state.doc || ev.defaultPrevented) return false;
-  const key = ev.key.toLowerCase();
-  if (ev.shiftKey && /^[hjkl]$/.test(key)) {
+  const key = String(ev.key || "").toLowerCase();
+  if (!reviewing && ev.shiftKey && /^[hjkl]$/.test(key)) {
     const selection = activeChordSelection();
-    if (selection && !ev.repeat) {
+    if (selection && !ev.repeat && typeof moveChordSelection === "function") {
       moveChordSelection(selection, key === "h" || key === "k" ? -1 : 1, key === "h" || key === "l");
     }
     return true;
   }
+  if (reviewing && ev.shiftKey && (key === "j" || key === "k")) return false;
   if (key === "h" || key === "l" || key === "arrowleft" || key === "arrowright") {
     const dir = key === "h" || key === "arrowleft" ? -1 : 1;
-    if (reviewing) moveChordReview(dir, ev.shiftKey);
-    else if (ev.shiftKey) stepFlagged(dir);
+    if (reviewing) {
+      if (typeof moveChordReview === "function") moveChordReview(dir, ev.shiftKey);
+    } else if (ev.shiftKey) stepFlagged(dir);
     else stepEntry(dir);
     return true;
   }
@@ -208,26 +221,49 @@ function handleChordWorkspaceKey(ev) {
   const advance = key === " " || ev.code === "Space";
   if (key === "a" && !reviewing) {
     if (!state.sel || !$("editor").classList.contains("open")) return false;
-    if (!ev.repeat) submitActiveChord({ usePrinted: true, advance: true });
+    if (!ev.repeat && typeof submitActiveChord === "function") submitActiveChord({ usePrinted: true, advance: true });
+    return true;
+  }
+  if (key === "s" && !reviewing) {
+    const selection = activeChordSelection();
+    const entry = selection && typeof song === "function"
+      ? song()?.sections?.[selection.si]?.bars?.[selection.bi]?.[selection.ei]
+      : null;
+    const defer = $("editor").classList.contains("open") && $("edDeferReview");
+    if (!selection || !defer || entry?.chord === "%") return false;
+    if (!ev.repeat) defer.click();
     return true;
   }
   if (key === "r" || advance) {
-    if (advance && ev.target?.tagName === "BUTTON") return false;
+    if (advance && ev.target?.tagName === "BUTTON") {
+      const fromKeyboard = keyboardFocus || Boolean(ev.target.matches?.(":focus-visible"));
+      if (fromKeyboard) return false;
+      ev.target.blur?.();
+    }
     const selection = activeChordSelection();
     const mark = !reviewing && $("editor").classList.contains("open") && $("edMarkReviewed");
     if (!selection || (!reviewing && !mark)) return false;
     if (ev.repeat) return true;
-    if (reviewing) decideChordReview("keep", advance);
-    else if (advance) submitActiveChord({ advance: true });
-    else mark.click();
+    if (reviewing) {
+      if (typeof decideChordReview === "function") decideChordReview("keep", advance);
+    } else if (advance) {
+      if (typeof submitActiveChord === "function") submitActiveChord({ advance: true });
+    } else {
+      mark.click();
+    }
     return true;
   }
-  return reviewing && handleChordReviewKey(ev);
+  return reviewing && typeof handleChordReviewKey === "function" && handleChordReviewKey(ev);
 }
 
 // Global keyboard shortcuts. We ignore most keys while typing in a field,
 // except ⌘S/Ctrl+S (Save) and Esc (close editor), which work everywhere.
 function onKeydown(ev) {
+  if (ev.key === "Tab") {
+    keyboardFocus = true;
+  } else if (ev.key && !["Shift", "Control", "Alt", "Meta"].includes(ev.key) && ev.target?.tagName !== "BUTTON") {
+    keyboardFocus = false;
+  }
   if ($("shortcutDialog").open) return;
   const el = ev.target;
   const inCM = el && el.closest && el.closest(".CodeMirror");

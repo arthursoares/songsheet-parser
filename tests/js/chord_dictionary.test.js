@@ -79,3 +79,63 @@ test("mergeEntries collapses groups onto the canonical name+voicing", () => {
     ],
   );
 });
+
+test("validateVoicing accepts canonical, blank, and all-muted voicings while normalizing", () => {
+  assert.deepEqual(Dict.validateVoicing("x,3,2,0,1,0"), { valid: true, normalized: "x,3,2,0,1,0" });
+  assert.deepEqual(Dict.validateVoicing("0,24,0,0,0,0"), { valid: true, normalized: "0,24,0,0,0,0" });
+  assert.deepEqual(Dict.validateVoicing(" X, 03, 2, 0, 1, 0 "), { valid: true, normalized: "x,3,2,0,1,0" });
+  assert.deepEqual(Dict.validateVoicing(""), { valid: true, normalized: "" });
+  assert.deepEqual(Dict.validateVoicing("   "), { valid: true, normalized: "" });
+  assert.deepEqual(Dict.validateVoicing(null), { valid: true, normalized: "" });
+  assert.deepEqual(Dict.validateVoicing(undefined), { valid: true, normalized: "" });
+  assert.deepEqual(Dict.validateVoicing("x,x,x,x,x,x"), { valid: true, normalized: "" });
+  assert.deepEqual(Dict.validateVoicing("X, X, x, x, X, x"), { valid: true, normalized: "" });
+});
+
+test("validateVoicing rejects malformed voicings and out-of-range frets", () => {
+  for (const bad of [
+    "x32010",
+    "x,3,2,0,1",
+    "x,3,2,0,1,0,0",
+    "x,3,2,0,1,25",
+    "-1,0,0,0,0,0",
+    "x,3,2,0,a,0",
+    "x,,2,0,1,0",
+    "x,3,2,0,1,0,",
+  ]) {
+    const res = Dict.validateVoicing(bad);
+    assert.equal(res.valid, false, `expected invalid for ${bad}`);
+    assert.ok(res.error && res.error.length > 0);
+  }
+});
+
+test("mergeEntries rejects invalid voicings without mutating and preserves provenance on valid merges", () => {
+  const song = makeSong();
+  song._meta = { extraction_sources: { s1: {} } };
+  const target = song.sections[0].bars[0][0];
+  target.voicing_printed = "x,5,7,5,6,5";
+  target.observation_id = "obs-dm7";
+  target.text = "hello";
+  target.chord_review = { status: "deferred", snapshot: { chord: "Dm7" } };
+  const snapshot = JSON.stringify(song);
+
+  const keys = [Dict.entryKey("Dm7", "x,5,7,5,6,x"), Dict.entryKey("Dm7", "x,5,7,5,6,5")];
+  assert.equal(Dict.mergeEntries(song, keys, { chord: "Dm7", voicing: "x32010" }), 0);
+  assert.equal(Dict.mergeEntries(song, keys, { chord: "Dm7", voicing: "x,5,7,5,6,25" }), 0);
+  assert.equal(JSON.stringify(song), snapshot);
+
+  // Valid normalized merge preserves provenance fields
+  assert.equal(Dict.mergeEntries(song, keys, { chord: "Dm7", voicing: " X, 05, 7, 5, 6, 5 " }), 3);
+  assert.equal(target.voicing, "x,5,7,5,6,5");
+  assert.equal(target.voicing_printed, "x,5,7,5,6,5");
+  assert.equal(target.observation_id, "obs-dm7");
+  assert.equal(target.text, "hello");
+  assert.deepEqual(target.chord_review, { status: "deferred", snapshot: { chord: "Dm7" } });
+  assert.deepEqual(song._meta, { extraction_sources: { s1: {} } });
+
+  // Clearing via all-muted "x,x,x,x,x,x" deletes e.voicing while keeping provenance
+  assert.equal(Dict.mergeEntries(song, [Dict.entryKey("Dm7", "x,5,7,5,6,5")], { chord: "Dm7", voicing: "x,x,x,x,x,x" }), 3);
+  assert.equal("voicing" in target, false);
+  assert.equal(target.voicing_printed, "x,5,7,5,6,5");
+  assert.equal(target.observation_id, "obs-dm7");
+});

@@ -128,16 +128,18 @@ function renderChordReview(focus = false) {
   $("chordReviewDiagram").innerHTML = window.ChordDiagram.svg(entry.voicing);
   const voicing = entry.voicing ? parseVoicing(entry.voicing) : [];
   renderChordSuggestions($("chordReviewSuggestions"), voicing, (name) => {
-    if (entry.chord === name || !window.ChordNaming.validateName(name).valid) return;
+    if (!window.ChordNaming.validateName(name).valid) return;
+    if (entry.chord === name && chordReviewStatus(entry) === "reviewed") return;
     pushUndo();
     entry.chord = name;
+    setChordReviewStatus(entry, "reviewed");
     markDirty();
     renderBars();
     syncChordChip(selection, true);
-    $("chordReviewMessage").textContent = "Chord name applied.";
+    $("chordReviewMessage").textContent = "Chord name applied and chord reviewed.";
   });
   $("chordReviewProposed").textContent = entry.voicing_printed || "";
-  $("chordReviewAccept").disabled = !entry.voicing_printed || entry.voicing === entry.voicing_printed;
+  $("chordReviewAccept").disabled = !entry.voicing_printed || (entry.voicing || "") === entry.voicing_printed;
   $("chordReviewPrev").disabled = chordReview.index === 0;
   $("chordReviewNext").disabled = chordReview.index === coords.length - 1;
 
@@ -187,7 +189,12 @@ function decideChordReview(action, advance = true) {
   const selection = coords[chordReview.index];
   if (!selection) return;
   const entry = chordAt(selection);
-  if (action === "accept" && (!entry.voicing_printed || entry.voicing === entry.voicing_printed)) return;
+  if (action === "accept" && (!entry.voicing_printed || (entry.voicing || "") === entry.voicing_printed)) {
+    $("chordReviewMessage").textContent = !entry.voicing_printed
+      ? "No printed voicing is available for this chord."
+      : "Printed voicing is already applied. Press Space to review and advance.";
+    return;
+  }
   const status = action === "skip" ? "deferred" : "reviewed";
   const changed = action === "accept" || chordReviewStatus(entry) !== status;
   if (changed) {
@@ -222,13 +229,20 @@ function toggleChordReview() {
 }
 
 function wireChordReview() {
+  const onPointerClick = (id, fn) => {
+    const btn = $(id);
+    btn?.addEventListener("click", (ev) => {
+      if (!ev || ev.detail > 0) btn.blur?.();
+      fn(ev);
+    });
+  };
   $("chordReviewToggle").addEventListener("click", toggleChordReview);
-  $("chordReviewPrev").addEventListener("click", () => moveChordReview(-1));
-  $("chordReviewNext").addEventListener("click", () => moveChordReview(1));
-  $("chordReviewAccept").addEventListener("click", () => decideChordReview("accept"));
-  $("chordReviewKeep").addEventListener("click", () => decideChordReview("keep"));
-  $("chordReviewSkip").addEventListener("click", () => decideChordReview("skip"));
-  $("chordReviewEdit").addEventListener("click", () => {
+  onPointerClick("chordReviewPrev", () => moveChordReview(-1));
+  onPointerClick("chordReviewNext", () => moveChordReview(1));
+  onPointerClick("chordReviewAccept", () => decideChordReview("accept"));
+  onPointerClick("chordReviewKeep", () => decideChordReview("keep"));
+  onPointerClick("chordReviewSkip", () => decideChordReview("skip"));
+  onPointerClick("chordReviewEdit", () => {
     const coords = chordReviewCoords();
     const selection = coords[chordReview.index];
     if (selection) jumpToEntry(selection);
@@ -247,10 +261,11 @@ function wireChordReview() {
 }
 
 function handleChordReviewKey(ev) {
-  if (ev.key === "[" || ev.key === "]" || ev.key === "{" || ev.key === "}") {
-    moveChordReview(ev.key === "]" || ev.key === "}" ? 1 : -1, ev.key === "{" || ev.key === "}");
+  const key = String(ev.key || "").toLowerCase();
+  if (key === "[" || key === "]" || key === "{" || key === "}") {
+    moveChordReview(key === "]" || key === "}" ? 1 : -1, key === "{" || key === "}");
   } else {
-    const action = ev.key === "a" ? "accept" : ev.key === "s" ? "skip" : "";
+    const action = key === "a" ? "accept" : key === "s" ? "skip" : "";
     if (!action) return false;
     if (!ev.repeat) decideChordReview(action);
   }
