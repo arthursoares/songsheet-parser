@@ -84,7 +84,7 @@ function rerenderAll() {
   if (typeof syncCurrentSongTitle === "function") syncCurrentSongTitle();
   if (typeof syncScanDocument === "function") syncScanDocument();
   renderBars();
-  if (state.sel && wasEditorOpen && state.activeView === "bars" && typeof openEditor === "function") {
+  if (state.sel && wasEditorOpen && typeof openEditor === "function") {
     openEditor(state.sel.si, state.sel.bi, state.sel.ei);
   }
   renderSongList();

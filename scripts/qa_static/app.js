@@ -43,6 +43,10 @@ async function init() {
     KEYS.map((k) => `<option value="${esc(k)}">key: ${esc(k)}</option>`).join("");
   keySel.addEventListener("change", (ev) => {
     if (!state.doc) return;
+    if (typeof confirmChordDraftDiscard === "function" && !confirmChordDraftDiscard()) {
+      keySel.value = songKey();
+      return;
+    }
     pushUndo();
     song().key = ev.target.value || null;
     markDirty();
@@ -92,6 +96,7 @@ async function init() {
   // global flat/sharp spelling toggle — re-renders bars (and editor if open)
   const spellBtn = $("spellToggle");
   spellBtn.addEventListener("click", () => {
+    if (typeof confirmChordDraftDiscard === "function" && !confirmChordDraftDiscard()) return;
     const next = window.ChordNaming.getSpelling() === "sharp" ? "flat" : "sharp";
     window.ChordNaming.setSpelling(next);
     spellBtn.textContent = next === "flat" ? "♭ flat" : "♯ sharp";

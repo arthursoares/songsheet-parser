@@ -298,7 +298,9 @@ function renderChordSuggestions(container, voicing, apply) {
 
 function openEditor(si, bi, ei, focus = false) {
   state.sel = { si, bi, ei };
-  const e = song().sections[si].bars[bi][ei];
+  const currentEntry = () => (state.doc && song()?.sections?.[si]?.bars?.[bi]?.[ei]) || null;
+  const e = currentEntry();
+  if (!e) return;
   const ed = $("editor");
   ed.classList.add("open");
   const barLength = song().sections[si].bars[bi].length;
@@ -355,14 +357,16 @@ function openEditor(si, bi, ei, focus = false) {
   fb.set(curVoicing);
   chordEditorHasDraft = () => {
     if (!ed.classList.contains("open")) return false;
+    const entry = currentEntry();
+    if (!entry) return false;
     if ((typeof fb.isValid === "function" && !fb.isValid()) ||
         (typeof fb.hasUncommittedText === "function" && fb.hasUncommittedText())) {
       return true;
     }
     const strings = fb.get();
     const voicing = strings.every((f) => f === "x") ? "" : strings.join(",");
-    return $("edName").value.trim() !== e.chord ||
-      $("edText").value.trim() !== (e.text || "") || voicing !== (e.voicing || "");
+    return $("edName").value.trim() !== entry.chord ||
+      $("edText").value.trim() !== (entry.text || "") || voicing !== (entry.voicing || "");
   };
   const splitAt = (boundary) => {
     if (chordEditorHasDraft()) {
@@ -379,7 +383,9 @@ function openEditor(si, bi, ei, focus = false) {
   const usePrint = $("edUsePrint");
   if (usePrint) {
     usePrint.addEventListener("click", () => {
-      curVoicing = parseVoicing(e.voicing_printed);
+      const entry = currentEntry();
+      if (!entry || !entry.voicing_printed) return;
+      curVoicing = parseVoicing(entry.voicing_printed);
       fb.set(curVoicing);
       refreshNaming();
     });
@@ -429,21 +435,23 @@ function openEditor(si, bi, ei, focus = false) {
 
   function updateEditorReviewStatus() {
     const label = $("edReviewStatus");
-    if (!label) return;
-    const status = chordReviewStatus(e);
+    const entry = currentEntry();
+    if (!label || !entry) return;
+    const status = chordReviewStatus(entry);
     label.dataset.reviewStatus = status;
     label.textContent = CHORD_REVIEW_LABELS[status];
   }
   for (const [id, status] of [["edMarkReviewed", "reviewed"], ["edDeferReview", "deferred"]]) {
     $(id)?.addEventListener("click", () => {
-      if (e.chord === "%") return;
+      const entry = currentEntry();
+      if (!entry || entry.chord === "%") return;
       if (chordEditorHasDraft()) {
         $("edReviewStatus").textContent = "Apply chord edits before recording review.";
         return;
       }
-      if (chordReviewStatus(e) === status) return;
+      if (chordReviewStatus(entry) === status) return;
       pushUndo();
-      setChordReviewStatus(e, status);
+      setChordReviewStatus(entry, status);
       markDirty();
       renderBars();
       updateEditorReviewStatus();
@@ -473,13 +481,15 @@ function openEditor(si, bi, ei, focus = false) {
     const selected = state.sel;
     if (!ed.classList.contains("open") || state.activeView !== "bars" ||
         !selected || selected.si !== si || selected.bi !== bi || selected.ei !== ei) return false;
+    const entry = currentEntry();
+    if (!entry) return false;
     const name = $("edName").value.trim();
     const v = window.ChordNaming.validateName(name);
     if (!v.valid && name !== "%") {
       $("edErr").textContent = "Not a valid ChordMark chord: " + name;
       return false;
     }
-    if (usePrinted && !e.voicing_printed) {
+    if (usePrinted && !entry.voicing_printed) {
       $("edErr").textContent = "No printed voicing is available for this chord.";
       return false;
     }
@@ -495,17 +505,17 @@ function openEditor(si, bi, ei, focus = false) {
       }
     }
     pushUndo();
-    e.chord = name;
+    entry.chord = name;
     const text = $("edText").value.trim();
-    if (text) e.text = text; else delete e.text;
-    if (usePrinted) e.voicing = e.voicing_printed;
+    if (text) entry.text = text; else delete entry.text;
+    if (usePrinted) entry.voicing = entry.voicing_printed;
     else {
       const vc = fb.get();
-      if (vc.every((f) => f === "x")) delete e.voicing;
-      else e.voicing = vc.join(",");
+      if (vc.every((f) => f === "x")) delete entry.voicing;
+      else entry.voicing = vc.join(",");
     }
-    if (name === "%") delete e.chord_review;
-    else setChordReviewStatus(e, "reviewed");
+    if (name === "%") delete entry.chord_review;
+    else setChordReviewStatus(entry, "reviewed");
     markDirty();
     renderBars();
     $("edErr").textContent = "";

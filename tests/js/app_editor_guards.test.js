@@ -204,6 +204,19 @@ function createMockDom() {
     createTextNode: (t) => Object.assign(createEl("#text"), { textContent: t }),
     getElementById: get,
     querySelector: (sel) => sel === "header" ? header : sel === ".layout" ? layout : null,
+    querySelectorAll(sel) {
+      const parts = sel.split(",").map((s) => s.trim());
+      const seen = new Set();
+      const out = [];
+      for (const root of [documentElement, header, layout, ...byId.values()]) {
+        for (const node of [root, ...allDescendants(root)]) {
+          if (seen.has(node)) continue;
+          seen.add(node);
+          if (parts.some((p) => matchesSelector(node, p))) out.push(node);
+        }
+      }
+      return out;
+    },
     get activeElement() { return activeElement; },
     addEventListener(type, fn) { (docListeners[type] ||= []).push(fn); },
     dispatch(type, ev = {}) {
@@ -285,6 +298,7 @@ async function createAppHarness({
   dom.get("albumSel").tagName = "SELECT";
   dom.get("songSel").tagName = "SELECT";
 
+  let spelling = "sharp";
   const windowObj = {
     DocOps,
     ChordDiagram: { svg: () => "" },
@@ -292,8 +306,8 @@ async function createAppHarness({
       parseKey: (k) => k ? { tonic: k.replace(/m$/, ""), mode: k.endsWith("m") ? "minor" : "major" } : null,
       setKeyTonic() {},
       getKeyTonic: () => "C",
-      getSpelling: () => "sharp",
-      setSpelling() {},
+      getSpelling: () => spelling,
+      setSpelling(next) { spelling = next; },
       validateName: (name) => ({ valid: Boolean(name) && name !== "INVALID_CHORD" }),
       nameMatchesVoicing: () => true,
       suggestNames: () => [{ name: "Cmaj7" }],
@@ -384,6 +398,7 @@ async function createAppHarness({
     context,
     state: vm.runInContext("state", context),
     chordEditorHasDraft: () => vm.runInContext("chordEditorHasDraft()", context),
+    submitActiveChord: () => vm.runInContext("submitActiveChord()", context),
     confirmQueue,
     confirmPrompts,
     apiCalls,
@@ -693,4 +708,167 @@ test("Edge cases: .ly-edit flush on Cmd+S, empty .fb-text on unvoiced chord, and
   // 4) usePrinted (#edUsePrintNext) still works even when .fb-text has invalid text
   app.dom.get("edUsePrintNext").click();
   assert.equal(app.state.doc.songs[0].sections[1].bars[0][0].voicing, "1,3,3,2,1,1");
+});
+
+test("Regression 1: undo/redo while activeView !== bars re-binds #editor to live state.doc for Apply and Cmd+S", async () => {
+  const app = await createAppHarness();
+
+  // Edit chord via editor -> Apply (pushes undo entry)
+  app.context.openEditor(0, 0, 0);
+  app.dom.get("edName").value = "Cmaj7";
+  app.dom.get("edApply").click();
+  assert.equal(app.state.doc.songs[0].sections[0].bars[0][0].chord, "Cmaj7");
+
+  // Switch to preview, then undo() -> #editor must re-bind to undone live state.doc entry ("C")
+  app.context.showView("preview");
+  assert.equal(app.state.activeView, "preview");
+  app.cmdZ(false);
+  assert.equal(app.state.doc.songs[0].sections[0].bars[0][0].chord, "C");
+  assert.equal(app.dom.get("edName").value, "C");
+
+  // Switch back to bars and Apply "C6" -> must mutate live state.doc (not detached pre-undo entry)
+  app.context.showView("bars");
+  app.dom.get("edName").value = "C6";
+  app.dom.get("edApply").click();
+  assert.equal(app.state.doc.songs[0].sections[0].bars[0][0].chord, "C6");
+
+  // Switch to preview, undo() back to "C", redo() to "C6", Cmd+S directly from preview
+  app.context.showView("preview");
+  app.cmdZ(false);
+  assert.equal(app.state.doc.songs[0].sections[0].bars[0][0].chord, "C");
+  app.cmdZ(true);
+  assert.equal(app.state.doc.songs[0].sections[0].bars[0][0].chord, "C6");
+  app.cmdS({ tagName: "DIV" });
+  await new Promise((r) => setImmediate(r));
+
+  let posts = app.apiCalls.filter((c) => c.path.startsWith("/api/song/") && c.opts?.method === "POST");
+  assert.equal(posts.length, 1);
+  assert.equal(JSON.parse(posts[0].opts.body).songs[0].sections[0].bars[0][0].chord, "C6");
+
+  // Switch back to bars, edit to "Dm7", and Cmd+S
+  app.context.showView("bars");
+  app.dom.get("edName").value = "Dm7";
+  app.cmdS({ tagName: "DIV" });
+  await new Promise((r) => setImmediate(r));
+
+  posts = app.apiCalls.filter((c) => c.path.startsWith("/api/song/") && c.opts?.method === "POST");
+  assert.equal(posts.length, 2);
+  assert.equal(app.state.doc.songs[0].sections[0].bars[0][0].chord, "Dm7");
+  assert.equal(JSON.parse(posts[1].opts.body).songs[0].sections[0].bars[0][0].chord, "Dm7");
+
+  // Defense-in-depth: even if state.doc is swapped directly without rerenderAll(), submitActiveChord mutates live entry
+  const detachedDoc = app.state.doc;
+  app.state.doc = JSON.parse(JSON.stringify(detachedDoc));
+  app.dom.get("edName").value = "Em7";
+  assert.equal(app.chordEditorHasDraft(), true);
+  assert.equal(app.submitActiveChord(), true);
+  assert.equal(app.state.doc.songs[0].sections[0].bars[0][0].chord, "Em7");
+  assert.equal(detachedDoc.songs[0].sections[0].bars[0][0].chord, "Dm7");
+});
+
+test("Regression 2: #keySel change and #spellToggle click guard unapplied chord drafts without double-prompting", async () => {
+  const app = await createAppHarness();
+  app.context.openEditor(0, 0, 0);
+  app.dom.get("edName").value = "Cmaj7";
+  assert.equal(app.chordEditorHasDraft(), true);
+
+  // Cancel #keySel change -> restores keySel.value, preserves song().key, dirty=false, and draft
+  app.confirmQueue.push(false);
+  app.dom.get("keySel").value = "G";
+  app.dom.get("keySel").dispatch("change");
+  assert.equal(app.confirmPrompts.length, 1);
+  assert.equal(app.dom.get("keySel").value, "C");
+  assert.equal(app.state.doc.songs[0].key, "C");
+  assert.equal(app.state.dirty, false);
+  assert.equal(app.dom.get("edName").value, "Cmaj7");
+  assert.equal(app.chordEditorHasDraft(), true);
+
+  // Cancel #spellToggle click -> keeps spelling "sharp" and preserves draft
+  app.confirmQueue.push(false);
+  app.dom.get("spellToggle").click();
+  assert.equal(app.confirmPrompts.length, 2);
+  assert.equal(app.context.window.ChordNaming.getSpelling(), "sharp");
+  assert.equal(app.dom.get("edName").value, "Cmaj7");
+  assert.equal(app.chordEditorHasDraft(), true);
+
+  // Confirm #keySel change -> prompts once, updates key, and refreshes #editor
+  app.confirmQueue.push(true);
+  app.dom.get("keySel").value = "G";
+  app.dom.get("keySel").dispatch("change");
+  assert.equal(app.confirmPrompts.length, 3);
+  assert.equal(app.state.doc.songs[0].key, "G");
+  assert.equal(app.dom.get("edName").value, "C");
+  assert.equal(app.chordEditorHasDraft(), false);
+
+  // Create new draft and confirm #spellToggle -> prompts once, switches spelling, refreshes #editor
+  app.dom.get("edName").value = "Dm7";
+  assert.equal(app.chordEditorHasDraft(), true);
+  app.confirmQueue.push(true);
+  app.dom.get("spellToggle").click();
+  assert.equal(app.confirmPrompts.length, 4);
+  assert.equal(app.context.window.ChordNaming.getSpelling(), "flat");
+  assert.equal(app.dom.get("spellToggle").textContent, "♭ flat");
+  assert.equal(app.dom.get("edName").value, "C");
+  assert.equal(app.chordEditorHasDraft(), false);
+});
+
+test("Regression 3: stranded blurred .ly-line-edit and .ly-edit flush on #saveBtn save()", async () => {
+  const app = await createAppHarness({ lyMode: "text" });
+  app.context.openEditor(0, 0, 0);
+  app.dom.get("edName").value = "Cmaj7";
+
+  // Edit .ly-line-edit and blur onto #saveBtn while declining confirmChordDraftDiscard()
+  app.context.showView("lyrics");
+  const lyInput = app.dom.get("lyrics").querySelector(".ly-line-edit");
+  lyInput.focus();
+  lyInput.value = "_one _two _three";
+  app.confirmQueue.push(false);
+  app.dom.get("saveBtn").focus(); // blurs lyInput onto saveBtn
+  assert.equal(app.state.doc.songs[0].sections[0].bars[0][0].text, "hel-");
+  assert.equal(app.dom.document.activeElement, app.dom.get("saveBtn"));
+
+  // Clicking #saveBtn while still declining discard blocks save() and preserves both drafts
+  app.confirmQueue.push(false);
+  app.dom.get("saveBtn").click();
+  await new Promise((r) => setImmediate(r));
+  assert.equal(app.apiCalls.filter((c) => c.opts?.method === "POST").length, 0);
+  assert.equal(app.dom.get("saveStatus").style.color, "var(--bad)");
+  assert.equal(lyInput.value, "_one _two _three");
+  assert.equal(app.dom.get("edName").value, "Cmaj7");
+
+  // Clicking #saveBtn and confirming discard flushes stranded lyric edit and saves it
+  app.confirmQueue.push(true);
+  app.dom.get("saveBtn").click();
+  await new Promise((r) => setImmediate(r));
+  const posts = app.apiCalls.filter((c) => c.path.startsWith("/api/song/") && c.opts?.method === "POST");
+  assert.equal(posts.length, 1);
+  assert.equal(JSON.parse(posts[0].opts.body).songs[0].sections[0].bars[0][0].text, "one");
+  assert.equal(app.state.dirty, false);
+  // Subsequent blur of stale lyInput does not double-push undo or re-dirty
+  lyInput.blur();
+  assert.equal(app.state.dirty, false);
+
+  // Also verify stranded .ly-edit in grid mode flushes on #saveBtn save() without double-undo
+  app.setLyMode("grid");
+  app.context.showView("bars");
+  app.context.openEditor(0, 0, 0);
+  app.dom.get("edName").value = "Gmaj7";
+  app.context.showView("lyrics");
+  const wordBtn = app.dom.get("lyrics").querySelectorAll(".ly-text").find((b) => b.textContent === "three");
+  wordBtn.dispatch("dblclick");
+  const lyEdit = app.dom.get("lyrics").querySelector(".ly-edit");
+  lyEdit.value = "moon";
+  app.confirmQueue.push(false);
+  app.dom.get("saveBtn").focus();
+  assert.equal(app.state.doc.songs[0].sections[0].bars[1][0].text, "three");
+
+  app.confirmQueue.push(true);
+  app.dom.get("saveBtn").click();
+  await new Promise((r) => setImmediate(r));
+  const postsAfter = app.apiCalls.filter((c) => c.path.startsWith("/api/song/") && c.opts?.method === "POST");
+  assert.equal(postsAfter.length, 2);
+  assert.equal(JSON.parse(postsAfter[1].opts.body).songs[0].sections[0].bars[1][0].text, "moon");
+  assert.equal(app.state.dirty, false);
+  lyEdit.blur();
+  assert.equal(app.state.dirty, false);
 });

@@ -378,12 +378,20 @@ function isBlurCommittedInput(el) {
 function flushBlurCommittedInputs() {
   if (typeof document === "undefined") return true;
   const active = document.activeElement;
-  if (!active) return true;
-  if (typeof active._commitOnSave === "function") {
-    return active._commitOnSave() !== false;
+  if (active) {
+    if (typeof active._commitOnSave === "function") {
+      if (active._commitOnSave() === false) return false;
+    } else if (isBlurCommittedInput(active) && typeof active.blur === "function") {
+      active.blur();
+    }
   }
-  if (isBlurCommittedInput(active) && typeof active.blur === "function") {
-    active.blur();
+  if (typeof document.querySelectorAll === "function") {
+    for (const el of document.querySelectorAll(".ly-line-edit, .ly-edit, .seclabel")) {
+      if (el === active) continue;
+      if (typeof el._commitOnSave === "function" && el._commitOnSave() === false) {
+        return false;
+      }
+    }
   }
   return true;
 }
