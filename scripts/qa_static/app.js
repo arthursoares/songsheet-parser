@@ -49,6 +49,7 @@ async function init() {
     window.ChordNaming.setKeyTonic(songKey());
     renderBars();
     if (state.activeView === "dict") renderDict();
+    if (state.activeView === "harmony" && typeof renderHarmony === "function") renderHarmony();
     if (state.activeView === "preview") renderPreview();
     if (state.sel) openEditor(state.sel.si, state.sel.bi, state.sel.ei);
   });
@@ -97,6 +98,7 @@ async function init() {
     spellBtn.textContent = next === "flat" ? "♭ flat" : "♯ sharp";
     renderBars();
     if (state.activeView === "dict") renderDict();
+    if (state.activeView === "harmony" && typeof renderHarmony === "function") renderHarmony();
     if (state.sel) openEditor(state.sel.si, state.sel.bi, state.sel.ei);
   });
 
