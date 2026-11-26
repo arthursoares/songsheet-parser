@@ -6,6 +6,7 @@ let state = {
   album: null, file: null, doc: null, sel: null,
   dictSel: new Set(), dictEdit: null, dictSort: "count",
   dictMergeOpen: false, activeView: "bars", dirty: false,
+  savedSnapshot: null,
   songSearch: "", songFilter: "all", flags: [],
 };
 
@@ -26,6 +27,20 @@ function markDirty() {
     status.textContent = "Unsaved changes";
     status.style.color = "#d29922";
   }
+}
+
+function syncUndoRedoDirty() {
+  if (typeof state.savedSnapshot === "string" && JSON.stringify(state.doc) === state.savedSnapshot) {
+    state.dirty = false;
+    state.editVersion = (state.editVersion || 0) + 1;
+    const status = $("saveStatus");
+    if (status) {
+      status.textContent = "";
+      status.style.color = "";
+    }
+    return;
+  }
+  markDirty();
 }
 
 // ---- Undo / redo ----
@@ -51,8 +66,15 @@ function pushUndo() {
 
 // Re-render everything that reads from state.doc after an undo/redo swap.
 function rerenderAll() {
-  state.sel = null;
-  $("editor").classList.remove("open");
+  const prevSel = state.sel;
+  const editorEl = $("editor");
+  const wasEditorOpen = Boolean(editorEl && editorEl.classList.contains("open"));
+  const selValid = Boolean(
+    prevSel &&
+    state.doc?.songs?.[0]?.sections?.[prevSel.si]?.bars?.[prevSel.bi]?.[prevSel.ei]
+  );
+  state.sel = selValid ? prevSel : null;
+  if (!state.sel && editorEl) editorEl.classList.remove("open");
   const status = (state.doc.document && state.doc.document.status) || "pending";
   $("statusSel").value = status;
   $("keySel").value = songKey();
@@ -60,8 +82,11 @@ function rerenderAll() {
   syncNote();
   renderProvenance();
   if (typeof syncCurrentSongTitle === "function") syncCurrentSongTitle();
-  syncScanDocument();
+  if (typeof syncScanDocument === "function") syncScanDocument();
   renderBars();
+  if (state.sel && wasEditorOpen && state.activeView === "bars" && typeof openEditor === "function") {
+    openEditor(state.sel.si, state.sel.bi, state.sel.ei);
+  }
   renderSongList();
   if (state.activeView === "lyrics") renderLyrics();
   if (state.activeView === "review") renderReview();
@@ -74,7 +99,7 @@ function undo() {
   if (!state.doc || !undoStack.length) return;
   redoStack.push(snapshot());
   state.doc = undoStack.pop();
-  markDirty();
+  syncUndoRedoDirty();
   rerenderAll();
 }
 
@@ -82,7 +107,7 @@ function redo() {
   if (!state.doc || !redoStack.length) return;
   undoStack.push(snapshot());
   state.doc = redoStack.pop();
-  markDirty();
+  syncUndoRedoDirty();
   rerenderAll();
 }
 
@@ -111,9 +136,15 @@ function song() { return state.doc.songs[0]; }
 function syncNote() {
   const ta = $("songNote");
   if (!ta) return;
-  if (!state.doc) { ta.value = ""; ta.disabled = true; return; }
+  if (!state.doc) {
+    ta.value = "";
+    ta.disabled = true;
+    ta._syncBaseline?.();
+    return;
+  }
   ta.disabled = false;
   ta.value = song().note || "";
+  ta._syncBaseline?.();
 }
 
 // Read-only provenance line: page span and durable source/reading counts.

@@ -53,13 +53,15 @@ function renderBars() {
     labInput.addEventListener("focus", () => { labStart = labInput.value; });
     const commitLabel = () => {
       const next = labInput.value;
-      if (next === labStart) return;
+      if (next === labStart) return true;
       pushUndo();
       sec.label = next === "" ? null : next;
       labStart = next;
       markDirty();
       renderSongList();
+      return true;
     };
+    labInput._commitOnSave = commitLabel;
     labInput.addEventListener("blur", commitLabel);
     labInput.addEventListener("keydown", (ev) => {
       if (ev.key === "Enter") { ev.preventDefault(); labInput.blur(); }
@@ -225,6 +227,7 @@ function addBarBefore(si, bi) {
 }
 
 function deleteBar(si, bi) {
+  if (!confirmChordDraftDiscard()) return;
   if (!confirm(`Delete bar ${bi + 1}?`)) return;
   pushUndo();
   window.DocOps.deleteBar(song(), si, bi);
@@ -242,18 +245,21 @@ function splitBar(si, bi, beforeEntry) {
 
 function mergeBarWithNext(si, bi) {
   if (!window.DocOps.canMergeBarWithNext(song(), si, bi)) return;
+  if (!confirmChordDraftDiscard()) return;
   pushUndo();
   window.DocOps.mergeBarWithNext(song(), si, bi);
   afterStructuralEdit();
 }
 
 function addSectionAfter(si) {
+  if (!confirmChordDraftDiscard()) return;
   pushUndo();
   window.DocOps.addSectionAfter(song(), si);
   afterStructuralEdit();
 }
 
 function deleteSection(si) {
+  if (!confirmChordDraftDiscard()) return;
   const sec = song().sections[si];
   const name = (sec && sec.label) || `Section ${si + 1}`;
   if (!confirm(`Delete "${name}" and all its bars?`)) return;
@@ -343,11 +349,16 @@ function openEditor(si, bi, ei, focus = false) {
   let curVoicing = e.voicing ? parseVoicing(e.voicing) : ["x", "x", "x", "x", "x", "x"];
   const fb = window.Fretboard($("edFb"), (v) => {
     curVoicing = v;
+    $("edErr").textContent = "";
     refreshNaming();
   });
   fb.set(curVoicing);
   chordEditorHasDraft = () => {
     if (!ed.classList.contains("open")) return false;
+    if ((typeof fb.isValid === "function" && !fb.isValid()) ||
+        (typeof fb.hasUncommittedText === "function" && fb.hasUncommittedText())) {
+      return true;
+    }
     const strings = fb.get();
     const voicing = strings.every((f) => f === "x") ? "" : strings.join(",");
     return $("edName").value.trim() !== e.chord ||
@@ -406,7 +417,11 @@ function openEditor(si, bi, ei, focus = false) {
   // even though the global Esc handler also closes the editor).
   $("edName").addEventListener("keydown", (ev) => {
     if (ev.key === "Enter") { ev.preventDefault(); $("edApply").click(); }
-    else if (ev.key === "Escape") { ev.preventDefault(); $("edCancel").click(); }
+    else if (ev.key === "Escape") {
+      ev.preventDefault();
+      ev.stopPropagation?.();
+      $("edCancel").click();
+    }
   });
   $("edText").addEventListener("keydown", (ev) => {
     if (ev.key === "Enter") { ev.preventDefault(); $("edApply").click(); }
@@ -468,6 +483,17 @@ function openEditor(si, bi, ei, focus = false) {
       $("edErr").textContent = "No printed voicing is available for this chord.";
       return false;
     }
+    if (!usePrinted) {
+      const committed = typeof fb.commit === "function"
+        ? fb.commit()
+        : (typeof fb.isValid !== "function" || fb.isValid());
+      if (!committed || (typeof fb.isValid === "function" && !fb.isValid())) {
+        const fbErr = typeof fb.getError === "function" ? fb.getError() : "";
+        $("edErr").textContent = fbErr ? "Invalid voicing: " + fbErr : "Invalid voicing.";
+        fb.focusText?.();
+        return false;
+      }
+    }
     pushUndo();
     e.chord = name;
     const text = $("edText").value.trim();
@@ -494,6 +520,7 @@ function openEditor(si, bi, ei, focus = false) {
   };
   $("edApply").addEventListener("click", () => submitActiveChord());
   $("edCancel").addEventListener("click", () => {
+    if (!confirmChordDraftDiscard()) return;
     ed.classList.remove("open"); state.sel = null; renderBars();
   });
   syncChordChip(state.sel, focus);

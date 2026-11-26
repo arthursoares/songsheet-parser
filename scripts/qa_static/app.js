@@ -110,23 +110,32 @@ async function init() {
   $("kbdHint").addEventListener("click", showShortcutDialog);
 
   window.addEventListener("beforeunload", (e) => {
-    if (state.dirty) { e.preventDefault(); e.returnValue = ""; }
+    if (state.dirty || (typeof chordEditorHasDraft === "function" && chordEditorHasDraft())) {
+      e.preventDefault();
+      e.returnValue = "";
+    }
   });
 
   // per-song note: one undo per editing session (focus → blur), commit on blur.
   const noteTa = $("songNote");
   if (noteTa) {
-    let noteStart = "";
-    noteTa.addEventListener("focus", () => { noteStart = noteTa.value; });
-    noteTa.addEventListener("blur", () => {
-      if (!state.doc) return;
+    let noteStart = noteTa.value || "";
+    const syncBaseline = () => { noteStart = noteTa.value; };
+    const commitNote = () => {
+      if (!state.doc) return true;
       const next = noteTa.value;
-      if (next === noteStart) return;
+      if (next === noteStart) return true;
       pushUndo();
       if (next.trim() === "") delete song().note;
       else song().note = next;
+      noteStart = next;
       markDirty();
-    });
+      return true;
+    };
+    noteTa._syncBaseline = syncBaseline;
+    noteTa._commitOnSave = commitNote;
+    noteTa.addEventListener("focus", syncBaseline);
+    noteTa.addEventListener("blur", commitNote);
   }
 
   $("nextFlagBtn").addEventListener("click", () => {
@@ -256,12 +265,14 @@ function onKeydown(ev) {
   }
   // Esc → close editor (always)
   if (ev.key === "Escape") {
+    if (ev.defaultPrevented) return;
     if (state.activeView === "chordReview" && !typing) {
       showView("bars");
       $("chordReviewToggle").focus();
       return;
     }
     if (state.activeView === "bars" && $("editor").classList.contains("open")) {
+      if (typeof confirmChordDraftDiscard === "function" && !confirmChordDraftDiscard()) return;
       $("editor").classList.remove("open");
       state.sel = null;
       renderBars();
