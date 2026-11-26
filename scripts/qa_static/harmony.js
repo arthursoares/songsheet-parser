@@ -82,7 +82,7 @@ function hmHeader(analysis) {
   const s = analysis.summary || {};
   const bits = [];
   if (k.tonic_name) {
-    bits.push(`key ${k.tonic_name} ${k.mode || ""} (${k.how}` +
+    bits.push(`key ${hmFormatNoteLabel(k.tonic_name)} ${k.mode || ""} (${k.how}` +
       (k.how !== "stored" ? `, confidence ${k.confidence}` : "") + `)`);
   } else {
     bits.push("key: undetermined");
@@ -129,15 +129,16 @@ function hmKeybar(analysis) {
   if (k.how === "stored") {
     if (k.cadence_agrees === false) {
       const cad = (k.candidates || []).find((c) => c.how === "cadence");
+      const cadName = cad && cad.tonic_name ? hmFormatNoteLabel(cad.tonic_name) : "";
       const warn = document.createElement("span");
       warn.className = "hm-keywarn";
       warn.textContent = "⚠ the cadence estimate disagrees with the stored key" +
-        (cad && cad.tonic_name ? ` (it suggests ${cad.tonic_name} ${cad.mode})` : "");
+        (cadName ? ` (it suggests ${cadName} ${cad.mode})` : "");
       bar.appendChild(warn);
       if (cad && cad.tonic_name) {
         const btn = document.createElement("button");
         btn.className = "tab";
-        btn.textContent = `Use ${cad.tonic_name} ${cad.mode} instead`;
+        btn.textContent = `Use ${cadName} ${cad.mode} instead`;
         btn.onclick = () => hmApplyKey(cad.tonic_name, cad.mode);
         bar.appendChild(btn);
       }
@@ -146,15 +147,16 @@ function hmKeybar(analysis) {
   }
   if (!k.tonic_name) return;
 
+  const tonicLabel = hmFormatNoteLabel(k.tonic_name);
   const label = document.createElement("span");
   label.className = "muted";
   label.textContent =
-    `inferred key ${k.tonic_name} ${k.mode} — not stored on the song yet:`;
+    `inferred key ${tonicLabel} ${k.mode} — not stored on the song yet:`;
   bar.appendChild(label);
 
   const confirm = document.createElement("button");
   confirm.className = "btn-primary";
-  confirm.textContent = `Confirm key ${k.tonic_name} ${k.mode}`;
+  confirm.textContent = `Confirm key ${tonicLabel} ${k.mode}`;
   confirm.onclick = () => hmApplyKey(k.tonic_name, k.mode);
   bar.appendChild(confirm);
 
@@ -163,7 +165,7 @@ function hmKeybar(analysis) {
     (k.candidates || [])
       .filter((c) => c.tonic_pc != null)
       .map((c) => {
-        const nm = c.tonic_name || hmPcName(c.tonic_pc);
+        const nm = c.tonic_name ? hmFormatNoteLabel(c.tonic_name) : hmPcName(c.tonic_pc);
         return `<option value="${hmEsc(nm)}|${hmEsc(c.mode)}">` +
           `${hmEsc(nm)} ${hmEsc(c.mode)} (${hmEsc(c.how)})</option>`;
       }).join("");
@@ -646,6 +648,7 @@ function hmPanel(e) {
 let hmActx = null, hmMaster = null;
 let hmPlaying = false, hmCurIdx = -1, hmRaf = null;
 let hmActiveVoices = [];
+let hmOnsetToken = 0;
 let hmLastMidis = null;       // held/% and voicing-less events carry the last real chord
 let hmSegStart = 0, hmSegDur = 0, hmSegX0 = 0, hmSegX1 = 0;
 let hmPausedAt = null;
@@ -665,9 +668,16 @@ function hmEnsureAudio() {
 
 function hmMidiToFreq(m) { return 440 * Math.pow(2, (m - 69) / 12); }
 
-function hmPlayChord(midis, dur) {
+function hmRetireVoices() {
+  hmActiveVoices.forEach((voice) => {
+    voice.released = true;
+  });
+}
+
+function hmPlayChord(midis, dur, onsetToken = hmOnsetToken) {
   if (!midis || !midis.length || !(dur > 0)) return;
   const now = hmActx.currentTime;
+  const peak = 0.9 / Math.sqrt(Math.max(1, midis.length));
   midis.forEach((m) => {
     const o = hmActx.createOscillator();
     o.type = "triangle";
@@ -678,14 +688,13 @@ function hmPlayChord(midis, dur) {
     g.connect(hmMaster);
     const atk = Math.min(0.015, dur * 0.25);
     const rel = Math.min(0.25, dur * 0.5);
-    const peak = 0.9 / Math.sqrt(midis.length);
     g.gain.setValueAtTime(0, now);
     g.gain.linearRampToValueAtTime(peak, now + atk);
     g.gain.setValueAtTime(peak, now + Math.max(atk, dur - rel));
     g.gain.linearRampToValueAtTime(0.0001, now + dur);
     o.start(now);
     o.stop(now + dur + 0.05);
-    const voice = { o, g, stopped: false };
+    const voice = { o, g, stopped: false, released: false, onset: onsetToken };
     hmActiveVoices.push(voice);
     o.onended = () => {
       voice.stopped = true;
@@ -696,8 +705,10 @@ function hmPlayChord(midis, dur) {
 }
 
 function hmSilenceVoices() {
+  hmOnsetToken += 1;
   const now = hmActx ? hmActx.currentTime : 0;
   hmActiveVoices.forEach((voice) => {
+    voice.released = true;
     if (voice.stopped) return;
     voice.stopped = true;
     const { o, g } = voice;
@@ -755,10 +766,13 @@ function hmNow() { return hmActx ? hmActx.currentTime : 0; }
 function hmOnsetChord() {
   const e = hmAnalysis.events[hmCurIdx];
   const d = hmStepDur(e);
+  hmOnsetToken += 1;
+  hmRetireVoices();
+  const onsetToken = hmOnsetToken;
   try {
     const midis = hmResolveMidis(e);
     if (midis && midis.length) {
-      hmPlayChord(midis, d);
+      hmPlayChord(midis, d, onsetToken);
       hmLastMidis = midis;
     }
     if (hmCurIdx > 0 && hmCellEls[hmCurIdx - 1]) {
@@ -821,11 +835,14 @@ async function hmPlay() {
     hmPlaying = true;
     hmSegStart = hmNow() - pausedAt;
     const rem = hmSegDur - pausedAt;
+    hmOnsetToken += 1;
+    hmRetireVoices();
+    const onsetToken = hmOnsetToken;
     if (rem > 0.01 && hmCurIdx >= 0 && hmCurIdx < hmAnalysis.events.length) {
       try {
         const midis = hmResolveMidis(hmAnalysis.events[hmCurIdx]);
         if (midis && midis.length) {
-          hmPlayChord(midis, rem);
+          hmPlayChord(midis, rem, onsetToken);
           hmLastMidis = midis;
         }
       } catch (err) {
@@ -866,6 +883,10 @@ function hmStopPlayback() {
   if (hmRaf) cancelAnimationFrame(hmRaf);
   hmRaf = null;
   if (hmActx) hmSilenceVoices();
+  else {
+    hmOnsetToken += 1;
+    hmRetireVoices();
+  }
   if (hmCurIdx >= 0 && hmCellEls[hmCurIdx]) hmCellEls[hmCurIdx].classList.remove("cur");
   hmCurIdx = -1;
   hmLastMidis = null;
@@ -892,14 +913,14 @@ function hmOnTempoInput() {
     hmSegStart = now - frac * newDur;
     const rem = Math.max(0.02, (1 - frac) * newDur);
     hmActiveVoices.forEach((voice) => {
-      if (voice.stopped || !voice.g || !voice.g.gain) return;
+      if (voice.stopped || voice.released || voice.onset !== hmOnsetToken ||
+          !voice.g || !voice.g.gain) return;
       const g = voice.g;
       try {
+        const curVal = g.gain.value;
+        if (!Number.isFinite(curVal) || curVal <= 0.0001) return;
         if (typeof g.gain.cancelScheduledValues === "function") {
           g.gain.cancelScheduledValues(now);
-          const curVal = Number.isFinite(g.gain.value) && g.gain.value > 0.0001
-            ? g.gain.value
-            : 0.9 / Math.sqrt(Math.max(1, hmActiveVoices.length));
           g.gain.setValueAtTime(curVal, now);
           const rel = Math.min(0.25, rem * 0.5);
           g.gain.setValueAtTime(curVal, now + Math.max(0, rem - rel));

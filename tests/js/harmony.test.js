@@ -206,6 +206,7 @@ function createHarmonyHarness(options = {}) {
         startedAt: null,
         stoppedAt: [],
         stopCalls: 0,
+        _ended: false,
         onended: null,
         connect() {},
         start(t) { osc.startedAt = t; },
@@ -218,6 +219,51 @@ function createHarmonyHarness(options = {}) {
       return osc;
     }
     createGain() {
+      if (options.timeAwareAudio) {
+        let defaultValue = 0;
+        let timeline = [];
+        const gainParam = {
+          events: [],
+          cancelledAt: [],
+          get value() {
+            let cur = defaultValue;
+            let prevTime = 0;
+            for (const ev of timeline) {
+              if (ev.time <= audioTime) {
+                cur = ev.value;
+                prevTime = ev.time;
+              } else {
+                if (ev.kind === "ramp" && ev.time > prevTime) {
+                  const frac = Math.max(0, Math.min(1, (audioTime - prevTime) / (ev.time - prevTime)));
+                  return cur + (ev.value - cur) * frac;
+                }
+                break;
+              }
+            }
+            return cur;
+          },
+          set value(v) {
+            defaultValue = v;
+          },
+          setValueAtTime(v, t) {
+            timeline.push({ kind: "set", value: v, time: t });
+            timeline.sort((a, b) => a.time - b.time);
+            gainParam.events.push(["set", v, t]);
+          },
+          linearRampToValueAtTime(v, t) {
+            timeline.push({ kind: "ramp", value: v, time: t });
+            timeline.sort((a, b) => a.time - b.time);
+            gainParam.events.push(["ramp", v, t]);
+          },
+          cancelScheduledValues(t) {
+            timeline = timeline.filter((ev) => ev.time < t);
+            gainParam.cancelledAt.push(t);
+          },
+        };
+        const gainNode = { gain: gainParam, connect() {} };
+        audioCreated.gains.push(gainNode);
+        return gainNode;
+      }
       const gainNode = {
         gain: {
           value: 0,
@@ -339,7 +385,18 @@ function createHarmonyHarness(options = {}) {
     windowObj,
     docObj,
     setSpelling(next) { spelling = next; },
-    setAudioTime(t) { audioTime = t; },
+    setAudioTime(t) {
+      audioTime = t;
+      if (options.timeAwareAudio) {
+        for (const osc of audioCreated.oscillators) {
+          const stopAt = osc.stoppedAt.length ? osc.stoppedAt[osc.stoppedAt.length - 1] : null;
+          if (!osc._ended && stopAt != null && audioTime >= stopAt) {
+            osc._ended = true;
+            if (typeof osc.onended === "function") osc.onended();
+          }
+        }
+      }
+    },
     getAudioTime() { return audioTime; },
     audioCreated,
     resizeObservers,
@@ -895,4 +952,153 @@ test("hmSnapshotHtml collects :root/.hm-/#hm/.muted rules and skips throwing or 
   assert.match(snap, /#hmScoreWrap \{ position: relative; \}/);
   assert.match(snap, /\.muted \{ color: gray; \}/);
   assert.doesNotMatch(snap, /\.unrelated/);
+});
+
+test("hmOnTempoInput never resurrects decayed prior-chord voices across chord boundaries (time-aware AudioParam)", async () => {
+  const analysis = {
+    key: { tonic_name: "C", mode: "major", how: "stored" },
+    summary: { events: 2 },
+    events: [
+      { idx: 0, section: 0, bar: 0, symbol: "Cmaj7", beats: 4, midis: [48, 52, 55, 59], function: "tonic", confidence: "high" },
+      { idx: 1, section: 0, bar: 1, symbol: "G7", beats: 4, midis: [43, 47, 50, 53], function: "dominant", confidence: "high" },
+    ],
+    devices: [],
+  };
+
+  // Probe 1: Speedup across chord boundary (50 BPM -> 200 BPM -> advance to Chord 1 -> 195 BPM)
+  {
+    const h = createHarmonyHarness({
+      timeAwareAudio: true,
+      fetch: async () => ({ ok: true, json: async () => analysis }),
+    });
+    await h.context.renderHarmony();
+    const tempoEl = h.elements.get("hmTempo");
+    tempoEl.value = "50"; // 4 beats = 4.8s; Chord 0 o.stop at 4.85s
+
+    h.setAudioTime(0);
+    await h.context.hmPlay();
+    assert.equal(h.audioCreated.oscillators.length, 4);
+
+    // At t=0.50, speed up to 200 BPM (hmSegDur = 1.2s, Chord 0 ends at 1.575s)
+    h.setAudioTime(0.5);
+    tempoEl.value = "200";
+    tempoEl.oninput();
+
+    // At t=1.60, advance hmFrame() to Chord 1 while Chord 0 oscillators still await o.stop(4.85)
+    h.setAudioTime(1.6);
+    h.flushRaf();
+    assert.equal(vm.runInContext("hmCurIdx", h.context), 1);
+    assert.equal(h.audioCreated.oscillators.length, 8);
+    const chord0Gains = h.audioCreated.gains.slice(1, 5); // index 0 is hmMaster
+    const chord1Gains = h.audioCreated.gains.slice(5, 9);
+    for (const g of chord0Gains) {
+      assert.ok(g.gain.value <= 0.0001, "Chord 0 gain must be decayed at chord boundary");
+    }
+
+    // At t=1.70, nudge #hmTempo to 195 BPM -> must NOT boost Chord 0 voices above 0.0001
+    h.setAudioTime(1.7);
+    tempoEl.value = "195";
+    tempoEl.oninput();
+
+    for (const g of chord0Gains) {
+      assert.ok(g.gain.value <= 0.0001, `Chord 0 zombie voice resurrected to ${g.gain.value}`);
+      assert.deepEqual(g.gain.cancelledAt, [0.5], "decayed prior-chord voice must not be rescheduled at t=1.7");
+    }
+    for (const g of chord1Gains) {
+      assert.ok(g.gain.value > 0.4, "active Chord 1 voices remain sounding");
+      assert.deepEqual(g.gain.cancelledAt, [1.7], "active Chord 1 voices rescale at t=1.7");
+    }
+  }
+
+  // Probe 2: Constant tempo within 50ms tail across chord boundary (120 BPM -> advance at t=2.01 -> 118 BPM at t=2.02)
+  {
+    const h = createHarmonyHarness({
+      timeAwareAudio: true,
+      fetch: async () => ({ ok: true, json: async () => analysis }),
+    });
+    await h.context.renderHarmony();
+    const tempoEl = h.elements.get("hmTempo");
+    tempoEl.value = "120"; // 4 beats = 2.0s; Chord 0 o.stop at 2.05s
+
+    h.setAudioTime(0);
+    await h.context.hmPlay();
+    assert.equal(h.audioCreated.oscillators.length, 4);
+
+    // At t=2.01 (inside Chord 0's 50ms tail), hmFrame() advances to Chord 1
+    h.setAudioTime(2.01);
+    h.flushRaf();
+    assert.equal(vm.runInContext("hmCurIdx", h.context), 1);
+    assert.equal(h.audioCreated.oscillators.length, 8);
+    const chord0Gains = h.audioCreated.gains.slice(1, 5);
+    const chord1Gains = h.audioCreated.gains.slice(5, 9);
+    for (const g of chord0Gains) {
+      assert.ok(g.gain.value <= 0.0001);
+    }
+
+    // At t=2.02, drag #hmTempo to 118 BPM
+    h.setAudioTime(2.02);
+    tempoEl.value = "118";
+    tempoEl.oninput();
+
+    for (const g of chord0Gains) {
+      assert.ok(g.gain.value <= 0.0001, `Chord 0 tail voice resurrected to ${g.gain.value}`);
+      assert.deepEqual(g.gain.cancelledAt, []);
+    }
+    for (const g of chord1Gains) {
+      assert.ok(g.gain.value > 0.25, "active Chord 1 voices remain sounding during attack/sustain");
+      assert.deepEqual(g.gain.cancelledAt, [2.02]);
+    }
+
+    // Advancing past 2.05s fires onended and prunes Chord 0 voices from hmActiveVoices
+    h.setAudioTime(2.06);
+    assert.equal(vm.runInContext("hmActiveVoices.length", h.context), 4);
+  }
+});
+
+test("hmHeader and hmKeybar format sharp-stored and cadence tonic_name via hmFormatNoteLabel in flat mode", () => {
+  const h = createHarmonyHarness({ spelling: "flat" });
+
+  // Stored key A# disagreeing with cadence D# -> displayed as Bb and Eb in flat mode
+  const storedAnalysis = {
+    key: {
+      tonic_name: "A#",
+      mode: "major",
+      how: "stored",
+      cadence_agrees: false,
+      candidates: [{ tonic_name: "D#", tonic_pc: 3, mode: "major", how: "cadence" }],
+    },
+    summary: { events: 4 },
+  };
+  assert.match(h.context.hmHeader(storedAnalysis), /^key Bb major \(stored\)/);
+  h.context.hmKeybar(storedAnalysis);
+  const storedBarText = h.elements.get("hmKeybar").children.map((c) => c.textContent).join(" | ");
+  assert.match(storedBarText, /it suggests Eb major/);
+  assert.match(storedBarText, /Use Eb major instead/);
+
+  // Inferred key A# with candidate G# -> displayed as Bb and Ab in flat mode
+  const inferredAnalysis = {
+    key: {
+      tonic_name: "A#",
+      mode: "major",
+      how: "cadence",
+      confidence: "high",
+      candidates: [{ tonic_name: "G#", tonic_pc: 8, mode: "minor", how: "ks" }],
+    },
+    summary: { events: 4 },
+  };
+  assert.match(h.context.hmHeader(inferredAnalysis), /^key Bb major \(cadence, confidence high\)/);
+  h.context.hmKeybar(inferredAnalysis);
+  const inferredText = h.elements.get("hmKeybar").children.map((c) => c.textContent).join(" | ");
+  const inferredHtml = h.elements.get("hmKeybar").children.map((c) => c.innerHTML).join("\n");
+  assert.match(inferredText, /inferred key Bb major/);
+  assert.match(inferredText, /Confirm key Bb major/);
+  assert.match(inferredHtml, />Ab minor \(ks\)</);
+
+  // Switch back to sharp mode -> preserves sharp tonic_name
+  h.setSpelling("sharp");
+  assert.match(h.context.hmHeader(storedAnalysis), /^key A# major \(stored\)/);
+  h.context.hmKeybar(storedAnalysis);
+  const sharpBarText = h.elements.get("hmKeybar").children.map((c) => c.textContent).join(" | ");
+  assert.match(sharpBarText, /it suggests D# major/);
+  assert.match(sharpBarText, /Use D# major instead/);
 });
