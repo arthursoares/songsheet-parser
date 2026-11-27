@@ -43,6 +43,10 @@ async function init() {
     KEYS.map((k) => `<option value="${esc(k)}">key: ${esc(k)}</option>`).join("");
   keySel.addEventListener("change", (ev) => {
     if (!state.doc) return;
+    if (typeof confirmChordDraftDiscard === "function" && !confirmChordDraftDiscard()) {
+      keySel.value = songKey();
+      return;
+    }
     pushUndo();
     song().key = ev.target.value || null;
     markDirty();
@@ -92,6 +96,7 @@ async function init() {
   // global flat/sharp spelling toggle — re-renders bars (and editor if open)
   const spellBtn = $("spellToggle");
   spellBtn.addEventListener("click", () => {
+    if (typeof confirmChordDraftDiscard === "function" && !confirmChordDraftDiscard()) return;
     const next = window.ChordNaming.getSpelling() === "sharp" ? "flat" : "sharp";
     window.ChordNaming.setSpelling(next);
     spellBtn.textContent = next === "flat" ? "♭ flat" : "♯ sharp";
@@ -110,23 +115,32 @@ async function init() {
   $("kbdHint").addEventListener("click", showShortcutDialog);
 
   window.addEventListener("beforeunload", (e) => {
-    if (state.dirty) { e.preventDefault(); e.returnValue = ""; }
+    if (state.dirty || (typeof chordEditorHasDraft === "function" && chordEditorHasDraft())) {
+      e.preventDefault();
+      e.returnValue = "";
+    }
   });
 
   // per-song note: one undo per editing session (focus → blur), commit on blur.
   const noteTa = $("songNote");
   if (noteTa) {
-    let noteStart = "";
-    noteTa.addEventListener("focus", () => { noteStart = noteTa.value; });
-    noteTa.addEventListener("blur", () => {
-      if (!state.doc) return;
+    let noteStart = noteTa.value || "";
+    const syncBaseline = () => { noteStart = noteTa.value; };
+    const commitNote = () => {
+      if (!state.doc) return true;
       const next = noteTa.value;
-      if (next === noteStart) return;
+      if (next === noteStart) return true;
       pushUndo();
       if (next.trim() === "") delete song().note;
       else song().note = next;
+      noteStart = next;
       markDirty();
-    });
+      return true;
+    };
+    noteTa._syncBaseline = syncBaseline;
+    noteTa._commitOnSave = commitNote;
+    noteTa.addEventListener("focus", syncBaseline);
+    noteTa.addEventListener("blur", commitNote);
   }
 
   $("nextFlagBtn").addEventListener("click", () => {
@@ -256,12 +270,14 @@ function onKeydown(ev) {
   }
   // Esc → close editor (always)
   if (ev.key === "Escape") {
+    if (ev.defaultPrevented) return;
     if (state.activeView === "chordReview" && !typing) {
       showView("bars");
       $("chordReviewToggle").focus();
       return;
     }
     if (state.activeView === "bars" && $("editor").classList.contains("open")) {
+      if (typeof confirmChordDraftDiscard === "function" && !confirmChordDraftDiscard()) return;
       $("editor").classList.remove("open");
       state.sel = null;
       renderBars();
