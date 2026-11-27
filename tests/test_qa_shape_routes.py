@@ -85,6 +85,41 @@ def _fixture(tmp_path, monkeypatch) -> tuple[Path, list[dict], Callable]:
     return root, rows, request
 
 
+def test_shape_status_filters_apply_before_pagination_and_respect_album(tmp_path, monkeypatch):
+    root, rows, request = _fixture(tmp_path, monkeypatch)
+    index = routes._get_index(root, None, None)
+    original = index.groups["em-family"]
+    for number in range(routes.PAGE_SIZE + 1):
+        group = {
+            **original,
+            "id": f"resolved-{number}",
+            "occurrences": [{**rows[0], "editorial": PRINTED}],
+        }
+        index.groups[group["id"]] = group
+    index.groups["unresolved"] = {
+        **original,
+        "id": "unresolved",
+        "voicing": None,
+        "occurrences": [{**rows[1], "printed": None}],
+    }
+
+    status, body = request("GET", "/api/shapes?filter=disagreements")
+    assert status == 200
+    assert [group["id"] for group in body["groups"]] == ["em-family"]
+    assert body["pages"] == 1
+    assert body["counts"]["filtered_groups"] == 1
+
+    status, body = request("GET", "/api/shapes?filter=unresolved")
+    assert status == 200
+    assert [group["id"] for group in body["groups"]] == ["unresolved"]
+    status, body = request("GET", "/api/shapes?filter=unresolved&album=album-a")
+    assert status == 200
+    assert body["groups"] == []
+    status, body = request("GET", "/api/shapes?filter=unresolved&q=missing")
+    assert status == 200
+    assert body["groups"] == []
+
+
 def test_shape_routes_filter_rank_and_locate_exact_saved_entry(tmp_path, monkeypatch):
     _, rows, request = _fixture(tmp_path, monkeypatch)
     status, body = request("GET", "/api/shapes")

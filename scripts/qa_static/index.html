@@ -329,6 +329,11 @@
   .tab{background:var(--panel-2);color:var(--muted);border:1px solid var(--border);border-radius:6px;padding:5px 12px;cursor:pointer}
   .tab.active{background:var(--sel);color:var(--text);border-color:var(--accent)}
   .pvctl{display:flex;gap:10px;align-items:center;margin-bottom:8px;flex-wrap:wrap}
+  .pv-exports{position:relative}
+  .pv-exports summary{cursor:pointer;padding:6px;border:1px solid var(--border);border-radius:6px}
+  .pv-export-menu{position:absolute;top:100%;left:0;z-index:5;display:grid;gap:5px;min-width:150px;padding:8px;background:var(--panel);border:1px solid var(--border);border-radius:6px;box-shadow:0 4px 12px #0005}
+  #pvExportMsg[data-kind=error],#pvPreviewMsg[data-kind=error]{color:var(--bad)}
+  #previewFrame{transition:opacity .15s}
   .cmctl{display:flex;gap:10px;align-items:center;margin-bottom:8px}
   .cmsplit{display:flex;gap:8px;height:calc(100vh - var(--qa-header-height,49px) - 91px)}
   #cmSource{width:42%;height:100%;box-sizing:border-box;background:var(--bg-deep);color:#cfe3d8;border:1px solid var(--border);border-radius:8px;padding:10px;font:12px/1.55 ui-monospace,monospace;resize:none;white-space:pre;tab-size:2}
@@ -774,17 +779,19 @@
         <label><input type="checkbox" id="pvSource"> source</label>
         <span class="spacer" style="flex:1"></span>
         <button id="pvExportPdf" class="tab">Print / Save PDF</button>
-        <button id="pvExportPng" class="tab">Export PNG</button>
-        <button id="pvExportHtml" class="tab">Export HTML</button>
-        <button id="pvExportChordmark" class="tab">Export .chordmark</button>
-        <button id="pvExportChordpro" class="tab">Export ChordPro</button>
-        <button id="pvExportAlbum" class="tab">Print saved album</button>
-        <span id="pvExportMsg" class="muted"></span>
+        <details class="pv-exports"><summary>Export ▾</summary><div class="pv-export-menu">
+          <button id="pvExportPng" class="tab">PNG</button>
+          <button id="pvExportHtml" class="tab">HTML</button>
+          <button id="pvExportChordmark" class="tab">.chordmark</button>
+          <button id="pvExportChordpro" class="tab">ChordPro</button>
+        </div></details>
+        <button id="pvExportAlbum" class="tab" title="Prints saved files as a Lead Sheet songbook; unsaved edits and the selected song style are not included.">Album PDF (saved files)</button>
+        <span id="pvExportMsg" class="muted" role="status"></span>
+        <button id="pvDismissMsg" class="tab" hidden aria-label="Dismiss export message">Dismiss</button>
         <span id="pvPreviewMsg" class="muted" role="status"></span>
       </div>
       <div id="pvSourceBar" class="cmctl hidden">
         <button id="cmCopy" class="btn-primary">Copy ChordMark</button>
-        <button id="cmDownload" class="tab">Download .chordmark</button>
         <span id="cmCopyMsg" class="muted"></span>
         <span class="muted">generated source of the CURRENT (unsaved) edits</span>
       </div>
