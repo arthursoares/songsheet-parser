@@ -807,7 +807,8 @@ test("Regression 2: #keySel change and #spellToggle click guard unapplied chord 
   app.dom.get("spellToggle").click();
   assert.equal(app.confirmPrompts.length, 4);
   assert.equal(app.context.window.ChordNaming.getSpelling(), "flat");
-  assert.equal(app.dom.get("spellToggle").textContent, "♭ flat");
+  assert.equal(app.dom.get("spellToggle").textContent, "♭/♯");
+  assert.match(app.dom.get("spellToggle").title, /Note spelling: flat/);
   assert.equal(app.dom.get("edName").value, "C");
   assert.equal(app.chordEditorHasDraft(), false);
 });

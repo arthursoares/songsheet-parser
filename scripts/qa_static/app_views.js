@@ -35,7 +35,7 @@ function showView(which) {
   $("chordReviewToggle").classList.toggle("active", reviewing);
   $("chordReviewToggle").setAttribute("aria-pressed", String(reviewing));
   $("chordReviewToggle").disabled = !state.doc || !state.doc.songs?.length;
-  $("flagCount").classList.toggle("hidden", reviewing);
+  if (!reviewing) $("flagCount").textContent = String(state.flags?.length || 0);
   $("editor").classList.toggle("hidden", which !== "bars" && !reviewing);
   $("lyrics").classList.toggle("hidden", which !== "lyrics");
   $("review").classList.toggle("hidden", which !== "review");

@@ -158,7 +158,7 @@ function createCodeMirrorHarness() {
 function createHarness({ withAppInit = false, apiImpl, confirmImpl, renderBarsImpl } = {}) {
   const elements = {};
   const ids = [
-    "albumSel", "songSel", "workspaceSongs", "workspaceShapes", "saveBtn", "saveStatus",
+    "albumSel", "songSel", "workspaceSongs", "workspaceShapes", "saveBtn", "saveStatus", "undoBtn", "redoBtn", "songSearchClear", "noteToggle",
     "statusSel", "keySel", "songSearch", "songsFilter", "songsList", "currentSongTitle",
     "albumProgress", "provenance", "songNote", "pages", "bars", "chordReview",
     "chordReviewToggle", "flagCount", "editor", "lyrics", "review", "dict", "harmony",

@@ -43,7 +43,7 @@ function statusGlyph(status) {
 
 // Prettify a song filename for display (strip .json, NN- prefix → readable).
 function prettyFile(file) {
-  return String(file).replace(/\.json$/i, "");
+  return String(file).replace(/\.json$/i, "").replace(/^\d+[-_\s]+/, "").replace(/[-_]+/g, " ");
 }
 
 // Songs for the current album, after search + status filtering.
@@ -52,8 +52,9 @@ function filteredSongs() {
   const songs = (a && a.songs) || [];
   const q = state.songSearch.trim().toLowerCase();
   return songs.filter((s) => {
-    if (state.songFilter !== "all" && (s.status || "pending") !== state.songFilter) return false;
-    if (q && !s.file.toLowerCase().includes(q)) return false;
+    if (state.songFilter === "diffs" ? !(s.print_diffs > 0)
+      : state.songFilter !== "all" && (s.status || "pending") !== state.songFilter) return false;
+    if (q && !`${s.title || ""} ${prettyFile(s.file)} ${s.file}`.toLowerCase().includes(q)) return false;
     return true;
   });
 }
@@ -62,6 +63,16 @@ function filteredSongs() {
 function renderSongList() {
   const list = $("songsList");
   if (!list) return;
+  const albumSongs = albums.find((a) => a.album === $("albumSel").value)?.songs || [];
+  const labels = { all: "All", pending: "○", in_progress: "◐", done: "✓", diffs: "Diffs" };
+  $("songsFilter")?.querySelectorAll("[data-filter]").forEach((button) => {
+    const filter = button.dataset.filter;
+    const count = albumSongs.filter((s) => filter === "all" ||
+      (filter === "diffs" ? s.print_diffs > 0 : (s.status || "pending") === filter)).length;
+    button.textContent = `${labels[filter]} ${count}`;
+  });
+  const clear = $("songSearchClear");
+  if (clear) clear.hidden = !state.songSearch;
   const songs = filteredSongs();
   if (!songs.length) {
     list.innerHTML = `<div class="songs-empty">No songs match.</div>`;
@@ -79,14 +90,15 @@ function renderSongList() {
     // audit badge: print-diff count (review backlog), or ✓ when the CV audit
     // confirmed every voicing — a "ready to confirm" candidate at a glance
     const badge = !s.audited ? ""
-      : s.print_diffs ? `<span class="sdiff" title="${s.print_diffs} voicings differ from print">${s.print_diffs}</span>`
-      : `<span class="sdiff ok" title="all voicings match print">✓</span>`;
+      : s.print_diffs ? `<span class="sdiff" title="${s.print_diffs} voicings differ from print">${s.print_diffs} diffs</span>`
+      : `<span class="sdiff ok" title="all voicings match print">CV ✓</span>`;
     row.innerHTML =
       `<span class="sg">${esc(statusGlyph(s.status))}</span>` +
       `<span class="snm" title="${esc(s.file)}">${esc(prettyFile(s.file))}</span>` +
       badge;
     row.addEventListener("click", () => selectSong(s.file));
     list.appendChild(row);
+    if (s.file === state.file) row.scrollIntoView?.({ block: "nearest" });
   });
 }
 
@@ -111,7 +123,8 @@ function updateProgress() {
   const a = albums.find((x) => x.album === $("albumSel").value);
   if (!a || !a.songs) { $("albumProgress").textContent = ""; return; }
   const done = a.songs.filter((s) => s.status === "done").length;
-  $("albumProgress").textContent = `${done}/${a.songs.length} done`;
+  $("albumProgress").textContent = `${done}/${a.songs.length}`;
+  $("albumProgress").title = `${done} of ${a.songs.length} songs done`;
 }
 
 // If there are unsaved edits, confirm before switching away. Returns true to proceed.
@@ -151,6 +164,7 @@ function showEmpty() {
   syncSaveAvailability();
   undoStack = [];
   redoStack = [];
+  if (typeof syncHistoryButtons === "function") syncHistoryButtons();
   $("pages").innerHTML = "";
   $("bars").innerHTML = `<div class="empty">No song to show. Pick an album and song from the sidebar.</div>`;
   $("editor").classList.remove("open");
@@ -178,6 +192,7 @@ function clearSongForLoad(message, view = "bars") {
   syncSaveAvailability();
   undoStack = [];
   redoStack = [];
+  if (typeof syncHistoryButtons === "function") syncHistoryButtons();
   $("pages").innerHTML = "";
   $("bars").innerHTML = `<div class="empty">${esc(message)}</div>`;
   $("editor").classList.remove("open");
@@ -248,7 +263,10 @@ let savePromise = null;
 
 function syncSaveAvailability() {
   const button = $("saveBtn");
-  if (button) button.disabled = Boolean(savePromise) || !state.doc;
+  if (button) {
+    button.disabled = Boolean(savePromise) || !state.doc;
+    button.classList?.toggle("dirty", !!state.dirty);
+  }
 }
 
 async function saveOnce() {

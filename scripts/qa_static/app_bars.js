@@ -147,7 +147,7 @@ function renderBars() {
   });
   const flags = state.flags.length;
   if (typeof ReviewUI === "object") ReviewUI.documentChanged?.();
-  $("flagCount").textContent = flags ? `${flags} flagged` : "";
+  $("flagCount").textContent = String(flags);
   renderScanReviewMarks();
   if (state.activeView === "review") renderReview();
   if (state.activeView === "chordReview") renderChordReview(restoreFocus);

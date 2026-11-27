@@ -33,19 +33,19 @@ function rememberChordReviewPosition(coord, entry) {
 function updateChordReviewEntryPoint() {
   const toggle = $("chordReviewToggle");
   if (!toggle) return;
+  const coords = state.doc ? entryCoords() : [];
   if (state.activeView === "chordReview") {
-    toggle.textContent = "Exit chord review";
+    toggle.textContent = `Review ${coords.length ? chordReview.index + 1 : 0}/${coords.length}`;
+    toggle.title = "Exit chord review";
     return;
   }
-  const coords = state.doc ? entryCoords() : [];
   let index = rememberedChordIndex(coords);
   if (index < 0 && coords.some((coord) => chordAt(coord).chord_review)) {
     chordReviewCoords();
     index = chordReview.index;
   }
-  toggle.textContent = index >= 0
-    ? `Resume review · chord ${index + 1} of ${coords.length}`
-    : "Chord review";
+  toggle.textContent = coords.length ? `Review ${index >= 0 ? index + 1 : 1}/${coords.length}` : "Review";
+  toggle.title = index >= 0 ? `Resume review · chord ${index + 1} of ${coords.length}` : "Start chord review";
 }
 
 function chordReviewCoords() {
@@ -97,6 +97,7 @@ function chordReviewFlag(coords, entry = chordAt(coords)) {
 
 function renderChordReview(focus = false) {
   const coords = chordReviewCoords();
+  updateChordReviewEntryPoint();
   const selection = coords[chordReview.index];
   $("chordReviewContent").hidden = !selection;
   const counts = { reviewed: 0, deferred: 0, flagged: 0 };
@@ -109,6 +110,7 @@ function renderChordReview(focus = false) {
   $("chordReviewPosition").textContent = selection
     ? `Chord ${chordReview.index + 1} of ${coords.length} · ${counts.reviewed} reviewed · ${counts.deferred} deferred · ${counts.flagged} flagged`
     : "No chords to review";
+  if (state.activeView === "chordReview") $("flagCount").textContent = String(counts.flagged);
   const progress = $("chordReviewProgress");
   progress.max = Math.max(1, coords.length);
   progress.value = counts.reviewed;

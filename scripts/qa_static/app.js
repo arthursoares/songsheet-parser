@@ -29,6 +29,8 @@ async function init() {
   });
 
   $("saveBtn").addEventListener("click", save);
+  $("undoBtn").addEventListener("click", undo);
+  $("redoBtn").addEventListener("click", redo);
   $("statusSel").addEventListener("change", (ev) => {
     if (!state.doc) return;
     pushUndo();
@@ -68,6 +70,12 @@ async function init() {
     if (state.sel) openEditor(state.sel.si, state.sel.bi, state.sel.ei);
   });
   // song-list sidebar: search + status filter
+  $("songSearchClear").addEventListener("click", () => {
+    state.songSearch = "";
+    $("songSearch").value = "";
+    renderSongList();
+    $("songSearch").focus();
+  });
   $("songSearch").addEventListener("input", (ev) => {
     state.songSearch = ev.target.value;
     renderSongList();
@@ -116,7 +124,8 @@ async function init() {
     if (typeof confirmChordDraftDiscard === "function" && !confirmChordDraftDiscard()) return;
     const next = window.ChordNaming.getSpelling() === "sharp" ? "flat" : "sharp";
     window.ChordNaming.setSpelling(next);
-    spellBtn.textContent = next === "flat" ? "♭ flat" : "♯ sharp";
+    spellBtn.textContent = next === "flat" ? "♭/♯" : "♯/♭";
+    spellBtn.title = `Note spelling: ${next} (click to switch)`;
     renderBars();
     if (state.activeView === "dict") renderDict();
     if (state.activeView === "harmony" && typeof renderHarmony === "function") renderHarmony();
@@ -127,6 +136,12 @@ async function init() {
   // Persisted in localStorage; `\` toggles the scan pane from the keyboard.
   $("scanToggle").addEventListener("click", () => toggleLayoutPane("pages"));
   $("songsToggle").addEventListener("click", () => toggleLayoutPane("songs"));
+  $("noteToggle").addEventListener("click", function openSongNote() {
+    if (state.activeView === "chordReview" && showView("bars") === false) return;
+    localStorage.setItem("qaHideSongs", "0");
+    applyLayoutToggles();
+    $("songNote").focus();
+  });
   applyLayoutToggles();
   wireChordReview();
   wireScanReview();
