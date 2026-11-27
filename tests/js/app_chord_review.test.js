@@ -31,6 +31,7 @@ function harness({ split = false, savedDoc = null, storage = new Map() } = {}) {
     let blurCount = 0;
     return {
       dataset: {},
+      appendChild(child) { child.parentElement = this; },
       classList: {
         add: (value) => classes.add(value),
         remove: (value) => classes.delete(value),
@@ -286,6 +287,49 @@ test("editor Apply marks the resulting chord reviewed in the same undo action", 
   assert.equal(app.entries[0].chord, "C");
   assert.equal(app.entries[0].text, undefined);
   assert.equal(app.entries[0].chord_review.status, "deferred");
+});
+
+test("E edits inline; rejecting navigation retains its draft and R applies it once", () => {
+  const app = harness();
+  app.setScanProposal(app.entries[0], "x,3,2,0,1,0");
+  assert.equal(app.key("e"), true);
+  const editor = app.get("editor");
+  assert.equal(editor.parentElement, app.get("chordReviewEditorSlot"));
+  assert.equal(app.focused(), app.get("edName"));
+  assert.equal(app.get("edScanProposal").hidden, false);
+  assert.match(editor.innerHTML, /Save & review/);
+  app.get("edText").value = "corrected lyric";
+  app.rejectDiscard();
+  app.key("ArrowRight");
+  assert.equal(app.get("edText").value, "corrected lyric");
+  assert.equal(app.entries[0].text, undefined);
+  app.key("r");
+  assert.equal(app.entries[0].text, "corrected lyric");
+  assert.equal(app.entries[0].chord_review.status, "reviewed");
+  assert.equal(app.undoCount(), 1);
+  assert.equal(editor.parentElement, app.get("layout"));
+  assert.equal(app.state.activeView, "chordReview");
+});
+
+test("Apply only saves the lyric without certifying the fingering", () => {
+  const app = harness();
+  app.state.activeView = "bars";
+  app.open(0, 0, 0);
+  app.get("edText").value = "corrected lyric";
+  app.get("edApplyOnly").click();
+  assert.equal(app.entries[0].text, "corrected lyric");
+  assert.equal(app.entries[0].chord_review, undefined);
+  assert.equal(app.undoCount(), 1);
+});
+
+test("changing an inline chord to a repeat advances to the next remaining chord", () => {
+  const app = harness();
+  app.key("e");
+  app.get("edName").value = "%";
+  assert.equal(app.key(" "), true);
+  assert.equal(app.entries[0].chord, "%");
+  assert.equal(app.focused(), app.chips[2]);
+  assert.equal(app.get("chordReviewName").textContent, "Dm");
 });
 
 test("editor submit commits lyric drafts before applying printed voicing and advancing", () => {

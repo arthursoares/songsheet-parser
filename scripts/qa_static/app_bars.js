@@ -291,6 +291,21 @@ function diagramCropUrl({ si, bi, ei }, entry) {
   return `${path}?si=${si}&bi=${bi}&ei=${ei}${observation}`;
 }
 
+function hasDiagramCrop(entry) {
+  const location = typeof scanLookup === "function" && scanLookup(entry);
+  return Boolean(entry.voicing_printed || entry.observation_id || location?.box);
+}
+
+function closeChordEditor() {
+  const editor = $("editor");
+  editor.classList.remove("open");
+  if (editor.classList.contains("editor-inline")) {
+    editor.classList.remove("editor-inline");
+    document.querySelector(".layout").appendChild(editor);
+  }
+  state.sel = null;
+}
+
 function renderChordSuggestions(container, voicing, apply) {
   const suggestions = window.ChordNaming.suggestNames(voicing);
   container.innerHTML = suggestions.length ? suggestions.map(({ name }, index) =>
@@ -310,51 +325,60 @@ function openEditor(si, bi, ei, focus = false) {
   const e = currentEntry();
   if (!e) return;
   const ed = $("editor");
+  const inline = state.activeView === "chordReview";
+  if (inline) {
+    $("chordReviewEditorSlot").appendChild(ed);
+    ed.classList.add("editor-inline");
+  }
   ed.classList.add("open");
   const barLength = song().sections[si].bars[bi].length;
+  const cropUrl = hasDiagramCrop(e) ? diagramCropUrl({ si, bi, ei }, e) : "";
   ed.innerHTML = `
-    <h2>Edit chord · bar ${bi + 1}</h2>
-    <div class="ed-split-actions">
+    <div class="ed-heading"><h2>Edit chord · bar ${bi + 1}</h2>
+      <button type="button" class="tab" id="edClose" aria-label="Close chord editor">×</button></div>
+    <div class="ed-split-actions"${inline ? " hidden" : ""}>
       <button type="button" class="tab" id="edSplitBefore"
               title="Start a new bar with this chord" ${ei > 0 ? "" : "disabled"}>Split before</button>
       <button type="button" class="tab" id="edSplitAfter"
               title="End this bar with this chord" ${ei < barLength - 1 ? "" : "disabled"}>Split after</button>
     </div>
     <div id="edSplitStatus" class="muted" role="status"></div>
-    <label>Chord name</label>
+    <label for="edName">Chord name</label>
     <input type="text" id="edName" value="${esc(e.chord)}">
     <div id="edBadge"></div>
     <div id="edErr" class="err"></div>
     <div id="edIvals" class="fb-notes"></div>
-    <label>Anchored lyric</label>
+    <label for="edText">Anchored lyric</label>
     <input type="text" id="edText" value="${esc(e.text || "")}">
-    <label>Voicing</label>
-    <div id="edFb"></div>
-    ${e.voicing_printed
-      ? `<img class="printcrop" id="edPrintCrop" alt="" title="the printed diagram"
-             src="${esc(diagramCropUrl({ si, bi, ei }, e))}">`
-      : ""}
+    <div class="ed-voicing">
+      <div><label id="edVoicingLabel">Voicing</label><div id="edFb" role="group" aria-labelledby="edVoicingLabel"></div></div>
+      <div id="edCrop"${cropUrl ? "" : " hidden"}>
+        <img class="printcrop" id="edPrintCrop" alt="Magnified printed chord diagram"${cropUrl ? ` src="${esc(cropUrl)}"` : ""}>
+        <small id="edCropError" class="muted" hidden>Scan crop unavailable</small>
+      </div>
+    </div>
     <div id="edScanProposal" class="scan-fingering-proposal" hidden>
       <span>Proposed fingering <b id="edScanProposalValue"></b></span>
       <button type="button" id="edUseScanProposal">Use proposed fingering</button>
       <small>Inspect, then Apply manually.</small>
     </div>
-    ${e.chord === "%" ? "" : '<button type="button" id="edFindShapes" class="tab">Find matching shapes</button>'}
+    ${e.chord === "%" || inline ? "" : '<button type="button" id="edFindShapes" class="tab">Find matching shapes</button>'}
     ${e.voicing_printed && e.voicing_printed !== (e.voicing || "")
       ? `<div class="printhint">print reads <b>${esc(e.voicing_printed)}</b>
            <button id="edUsePrint" title="set the fretboard to what the page prints">use</button>
-           <button id="edUsePrintNext" title="accept the printed voicing and jump to the next chord">use + next</button></div>`
+           ${inline ? "" : '<button id="edUsePrintNext" title="accept the printed voicing and jump to the next chord">use + next</button>'}</div>`
       : ""}
     <label>Suggestions</label>
     <div class="suggest" id="edSuggest"></div>
-    ${e.chord === "%" ? "" : `<div class="ed-review">
+    ${e.chord === "%" || inline ? "" : `<div class="ed-review">
       <span id="edReviewStatus" class="chord-review-state" role="status"></span>
       <button type="button" id="edMarkReviewed" class="tab" aria-keyshortcuts="R" title="Mark the current chord reviewed (R)">Mark reviewed</button>
       <button type="button" id="edDeferReview" class="tab" aria-keyshortcuts="S" title="Defer this chord (S)">Defer</button>
     </div>`}
     <div class="ed-actions">
-      <button class="apply" id="edApply">Apply</button>
-      <button id="edCancel">Cancel</button>
+      <button type="button" class="apply" id="edApply">${inline ? "Save & review" : e.chord === "%" ? "Apply" : "Apply & review"}</button>
+      ${!inline && e.chord !== "%" ? '<button type="button" id="edApplyOnly">Apply only</button>' : ""}
+      <button type="button" id="edCancel">Cancel</button>
     </div>`;
   let curVoicing = e.voicing ? parseVoicing(e.voicing) : ["x", "x", "x", "x", "x", "x"];
   const fb = window.Fretboard($("edFb"), (v) => {
@@ -409,7 +433,10 @@ function openEditor(si, bi, ei, focus = false) {
     });
   }
   const cropImg = $("edPrintCrop");
-  if (cropImg) cropImg.addEventListener("error", () => { cropImg.style.display = "none"; });
+  cropImg.addEventListener("error", () => {
+    cropImg.hidden = true;
+    $("edCropError").hidden = false;
+  });
   $("edFindShapes")?.addEventListener("click", () => openShapesForEntry(si, bi, ei));
   const usePrint = $("edUsePrint");
   if (usePrint) {
@@ -431,12 +458,16 @@ function openEditor(si, bi, ei, focus = false) {
   }
   const editorStillCurrent = () => {
     const selected = state.sel;
-    return ed.classList.contains("open") && state.activeView === "bars" &&
+    return ed.classList.contains("open") && state.activeView === (inline ? "chordReview" : "bars") &&
       selected?.si === si && selected.bi === bi && selected.ei === ei &&
       song().sections[si]?.bars[bi]?.[ei] === e;
   };
   syncActiveChordProposal = () => {
     if (!editorStillCurrent()) return false;
+    if (hasDiagramCrop(e) && !cropImg.getAttribute("src")) {
+      $("edCrop").hidden = false;
+      cropImg.setAttribute("src", diagramCropUrl({ si, bi, ei }, e));
+    }
     const proposal = typeof scanProposal === "function" ? scanProposal(e) : "";
     const panel = $("edScanProposal");
     panel.hidden = !proposal;
@@ -482,6 +513,10 @@ function openEditor(si, bi, ei, focus = false) {
       if (!ev || ev.detail > 0) btn.blur?.();
       const entry = currentEntry();
       if (!entry || entry.chord === "%") return;
+      if (chordEditorHasDraft() && status === "reviewed") {
+        submitActiveChord();
+        return;
+      }
       if (chordEditorHasDraft()) {
         $("edReviewStatus").textContent = "Apply chord edits before recording review.";
         return;
@@ -514,9 +549,9 @@ function openEditor(si, bi, ei, focus = false) {
   refreshNaming();
   syncActiveChordProposal();
 
-  submitActiveChord = ({ usePrinted = false, advance = false } = {}) => {
+  submitActiveChord = ({ usePrinted = false, advance = false, review = true } = {}) => {
     const selected = state.sel;
-    if (!ed.classList.contains("open") || state.activeView !== "bars" ||
+    if (!ed.classList.contains("open") || state.activeView !== (inline ? "chordReview" : "bars") ||
         !selected || selected.si !== si || selected.bi !== bi || selected.ei !== ei) return false;
     const entry = currentEntry();
     if (!entry) return false;
@@ -557,8 +592,19 @@ function openEditor(si, bi, ei, focus = false) {
       else entry.voicing = vc.join(",");
     }
     if (name === "%") delete entry.chord_review;
-    else setChordReviewStatus(entry, "reviewed");
+    else if (review) setChordReviewStatus(entry, "reviewed");
     markDirty();
+    if (inline) {
+      const remaining = chordReviewCoords();
+      const current = remaining.findIndex((coords) => compareChordCoords(coords, selected) >= 0);
+      const next = remaining.findIndex((coords) => compareChordCoords(coords, selected) > 0);
+      chordReview.index = advance && next >= 0 ? next : current >= 0 ? current : Math.max(0, remaining.length - 1);
+      closeChordEditor();
+      renderBars();
+      syncChordChip(remaining[chordReview.index], true);
+      $("chordReviewMessage").textContent = "Chord edits applied and reviewed.";
+      return true;
+    }
     renderBars();
     $("edErr").textContent = "";
     $("edSplitStatus").textContent = "";
@@ -575,9 +621,15 @@ function openEditor(si, bi, ei, focus = false) {
     if (!ev || ev.detail > 0) applyBtn.blur?.();
     submitActiveChord();
   });
-  $("edCancel").addEventListener("click", () => {
+  $("edApplyOnly")?.addEventListener("click", () => submitActiveChord({ review: false }));
+  const cancel = () => {
     if (!confirmChordDraftDiscard()) return;
-    ed.classList.remove("open"); state.sel = null; renderBars();
-  });
+    closeChordEditor();
+    renderBars();
+    if (inline) $("chordReviewEdit").focus();
+  };
+  $("edCancel").addEventListener("click", cancel);
+  $("edClose").addEventListener("click", cancel);
   syncChordChip(state.sel, focus);
+  if (inline) $("edName").focus();
 }

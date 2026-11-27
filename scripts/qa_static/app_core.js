@@ -74,7 +74,10 @@ function rerenderAll() {
     state.doc?.songs?.[0]?.sections?.[prevSel.si]?.bars?.[prevSel.bi]?.[prevSel.ei]
   );
   state.sel = selValid ? prevSel : null;
-  if (!state.sel && editorEl) editorEl.classList.remove("open");
+  if (!state.sel && editorEl) {
+    if (editorEl.classList.contains("editor-inline")) closeChordEditor();
+    else editorEl.classList.remove("open");
+  }
   const status = (state.doc.document && state.doc.document.status) || "pending";
   $("statusSel").value = status;
   $("keySel").value = songKey();

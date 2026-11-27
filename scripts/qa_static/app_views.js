@@ -2,8 +2,13 @@
 // (CodeMirror) views.
 function showView(which) {
   if (!state.doc && which !== "shapes") which = "bars";
+  if (state.activeView === "chordReview" && which !== "chordReview" &&
+      $("editor").classList.contains("editor-inline")) {
+    if (state.doc && !confirmChordDraftDiscard()) return false;
+    closeChordEditor();
+  }
   if (state.activeView === "json" && which !== "json" && hasUnappliedJsonEdits()) {
-    if (typeof confirm === "function" && !confirm("Discard unapplied JSON edits?")) return;
+    if (typeof confirm === "function" && !confirm("Discard unapplied JSON edits?")) return false;
     resetJsonEditorState();
   }
   const wasChordReview = state.activeView === "chordReview";
@@ -28,7 +33,7 @@ function showView(which) {
   $("chordReviewToggle").setAttribute("aria-pressed", String(reviewing));
   $("chordReviewToggle").disabled = !state.doc || !state.doc.songs?.length;
   $("flagCount").classList.toggle("hidden", reviewing);
-  $("editor").classList.toggle("hidden", which !== "bars");
+  $("editor").classList.toggle("hidden", which !== "bars" && !reviewing);
   $("lyrics").classList.toggle("hidden", which !== "lyrics");
   $("review").classList.toggle("hidden", which !== "review");
   $("dict").classList.toggle("hidden", which !== "dict");
@@ -539,11 +544,11 @@ function activeChordSelection() {
 
 function jumpToEntry(c, { discardDraft = false, reopen = false } = {}) {
   const same = state.sel && compareChordCoords(c, state.sel) === 0;
-  if (!discardDraft && !same && !confirmChordDraftDiscard()) {
+  if (state.activeView !== "chordReview" && !discardDraft && !same && !confirmChordDraftDiscard()) {
     syncChordChip(state.sel, true);
     return;
   }
-  showView("bars");
+  if (showView("bars") === false) return;
   if (same && !reopen && $("editor").classList.contains("open")) syncChordChip(c, true);
   else openEditor(c.si, c.bi, c.ei, true);
 }

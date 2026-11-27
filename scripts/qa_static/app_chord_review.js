@@ -109,6 +109,11 @@ function renderChordReview(focus = false) {
   $("chordReviewPosition").textContent = selection
     ? `Chord ${chordReview.index + 1} of ${coords.length} · ${counts.reviewed} reviewed · ${counts.deferred} deferred · ${counts.flagged} flagged`
     : "No chords to review";
+  const progress = $("chordReviewProgress");
+  progress.max = Math.max(1, coords.length);
+  progress.value = counts.reviewed;
+  $("chordReviewNextFlagged").disabled = !coords.slice(chordReview.index + 1).some((coord) => chordReviewFlag(coord));
+  $("chordReviewDone").hidden = !selection || chordReview.index !== coords.length - 1;
   syncChordChip(selection, focus);
   if (!selection) {
     $("chordReviewName").textContent = "";
@@ -129,6 +134,11 @@ function renderChordReview(focus = false) {
   const voicing = entry.voicing ? parseVoicing(entry.voicing) : [];
   renderChordSuggestions($("chordReviewSuggestions"), voicing, (name) => {
     if (!window.ChordNaming.validateName(name).valid) return;
+    if ($("editor").classList.contains("editor-inline")) {
+      $("edName").value = name;
+      $("edName").dispatchEvent(new Event("input"));
+      return;
+    }
     if (entry.chord === name && chordReviewStatus(entry) === "reviewed") return;
     pushUndo();
     entry.chord = name;
@@ -142,14 +152,21 @@ function renderChordReview(focus = false) {
   $("chordReviewAccept").disabled = !entry.voicing_printed || (entry.voicing || "") === entry.voicing_printed;
   $("chordReviewPrev").disabled = chordReview.index === 0;
   $("chordReviewNext").disabled = chordReview.index === coords.length - 1;
+  syncChordReviewCrop(selection, entry);
+}
 
+function syncChordReviewCrop(selection = activeChordSelection(), entry) {
+  if (state.activeView !== "chordReview" || !selection) return;
+  entry ??= chordAt(selection);
+  const proposal = typeof scanProposal === "function" ? scanProposal(entry) : "";
+  $("chordReviewProposed").textContent = entry.voicing_printed || (proposal ? `Proposed: ${proposal}` : "");
   const image = $("chordReviewCrop");
-  const url = entry.voicing_printed ? diagramCropUrl(selection, entry) : "";
+  const url = hasDiagramCrop(entry) ? diagramCropUrl(selection, entry) : "";
   if (!url || url !== image.getAttribute("src")) {
     image.hidden = true;
     if (url) image.setAttribute("src", url);
     else image.removeAttribute("src");
-    $("chordReviewSourceStatus").textContent = url ? "Loading scan crop…" : "No printed fingering available";
+    $("chordReviewSourceStatus").textContent = url ? "Loading scan crop…" : "No scan crop available";
   }
 }
 
@@ -158,6 +175,10 @@ function selectChordReviewEntry(selection, redrawBars = false) {
   const index = coords.findIndex((c) =>
     c.si === selection.si && c.bi === selection.bi && c.ei === selection.ei);
   if (index < 0) return;
+  if (index !== chordReview.index && $("editor").classList.contains("editor-inline")) {
+    if (!confirmChordDraftDiscard()) return;
+    closeChordEditor();
+  }
   chordReview.index = index;
   $("chordReviewMessage").textContent = "";
   if (redrawBars) {
@@ -195,6 +216,11 @@ function decideChordReview(action, advance = true) {
       : "Printed voicing is already applied. Press Space to review and advance.";
     return;
   }
+  if ($("editor").classList.contains("editor-inline")) {
+    if (action === "keep" && chordEditorHasDraft()) return submitActiveChord({ advance });
+    if (!confirmChordDraftDiscard()) return;
+    closeChordEditor();
+  }
   const status = action === "skip" ? "deferred" : "reviewed";
   const changed = action === "accept" || chordReviewStatus(entry) !== status;
   if (changed) {
@@ -220,12 +246,42 @@ function toggleChordReview() {
   if (!state.doc) return;
   if (!confirmChordDraftDiscard()) return;
   const previous = state.sel;
-  state.sel = null;
-  $("editor").classList.remove("open");
+  closeChordEditor();
   $("chordReviewMessage").textContent = "";
-  showView("chordReview");
+  if (showView("chordReview") === false) return;
   if (previous && chordAt(previous).chord !== "%") selectChordReviewEntry(previous);
   else renderChordReview(true);
+}
+
+function editChordInReview() {
+  const selection = chordReviewCoords()[chordReview.index];
+  if (!selection) return;
+  const editor = $("editor");
+  if (!editor.classList.contains("editor-inline") || !editor.classList.contains("open")) {
+    openEditor(selection.si, selection.bi, selection.ei);
+  }
+  else $("edName").focus();
+  editor.scrollIntoView?.({ block: "nearest" });
+}
+
+async function finishChordReview() {
+  const button = $("chordReviewDone");
+  const doc = state.doc;
+  button.disabled = true;
+  try {
+    if ($("editor").classList.contains("editor-inline") && chordEditorHasDraft() && !submitActiveChord()) return;
+    if (doc.document?.status !== "done") {
+      pushUndo();
+      doc.document ??= {};
+      doc.document.status = "done";
+      $("statusSel").value = "done";
+      markDirty();
+    }
+    const result = await save();
+    if (result?.ok && doc === state.doc && !state.dirty && !chordEditorHasDraft()) stepSong(1);
+  } finally {
+    button.disabled = false;
+  }
 }
 
 function wireChordReview() {
@@ -239,14 +295,12 @@ function wireChordReview() {
   $("chordReviewToggle").addEventListener("click", toggleChordReview);
   onPointerClick("chordReviewPrev", () => moveChordReview(-1));
   onPointerClick("chordReviewNext", () => moveChordReview(1));
+  onPointerClick("chordReviewNextFlagged", () => moveChordReview(1, true));
+  onPointerClick("chordReviewDone", finishChordReview);
   onPointerClick("chordReviewAccept", () => decideChordReview("accept"));
   onPointerClick("chordReviewKeep", () => decideChordReview("keep"));
   onPointerClick("chordReviewSkip", () => decideChordReview("skip"));
-  onPointerClick("chordReviewEdit", () => {
-    const coords = chordReviewCoords();
-    const selection = coords[chordReview.index];
-    if (selection) jumpToEntry(selection);
-  });
+  onPointerClick("chordReviewEdit", editChordInReview);
   const image = $("chordReviewCrop");
   image.addEventListener("load", () => {
     if (!image.getAttribute("src")) return;
@@ -262,7 +316,9 @@ function wireChordReview() {
 
 function handleChordReviewKey(ev) {
   const key = String(ev.key || "").toLowerCase();
-  if (key === "[" || key === "]" || key === "{" || key === "}") {
+  if (key === "e") {
+    if (!ev.repeat) editChordInReview();
+  } else if (key === "[" || key === "]" || key === "{" || key === "}") {
     moveChordReview(key === "]" || key === "}" ? 1 : -1, key === "{" || key === "}");
   } else {
     const action = key === "a" ? "accept" : key === "s" ? "skip" : "";

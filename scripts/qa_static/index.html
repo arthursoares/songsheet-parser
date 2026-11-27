@@ -108,6 +108,9 @@
   .chord-review-section-label{display:none;color:var(--muted);font-size:11px}
   .layout.chord-review-mode #bars .chord-review-section-label{display:block}
   .layout.chord-review-mode #bars :is(.seclabel,.secmv,.barmv,.barAddFirst,.mv){display:none}
+  .layout.chord-review-mode #bars .chip{min-width:45px;max-width:130px;padding:5px 7px}
+  .layout.chord-review-mode #bars .chip :is(.cdia,.vc,.nt,.ci,.iv){display:none}
+  .layout.chord-review-mode #bars .chip .tx{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .layout.chord-review-mode #bars .chip:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-color:var(--accent)}
   .chord-review-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:12px}
   .chord-review-title{min-width:0}
@@ -119,16 +122,18 @@
   .chord-review-actions .accept{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600}
   .chord-review-key{margin-left:5px;color:inherit;opacity:.7;font:11px ui-monospace,monospace}
   .chord-review-message{min-height:20px;margin:4px 0 10px;color:var(--muted)}
-  .chord-review-compare{display:grid;grid-template-columns:minmax(220px,.8fr) minmax(280px,1.2fr);gap:12px}
+  .chord-review-compare{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
   .chord-review-card{min-width:0;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:14px}
   .chord-review-card h2{margin:0 0 12px;color:var(--muted);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em}
-  .chord-review-diagram{min-height:190px;display:flex;align-items:center;justify-content:center;background:var(--field);border:1px solid var(--border);border-radius:8px;padding:12px;overflow:auto}
+  .chord-review-diagram{min-height:100px;display:flex;align-items:center;justify-content:center;background:var(--field);border:1px solid var(--border);border-radius:8px;padding:8px;overflow:auto}
   .chord-review-diagram svg{display:block;max-width:100%;height:auto}
   .chord-review-value{display:block;margin-top:10px;padding:7px 9px;background:var(--field);border:1px solid var(--border);border-radius:6px;color:var(--text);font:12px/1.45 ui-monospace,monospace;overflow-wrap:anywhere}
-  .chord-review-crop-wrap{display:flex;justify-content:center;align-items:center;min-height:190px;max-width:100%;overflow:auto;background:var(--field);border:1px solid var(--border);border-radius:8px;padding:8px}
-  .chord-review-crop{display:block;width:auto;max-width:min(100%,560px);height:auto;max-height:440px;object-fit:contain;background:var(--paper);border-radius:5px}
+  .chord-review-crop-wrap{display:flex;justify-content:center;align-items:center;min-height:100px;max-width:100%;overflow:auto;background:var(--field);border:1px solid var(--border);border-radius:8px;padding:8px}
+  .chord-review-crop{display:block;width:auto;max-width:100%;height:auto;max-height:116px;object-fit:contain;background:var(--paper);border-radius:5px}
   .chord-review-source{min-height:18px;margin-top:8px;color:var(--muted);font-size:12px}
   .chord-review-help{margin-top:10px;color:var(--muted);font-size:12px}
+  #chordReviewProgress{display:block;width:100%;height:8px;margin-top:6px;accent-color:var(--ok)}
+  #chordReviewEditorSlot:not(:empty){margin-top:12px}
   #chordReviewToggle:focus-visible,.chord-review button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
   .chord-review button:disabled{opacity:.4;cursor:not-allowed}
   @media (max-width:760px){
@@ -136,11 +141,8 @@
     .chord-review-compare{grid-template-columns:minmax(0,1fr)}
     .chord-review-crop{max-width:100%}
   }
-  @container (max-width:850px){
-    .chord-review-compare{grid-template-columns:minmax(0,1fr)}
-  }
   @container (max-width:620px){
-    .layout.chord-review-mode .chord-workspace{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(150px,35vh) minmax(0,1fr)}
+    .layout.chord-review-mode .chord-workspace{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(100px,22vh) minmax(0,1fr)}
     .layout.chord-review-mode .chord-workspace>#bars{padding-right:0;padding-bottom:8px;border-bottom:1px solid var(--border)}
     .chord-review-head{flex-direction:column}
   }
@@ -248,6 +250,13 @@
     .layout>.editor.open:not(.hidden){position:static;width:auto;transition:none}
   }
   .editor h2{font-size:13px;color:var(--muted);text-transform:uppercase;margin:0 0 12px}
+  .editor.editor-inline{position:static;width:auto;background:var(--panel);border:1px solid var(--border);border-radius:8px}
+  .ed-heading{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px}
+  .ed-heading h2{margin:0}
+  .ed-voicing{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .ed-voicing #edFb{width:min(205px,100%)}
+  .ed-voicing #edCrop{flex:1 0 90px;max-width:160px}
+  .ed-voicing .printcrop{max-width:100%;height:auto;max-height:130px;margin:0}
   .ed-split-actions{display:flex;flex-wrap:wrap;gap:6px}
   .ed-split-actions .tab:disabled{opacity:.4;cursor:default}
   .editor label{display:block;font-size:12px;color:var(--muted);margin:12px 0 4px}
@@ -260,6 +269,8 @@
   .suggest .s:hover,.suggest button.s:focus-visible{border-color:var(--accent)}
   .chord-review-suggestions{margin:0 0 12px}
   .chord-review-suggestions-label{color:var(--muted);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em}
+  #chordReviewSuggestions{display:flex;gap:4px;flex-wrap:wrap;max-height:76px;overflow:auto}
+  #chordReviewSuggestions .s{width:auto;gap:8px;margin:3px 0}
   .fb-ctl{display:flex;gap:8px;align-items:center;color:var(--muted);font-size:12px;margin-bottom:8px}
   .fb-ctl button{background:var(--panel);border:1px solid var(--border);color:var(--text);border-radius:5px;width:24px;height:24px;cursor:pointer}
   .fb-grid{display:flex;gap:0;justify-content:center;background:var(--field);border:1px solid var(--border);border-radius:8px;padding:10px}
@@ -337,7 +348,8 @@
   .dmergeform button.apply{background:var(--accent);color:var(--accent-ink);border:0;font-weight:600}
   .dmergeform .err{flex-basis:100%;margin-top:0}
   .dsort{display:flex;gap:6px;align-items:center;color:var(--muted);font-size:12px;margin-bottom:8px}
-  .ed-actions{display:flex;gap:8px;margin-top:16px}
+  .ed-actions{position:sticky;bottom:-16px;display:flex;gap:8px;margin-top:10px;padding:8px 0;background:var(--panel-2)}
+  .editor-inline .ed-actions{bottom:0;background:var(--panel)}
   .ed-actions button{flex:1;border-radius:6px;padding:9px;border:1px solid var(--border);background:var(--panel);color:var(--text);cursor:pointer}
   .ed-actions .apply{background:var(--accent);color:var(--accent-ink);border:0;font-weight:600}
   /* JSON tab — CodeMirror editor (dark, palette-matched) */
@@ -594,20 +606,18 @@
         <div class="chord-review-head">
           <div class="chord-review-title">
             <div id="chordReviewPosition" class="muted" aria-live="polite"></div>
+            <progress id="chordReviewProgress" aria-label="Chords reviewed" max="1" value="0"></progress>
             <h1 id="chordReviewName"></h1>
             <div id="chordReviewContext" class="chord-review-context"></div>
           </div>
           <div class="chord-review-nav" aria-label="Chord review navigation">
             <button id="chordReviewPrev" type="button" aria-keyshortcuts="h ArrowLeft" title="previous chord (H or ←)">Previous <span class="chord-review-key">H / ←</span></button>
             <button id="chordReviewNext" type="button" aria-keyshortcuts="l ArrowRight" title="next chord (L or →)">Next <span class="chord-review-key">L / →</span></button>
+            <button id="chordReviewNextFlagged" type="button">Next flagged</button>
           </div>
         </div>
         <div id="chordReviewMessage" class="chord-review-message" role="status" aria-live="polite"></div>
         <div id="chordReviewContent" hidden>
-          <div class="chord-review-suggestions">
-            <div class="chord-review-suggestions-label">Chord names</div>
-            <div id="chordReviewSuggestions" class="suggest" aria-label="Chord names"></div>
-          </div>
           <div class="chord-review-compare">
             <section class="chord-review-card" aria-label="Current voicing">
               <h2>Current voicing</h2>
@@ -627,7 +637,13 @@
             <button id="chordReviewAccept" class="accept" type="button" aria-keyshortcuts="A">Use printed and review <span class="chord-review-key">A</span></button>
             <button id="chordReviewKeep" type="button" aria-keyshortcuts="Space">Mark reviewed <span class="chord-review-key">Space</span></button>
             <button id="chordReviewSkip" type="button" aria-keyshortcuts="S">Defer <span class="chord-review-key">S</span></button>
-            <button id="chordReviewEdit" type="button">Edit chord</button>
+            <button id="chordReviewEdit" type="button" aria-keyshortcuts="E">Edit chord <span class="chord-review-key">E</span></button>
+            <button id="chordReviewDone" type="button" hidden>Mark song done &amp; next song</button>
+          </div>
+          <div id="chordReviewEditorSlot"></div>
+          <div class="chord-review-suggestions">
+            <div class="chord-review-suggestions-label">Chord names</div>
+            <div id="chordReviewSuggestions" class="suggest" aria-label="Chord names"></div>
           </div>
           <div class="chord-review-help">Shift + ← / →, Shift + H / L, or { / } moves between flagged chords.</div>
         </div>

@@ -280,6 +280,7 @@ function renderPages(savedSourceKey) {
       }
       renderScanReviewMarks();
       if (typeof syncActiveChordProposal === "function") syncActiveChordProposal();
+      if (typeof syncChordReviewCrop === "function") syncChordReviewCrop();
     })
     .catch(() => { /* Page-level source information is still available. */ })
     .finally(() => {
