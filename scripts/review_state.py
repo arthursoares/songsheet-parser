@@ -202,7 +202,9 @@ def review_summary(doc: dict) -> dict:
     return {"version": REVIEW_VERSION, "fields": fields}
 
 
-def record_review(doc: dict, field: str, status: str, reviewer="", evidence="") -> dict:
+def record_review(
+    doc: dict, field: str, status: str, reviewer="", evidence="", *, timestamp: str | None = None
+) -> dict:
     """Return a deep copy with one field-review record added or replaced."""
     if not isinstance(doc, dict):
         raise ValueError("document must be an object")
@@ -234,12 +236,15 @@ def record_review(doc: dict, field: str, status: str, reviewer="", evidence="") 
     review = result.setdefault("_meta", {}).setdefault(
         "review", {"version": REVIEW_VERSION, "fields": {}}
     )
-    review["fields"][field] = {
+    record = {
         "status": status,
         "reviewer": reviewer,
         "evidence": evidence,
         "fingerprint": field_fingerprint(doc, field),
     }
+    if timestamp is not None:
+        record["timestamp"] = timestamp
+    review["fields"][field] = record
     return result
 
 

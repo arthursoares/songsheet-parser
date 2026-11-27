@@ -4,6 +4,7 @@ import os
 import sys
 import threading
 from contextlib import contextmanager
+from datetime import UTC, datetime
 from http.client import HTTPConnection
 from pathlib import Path
 
@@ -489,6 +490,9 @@ def test_review_doc_records_in_memory_without_mutating_disk(tmp_path):
     assert response["ok"] is True
     assert response["review"]["fields"]["chords"]["status"] == "verified"
     assert response["doc"]["_meta"]["review"]["fields"]["chords"]["reviewer"] == "AS"
+    timestamp = response["doc"]["_meta"]["review"]["fields"]["chords"]["timestamp"]
+    assert datetime.fromisoformat(timestamp).tzinfo is UTC
+    assert response["review"]["fields"]["chords"]["timestamp"] == timestamp
     assert target.read_bytes() == original
 
 

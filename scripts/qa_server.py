@@ -16,6 +16,7 @@ import json
 import os
 import re
 import threading
+from datetime import UTC, datetime
 from html import escape
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -412,6 +413,7 @@ def _h_review_doc(req):
                 payload["status"],
                 payload.get("reviewer", ""),
                 payload.get("evidence", ""),
+                timestamp=datetime.now(UTC).isoformat(timespec="seconds").replace("+00:00", "Z"),
             )
         else:
             reviewed = doc
