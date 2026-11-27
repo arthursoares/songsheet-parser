@@ -53,6 +53,7 @@ test("scan highlights the linked chord, scrolls between pages, and follows a dia
       : selector === `[data-scan-chord="0:0:${i}"]` ? marks[i] : null;
   });
   let click;
+  let keydown;
   let chosen;
   let requests = 0;
   const root = {
@@ -64,14 +65,30 @@ test("scan highlights the linked chord, scrolls between pages, and follows a dia
       if (selector === ".scan-review-mark.selected") return marks.find((mark) => mark.classList.contains("selected"));
       return null;
     },
-    addEventListener: (_event, handler) => { click = handler; },
+    addEventListener(event, handler) {
+      if (event === "click") click = handler;
+      if (event === "keydown") keydown = handler;
+    },
   };
   const legend = {};
+  const proposalLegend = {};
   const details = {};
+  const heading = {};
+  const content = {};
   let toggle;
   const checkbox = { addEventListener: (_event, handler) => { toggle = handler; } };
+  const handlers = new Map();
+  const input = (id) => ({ addEventListener: (event, handler) => handlers.set(id + ":" + event, handler) });
+  const viewport = {
+    ...root, ...scanElement(0, 150), clientWidth: 400, scrollLeft: 0,
+    querySelector: () => marks[0], style: { setProperty: (key, value) => handlers.set(key, value) },
+    addEventListener: (event, handler) => handlers.set(event, handler),
+  };
+  viewport.classList.toggle = (name, value) => viewport.classList[value ? "add" : "remove"](name);
   const lookup = new Map([
     ["pages", root], ["scanReviewLegend", legend], ["scanEditDetails", details],
+    ["scanProposalLegend", proposalLegend], ["scanEditHeading", heading], ["scanEditContent", content],
+    ["scanViewport", viewport], ...["scanZoom", "scanZoomIn", "scanZoomOut", "scanShowBoxes"].map((id) => [id, input(id)]),
     ["scanShowEdits", checkbox], ...pages.map((p) => [p.id, p]),
   ]);
   const storage = new Map();
@@ -88,7 +105,7 @@ test("scan highlights the linked chord, scrolls between pages, and follows a dia
     api: async () => {
       requests += 1;
       return {
-        locations: { a: { page: 1, box: [0.1, 0.1, 0.2, 0.2] }, b: { page: 2, box: [0.3, 0.4, 0.5, 0.6] } },
+        locations: { a: { page: 1, box: [0.1, 0.03, 0.2, 0.2] }, b: { page: 2, box: [0.3, 0.4, 0.5, 0.6] } },
       };
     },
     selectChordReviewEntry: (point) => { chosen = point; },
@@ -102,19 +119,34 @@ test("scan highlights the linked chord, scrolls between pages, and follows a dia
   assert.match(layers[0].innerHTML, /data-review-status="reviewed"/);
   assert.match(layers[1].innerHTML, /data-review-status="deferred"/);
   assert.equal(legend.hidden, false);
+  assert.equal(proposalLegend.hidden, true);
+  assert.match(root.innerHTML, /<\/figure>\s*<\/div>\s*<details id="scanEditDetails"/);
 
   context.syncScanSelection(coords[0], true);
   assert.equal(marks[0].classList.contains("selected"), true);
-  assert.equal(root.scrollTop, 0);
+  assert.equal(viewport.scrollTop, 0);
   context.syncScanSelection(coords[1], true);
   assert.equal(marks[0].classList.contains("selected"), false);
   assert.equal(marks[1].classList.contains("selected"), true);
-  assert.equal(root.scrollTop, 185);
+  assert.equal(viewport.scrollTop, 185);
+  handlers.get("scanZoom:change")({ target: { value: "175" } });
+  assert.equal(handlers.get("--scan-zoom"), "175%");
+  assert.equal(storage.get("qaScanZoom"), "175");
+  assert.match(layers[1].innerHTML, /left:30%;top:40%;width:20%/);
+  handlers.get("scanShowBoxes:change")({ target: { checked: false } });
+  assert.equal(viewport.classList.contains("hide-boxes"), true);
+  assert.equal(legend.hidden, true);
+  assert.equal(marks[1].classList.contains("selected"), true);
+  handlers.get("scanShowBoxes:change")({ target: { checked: true } });
+  assert.equal(legend.hidden, false);
   context.syncScanSelection(coords[2], true);
   assert.equal(pages[1].classList.contains("current"), true);
   assert.equal(marks[1].classList.contains("selected"), false);
 
   context.wireScanReview();
+  let stopped = false;
+  keydown({ target: { tagName: "SUMMARY" }, key: " ", stopPropagation: () => { stopped = true; } });
+  assert.equal(stopped, true);
   click({ target: { closest: (selector) => selector === "[data-scan-chord]"
     ? { dataset: { scanChord: "0:0:1" } } : null } });
   assert.deepEqual({ ...chosen }, coords[1]);
@@ -125,23 +157,23 @@ test("scan highlights the linked chord, scrolls between pages, and follows a dia
   assert.doesNotMatch(layers[0].innerHTML, /scan-edit-badge/);
   toggle({ target: { checked: true } });
   assert.equal(storage.get("qaShowScanEdits"), "1");
-  assert.match(layers[0].innerHTML, /data-edit-status="unsaved">Cmaj7<\/span>/);
+  assert.match(layers[0].innerHTML, /class="scan-edit-badge below" data-edit-status="unsaved"><span>Cmaj7<\/span>/);
   assert.match(layers[0].innerHTML, /data-review-status="reviewed"/);
   context.syncScanSelection(coords[0]);
   assert.equal(details.hidden, false);
-  assert.match(details.innerHTML, /As extracted/);
-  assert.match(details.innerHTML, /<th scope="row">Chord<\/th><td>C<\/td><td>Cmaj7/);
-  assert.match(details.innerHTML, /<th scope="row">Lyric<\/th><td>—<\/td><td>new lyric/);
-  assert.match(details.innerHTML, /id="scanEditOpen"/);
+  assert.match(content.innerHTML, /As extracted/);
+  assert.match(content.innerHTML, /<th scope="row">Chord<\/th><td>C<\/td><td>Cmaj7/);
+  assert.match(content.innerHTML, /<th scope="row">Lyric<\/th><td>—<\/td><td>new lyric/);
+  assert.match(content.innerHTML, /id="scanEditOpen"/);
   click({ target: { closest: (selector) => selector === "#scanEditOpen" ? {} : null } });
   assert.deepEqual({ ...chosen }, coords[0]);
   assert.equal(state.activeView, "bars");
   context.syncSavedScanDocument();
-  assert.match(layers[0].innerHTML, /data-edit-status="saved">Cmaj7<\/span>/);
-  assert.match(details.innerHTML, /Saved edit/);
+  assert.match(layers[0].innerHTML, /data-edit-status="saved"><span>Cmaj7<\/span>/);
+  assert.match(heading.textContent, /Saved edit/);
   context.renderPages();
   await new Promise((resolve) => setImmediate(resolve));
-  assert.match(layers[0].innerHTML, /data-edit-status="saved">Cmaj7<\/span>/);
+  assert.match(layers[0].innerHTML, /data-edit-status="saved"><span>Cmaj7<\/span>/);
   toggle({ target: { checked: false } });
   assert.equal(storage.get("qaShowScanEdits"), "0");
   assert.doesNotMatch(layers[0].innerHTML, /scan-edit-badge/);

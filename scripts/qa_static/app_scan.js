@@ -4,8 +4,15 @@ let scanReview = { request: null, locations: {}, selection: null, follow: false 
 let legacyScanOrder = null;
 let legacyScanLength = 0;
 let scanShowEdits = false;
-try { scanShowEdits = localStorage.getItem("qaShowScanEdits") === "1"; }
-catch (_error) { /* The toggle still works for this session. */ }
+let scanShowBoxes = true;
+let scanZoom = 100;
+const SCAN_ZOOM_LEVELS = [50, 75, 100, 125, 150, 175, 200, 225, 250];
+try {
+  scanShowEdits = localStorage.getItem("qaShowScanEdits") === "1";
+  scanShowBoxes = localStorage.getItem("qaShowScanBoxes") !== "0";
+  const zoom = Number(localStorage.getItem("qaScanZoom"));
+  if (SCAN_ZOOM_LEVELS.includes(zoom)) scanZoom = zoom;
+} catch (_error) { /* Keep the in-memory preferences. */ }
 let savedScanEdits = new Map();
 const SCAN_EDIT_FIELDS = [["chord", "Chord"], ["voicing", "Voicing"], ["text", "Lyric"]];
 const SCAN_MATCH_LABELS = {
@@ -114,6 +121,78 @@ function syncSavedScanDocument(savedDoc = state.doc, unchanged = true) {
   }
 }
 
+function setScanZoom(zoom, point) {
+  if (zoom === scanZoom || !SCAN_ZOOM_LEVELS.includes(zoom)) return;
+  const viewport = $("scanViewport");
+  const rect = viewport.getBoundingClientRect();
+  const x = point ? point.clientX - rect.left : viewport.clientWidth / 2;
+  const y = point ? point.clientY - rect.top : viewport.clientHeight / 2;
+  const left = (viewport.scrollLeft + x) / scanZoom;
+  // Anchor on the visible page so inter-page margins don't accumulate at high zoom.
+  const page = [...viewport.querySelectorAll(".scan-page")].find((item) =>
+    item.getBoundingClientRect().bottom >= rect.top + y);
+  const top = page ? (rect.top + y - page.getBoundingClientRect().top) / scanZoom : 0;
+  scanZoom = zoom;
+  viewport.style.setProperty("--scan-zoom", zoom + "%");
+  viewport.classList.toggle("zoomed", zoom > 100);
+  $("scanZoom").value = String(zoom);
+  $("scanZoomOut").disabled = zoom === SCAN_ZOOM_LEVELS[0];
+  $("scanZoomIn").disabled = zoom === SCAN_ZOOM_LEVELS.at(-1);
+  viewport.scrollLeft = left * zoom - x;
+  if (page) viewport.scrollTop += page.getBoundingClientRect().top - rect.top + top * zoom - y;
+  try { localStorage.setItem("qaScanZoom", String(zoom)); }
+  catch (_error) { /* Keep the in-memory preference. */ }
+}
+
+function wireScanViewport(viewport) {
+  function stepZoom(direction, point) {
+    setScanZoom(SCAN_ZOOM_LEVELS[SCAN_ZOOM_LEVELS.indexOf(scanZoom) + direction], point);
+  }
+  $("scanZoom").addEventListener("change", (event) => setScanZoom(Number(event.target.value)));
+  $("scanZoomOut").addEventListener("click", () => stepZoom(-1));
+  $("scanZoomIn").addEventListener("click", () => stepZoom(1));
+  $("scanShowBoxes").addEventListener("change", (event) => {
+    scanShowBoxes = event.target.checked;
+    viewport.classList.toggle("hide-boxes", !scanShowBoxes);
+    $("scanReviewLegend").hidden = !scanShowBoxes || !viewport.querySelector(".scan-review-mark");
+    try { localStorage.setItem("qaShowScanBoxes", scanShowBoxes ? "1" : "0"); }
+    catch (_error) { /* Keep the in-memory preference. */ }
+  });
+  viewport.addEventListener("wheel", (event) => {
+    if (!event.ctrlKey && !event.metaKey) return;
+    event.preventDefault();
+    if (event.deltaY) stepZoom(Math.sign(-event.deltaY), event);
+  }, { passive: false });
+  let drag = null;
+  viewport.addEventListener("pointerdown", (event) => {
+    if (scanZoom <= 100 || event.pointerType === "touch" || event.button !== 0 ||
+        !event.target.closest(".scan-image")) return;
+    drag = {
+      id: event.pointerId, x: event.clientX, y: event.clientY,
+      left: viewport.scrollLeft, top: viewport.scrollTop, moved: false,
+    };
+  });
+  viewport.addEventListener("pointermove", (event) => {
+    if (!drag || drag.id !== event.pointerId) return;
+    const dx = event.clientX - drag.x, dy = event.clientY - drag.y;
+    if (!drag.moved && Math.hypot(dx, dy) < 5) return;
+    if (!drag.moved) {
+      drag.moved = true;
+      viewport.setPointerCapture(event.pointerId);
+      viewport.classList.add("dragging");
+    }
+    viewport.scrollLeft = drag.left - dx;
+    viewport.scrollTop = drag.top - dy;
+  });
+  for (const name of ["pointerup", "pointercancel", "pointerleave", "lostpointercapture"]) {
+    viewport.addEventListener(name, (event) => {
+      if (drag?.id !== event.pointerId) return;
+      drag = null;
+      viewport.classList.remove("dragging");
+    });
+  }
+}
+
 function renderPages(savedSourceKey) {
   const pages = scanPages();
   const root = $("pages");
@@ -125,25 +204,43 @@ function renderPages(savedSourceKey) {
     legacyScanOrder = ordered.length ? new WeakMap(ordered.map((entry, i) => [entry, i])) : null;
     legacyScanLength = ordered.length;
   }
+  const hasObservations = Object.keys(state.doc._meta?.observations || {}).length > 0;
   root.innerHTML = `<div class="scan-toolbar">
-    <label class="scan-edits-toggle"><input id="scanShowEdits" type="checkbox" ${scanShowEdits ? "checked" : ""}> Show edits</label>
-    <div id="scanReviewLegend" class="scan-review-legend" hidden>
+    <div class="scan-zoom">
+      <button type="button" class="tab" id="scanZoomOut" aria-label="Zoom out" ${scanZoom === SCAN_ZOOM_LEVELS[0] ? "disabled" : ""}>−</button>
+      <select id="scanZoom" aria-label="Scan zoom">${SCAN_ZOOM_LEVELS.map((level) =>
+        `<option value="${level}" ${scanZoom === level ? "selected" : ""}>${level === 100 ? "Fit (100%)" : level + "%"}</option>`).join("")}</select>
+      <button type="button" class="tab" id="scanZoomIn" aria-label="Zoom in" ${scanZoom === SCAN_ZOOM_LEVELS.at(-1) ? "disabled" : ""}>+</button>
+    </div>
+    <label class="scan-edits-toggle"><input id="scanShowBoxes" type="checkbox" ${scanShowBoxes ? "checked" : ""}> Show boxes</label>
+    ${hasObservations ? `<label class="scan-edits-toggle"><input id="scanShowEdits" type="checkbox" ${scanShowEdits ? "checked" : ""}> Show edits</label>` : ""}
+  </div>
+  <details id="scanReviewLegend" hidden>
+    <summary>Scan legend</summary>
+    <div class="scan-review-legend">
       <span style="--legend-color:#1760bd">Unreviewed</span>
       <span style="--legend-color:#23733b">Reviewed</span>
       <span style="--legend-color:#a05304">Deferred</span>
       <span style="--legend-color:#b73531">Needs re-review</span>
-      <span class="scan-proposal-legend">Proposed position</span>
+      <span id="scanProposalLegend" class="scan-proposal-legend" hidden>Proposed position</span>
     </div>
-    <div id="scanFocusStatus" class="muted" role="status" hidden></div>
-    <div id="scanEditDetails" class="scan-edit-details" hidden></div>
-  </div>` + pages.map((n) => `
+  </details>
+  <div id="scanFocusStatus" class="muted" role="status" hidden></div>
+  <div id="scanViewport" class="scan-pages-wrap${scanZoom > 100 ? " zoomed" : ""}${scanShowBoxes ? "" : " hide-boxes"}"
+    style="--scan-zoom:${scanZoom}%" tabindex="0" role="region" aria-label="Scan pages">` + pages.map((n) => `
     <figure class="scan-page" id="scan-page-${n}">
       <div class="scan-image">
-        <img src="/api/page/${encodeURIComponent(state.album)}/${encodeURIComponent(state.file)}/${encodeURIComponent(n)}" alt="page ${esc(n)}">
+        <img draggable="false" src="/api/page/${encodeURIComponent(state.album)}/${encodeURIComponent(state.file)}/${encodeURIComponent(n)}" alt="page ${esc(n)}">
         <div class="scan-review-marks"></div>
       </div>
       <figcaption class="pagecap">page ${esc(n)}</figcaption>
-    </figure>`).join("");
+    </figure>`).join("") + `</div>
+  <details id="scanEditDetails" class="scan-edit-details" open hidden>
+    <summary id="scanEditHeading"></summary>
+    <div id="scanEditContent"></div>
+  </details>`;
+  const viewport = $("scanViewport");
+  if (viewport) wireScanViewport(viewport);
   const request = { album: state.album, file: state.file, doc: state.doc, revision: state.songRevision };
   scanReview = {
     request, locations: {}, legacyLocations: new WeakMap(), edits: new Map(),
@@ -261,6 +358,7 @@ function renderScanReviewMarks() {
   if (!state.doc || !isCurrentScan(scanReview.request)) return;
   scanReview.edits = scanShowEdits ? scanEditsForDocument(state.doc, savedScanEdits) : new Map();
   const pages = new Map();
+  let hasProposals = false;
   for (const coords of entryCoords()) {
     const entry = chordAt(coords);
     const location = scanLookup(entry);
@@ -271,6 +369,8 @@ function renderScanReviewMarks() {
     const editStatus = edit ? (edit.unsaved ? "Unsaved edit" : "Saved edit") : "";
     const matchLabel = SCAN_MATCH_LABELS[location.basis];
     const proposal = scanProposal(entry);
+    const proposed = location.basis === SCAN_PROPOSAL_BASIS;
+    hasProposals ||= proposed;
     const label = `${entry.chord} · ${CHORD_REVIEW_LABELS[status]} · bar ${coords.bi + 1}` +
       (edit ? ` · ${editStatus}` : "") + (matchLabel ? ` · ${matchLabel}` : "") +
       (location.basis === SCAN_PROPOSAL_BASIS
@@ -279,8 +379,8 @@ function renderScanReviewMarks() {
     if (edit?.rows.some(({ field }) => field === "chord")) captions.push(entry.chord);
     if (edit?.newBar) captions.push(`Starts bar ${coords.bi + 1}`);
     if (edit?.joined) captions.push("Bar joined");
-    const badge = edit ? `<span class="scan-edit-badge" data-edit-status="${edit.unsaved ? "unsaved" : "saved"}">${esc(captions.join(" · ") || "Edited")}</span>` : "";
-    const proposalAttr = location.basis === SCAN_PROPOSAL_BASIS ? ' data-scan-proposal="true"' : "";
+    const badge = edit ? `<span class="scan-edit-badge${top < 0.06 ? " below" : ""}" data-edit-status="${edit.unsaved ? "unsaved" : "saved"}"><span>${esc(captions.join(" · ") || "Edited")}</span></span>` : "";
+    const proposalAttr = proposed ? ' data-scan-proposal="true"' : "";
     const mark = `<button type="button" tabindex="-1" class="scan-review-mark" data-scan-chord="${coords.si}:${coords.bi}:${coords.ei}"${proposalAttr}
       data-review-status="${status}" aria-label="${esc(label)}" title="${esc(label)}"
       style="left:${left * 100}%;top:${top * 100}%;width:${(right - left) * 100}%;height:${(bottom - top) * 100}%">${badge}</button>`;
@@ -292,7 +392,9 @@ function renderScanReviewMarks() {
     page.querySelector(".scan-review-marks").innerHTML = (pages.get(number) || []).join("");
   });
   const legend = $("scanReviewLegend");
-  if (legend) legend.hidden = pages.size === 0;
+  if (legend) legend.hidden = pages.size === 0 || !scanShowBoxes;
+  const proposalLegend = $("scanProposalLegend");
+  if (proposalLegend) proposalLegend.hidden = !hasProposals;
   updateScanSelection(false);
 }
 
@@ -305,18 +407,18 @@ function syncScanSelection(coords, follow = false) {
 function renderScanEditDetails(entry, coords) {
   const panel = $("scanEditDetails");
   if (!panel) return;
+  const heading = $("scanEditHeading"), content = $("scanEditContent");
   const edit = scanReview.edits?.get(entry?.observation_id);
   panel.hidden = !edit;
   if (!edit) {
-    panel.innerHTML = "";
+    content.innerHTML = "";
     return;
   }
   const rows = edit.rows.map(({ label, before, now, lastSaved, unsaved }) => `
     <tr><th scope="row">${label}</th><td>${esc(before || "—")}</td><td>${esc(now || "—")}
     ${unsaved && before === now ? `<small>Last saved ${esc(lastSaved || "—")}</small>` : ""}</td></tr>`).join("");
-  panel.innerHTML = `<div class="scan-edit-heading"><b>${esc(entry.chord)}</b>
-    <span>${edit.unsaved ? "Unsaved edit" : "Saved edit"}</span></div>
-    ${edit.newBar ? `<div>Starts bar ${coords.bi + 1}</div>` : ""}
+  heading.textContent = `${entry.chord} · ${edit.unsaved ? "Unsaved edit" : "Saved edit"}`;
+  content.innerHTML = `${edit.newBar ? `<div>Starts bar ${coords.bi + 1}</div>` : ""}
     ${edit.joined ? "<div>Removed the saved bar split</div>" : ""}
     ${rows ? `<table><thead><tr><th></th><th scope="col">As extracted</th><th scope="col">Current</th></tr></thead><tbody>${rows}</tbody></table>` : ""}
     ${state.activeView !== "bars" ? '<button type="button" id="scanEditOpen" class="tab">Edit chord</button>' : ""}`;
@@ -348,21 +450,34 @@ function updateScanSelection(follow) {
     mark?.classList.add("selected");
     mark?.setAttribute("aria-current", "true");
   }
-  if (!follow || !page || !root.clientHeight) return;
-  const viewport = root.getBoundingClientRect();
-  const toolbar = root.querySelector(".scan-toolbar");
-  const visibleTop = Math.max(viewport.top, toolbar?.getBoundingClientRect().bottom ?? viewport.top);
+  const scroller = $("scanViewport");
+  if (!follow || !page || !scroller?.clientHeight) return;
+  const viewport = scroller.getBoundingClientRect();
+  const visibleTop = viewport.top;
   const target = (mark || page).getBoundingClientRect();
   if (mark) {
     if (target.top < visibleTop || target.bottom > viewport.bottom) {
-      root.scrollTop += (target.top + target.bottom - visibleTop - viewport.bottom) / 2;
+      scroller.scrollTop += (target.top + target.bottom - visibleTop - viewport.bottom) / 2;
+    }
+    if (target.left < viewport.left || target.right > viewport.right) {
+      scroller.scrollLeft += (target.left + target.right - viewport.left - viewport.right) / 2;
     }
   } else if (previousPage !== page || target.bottom <= visibleTop || target.top >= viewport.bottom) {
-    root.scrollTop += target.top - visibleTop;
+    scroller.scrollTop += target.top - visibleTop;
   }
 }
 
+function scrollScanToPage(number) {
+  const page = $(`scan-page-${number}`), viewport = $("scanViewport");
+  if (!page || !viewport) return;
+  if (!$("pages").getClientRects().length) toggleLayoutPane("pages");
+  viewport.scrollTop += page.getBoundingClientRect().top - viewport.getBoundingClientRect().top;
+}
+
 function wireScanReview() {
+  $("pages").addEventListener("keydown", (event) => {
+    if (event.target.tagName === "SUMMARY" && event.key === " ") event.stopPropagation();
+  });
   $("pages").addEventListener("click", (ev) => {
     if (ev.target.closest("#scanEditOpen") && scanReview.selection && isCurrentScan(scanReview.request)) {
       jumpToEntry(scanReview.selection);
