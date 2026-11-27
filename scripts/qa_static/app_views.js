@@ -2,6 +2,8 @@
 // (CodeMirror) views.
 function showView(which) {
   if (!state.doc && which !== "shapes") which = "bars";
+  if (state.activeView === "lyrics" && which !== "lyrics" &&
+      typeof confirmLyricDraftDiscard === "function" && !confirmLyricDraftDiscard()) return false;
   if (state.activeView === "chordReview" && which !== "chordReview" &&
       $("editor").classList.contains("editor-inline")) {
     if (state.doc && !confirmChordDraftDiscard()) return false;

@@ -117,6 +117,7 @@ function updateProgress() {
 // If there are unsaved edits, confirm before switching away. Returns true to proceed.
 function confirmDiscard() {
   if (typeof confirmChordDraftDiscard === "function" && !confirmChordDraftDiscard()) return false;
+  if (typeof confirmLyricDraftDiscard === "function" && !confirmLyricDraftDiscard()) return false;
   const jsonEdits = typeof hasUnappliedJsonEdits === "function" && hasUnappliedJsonEdits();
   if (!state.dirty && !jsonEdits) return true;
   const msg = state.dirty && jsonEdits

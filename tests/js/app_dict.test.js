@@ -9,6 +9,7 @@ function createDictHarness({ initialDoc } = {}) {
   let undoCount = 0;
   let dirtyCount = 0;
   let renderBarsCalls = 0;
+  let jumped;
 
   function makeElement(tag = "div") {
     const listeners = new Map();
@@ -21,6 +22,8 @@ function createDictHarness({ initialDoc } = {}) {
       textContent: "",
       style: {},
       dataset: {},
+      setAttribute(name, value) { this[name] = value; },
+      focus() {},
       children,
       _bySelector: new Map(),
       addEventListener(type, fn) {
@@ -135,7 +138,7 @@ function createDictHarness({ initialDoc } = {}) {
     ChordDiagram: { svg: () => "<svg/>" },
     ChordNaming: {
       validateName: (name) => ({ valid: Boolean(name) && name !== "bad chord" }),
-      nameMatchesVoicing: () => true,
+      nameMatchesVoicing: (name) => name !== "G7",
       suggestNames: () => [{ name: "C" }],
       pcNotes: () => [],
     },
@@ -158,6 +161,7 @@ function createDictHarness({ initialDoc } = {}) {
     pushUndo: () => { undoCount += 1; },
     markDirty: () => { dirtyCount += 1; state.dirty = true; },
     renderBars: () => { renderBarsCalls += 1; },
+    jumpToEntry: (coords) => { jumped = coords; },
     document: {
       createElement: (tag) => makeElement(tag),
     },
@@ -192,6 +196,8 @@ function createDictHarness({ initialDoc } = {}) {
     dirtyCount: () => dirtyCount,
     renderBarsCalls: () => renderBarsCalls,
     entries: () => windowObj.ChordDictionary.buildDictionary(state.doc.songs[0]),
+    root: dictRoot,
+    jumped: () => jumped,
   };
 }
 
@@ -331,4 +337,48 @@ test("merge form preserves user-typed #dMergeName/#dMergeVoicing (even blank) ac
   app.get("dClearSel").click();
   assert.equal(app.state.dictSel.size, 0);
   assert.equal(app.state.dictMergeOpen, false);
+});
+
+test("dictionary filters, search and occurrence chips expose the affected entries", () => {
+  const app = createDictHarness();
+  const filter = (label) => app.root.children.find((node) => node.className === "dict-filters")
+    .children.find((node) => node.textContent === label).click();
+  filter("Duplicate names");
+  assert.equal(app.rows().length, 2);
+  assert.ok(app.rows().every((row) => row.innerHTML.includes('class="dnm">C</span>')));
+  filter("Mismatches");
+  assert.equal(app.rows().length, 1);
+  assert.match(app.rows()[0].innerHTML, /G7/);
+  filter("Print diffs");
+  assert.equal(app.rows().length, 1);
+  const occurrences = app.rows()[0].children.find((node) => node.className === "dict-occurrences");
+  assert.equal(occurrences.children[1].textContent, "Sec 1 · b.1 · #1");
+  occurrences.children[1].click();
+  assert.deepEqual({ ...app.jumped() }, { si: 0, bi: 0, ei: 0 });
+  filter("All");
+  app.root.children.find((node) => node.className === "dict-filters").children
+    .find((node) => node.className === "dict-search").input("Am");
+  assert.equal(app.rows().length, 1);
+  assert.match(app.rows()[0].innerHTML, /Am/);
+});
+
+test("conflicting prints are visible and uniform print apply leaves unaudited occurrences alone", () => {
+  const c = { chord: "C", voicing: "x,3,2,0,1,0" };
+  const initialDoc = { songs: [{ sections: [{ bars: [[
+    { ...c, voicing_printed: "x,3,5,5,5,3" },
+    { ...c, voicing_printed: "x,3,2,0,1,0" },
+    { ...c },
+  ]] }] }] };
+  const app = createDictHarness({ initialDoc });
+  assert.match(app.rows()[0].innerHTML, /2 conflicting prints/);
+  assert.equal(app.rows()[0].querySelector(".dprint"), null);
+  delete initialDoc.songs[0].sections[0].bars[0][1].voicing_printed;
+  app.renderDict();
+  assert.match(app.rows()[0].innerHTML, /1× · 2 unprinted unchanged/);
+  app.rows()[0].querySelector(".dprint").click();
+  assert.equal(app.undoCount(), 1);
+  assert.equal(initialDoc.songs[0].sections[0].bars[0][0].voicing, "x,3,5,5,5,3");
+  assert.equal(initialDoc.songs[0].sections[0].bars[0][1].voicing, c.voicing);
+  assert.equal(initialDoc.songs[0].sections[0].bars[0][2].voicing, c.voicing);
+  assert.match(app.root.children.find((node) => node.role === "status").textContent, /1 occurrences; 2 unprinted unchanged.*Undo/);
 });

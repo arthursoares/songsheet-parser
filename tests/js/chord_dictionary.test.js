@@ -58,6 +58,25 @@ test("applyEdit renames every occurrence in one group only", () => {
   assert.equal(song.sections[0].bars[2][0].chord, "Dm7"); // other voicing untouched
 });
 
+test("printed evidence counts expose conflicts and restoration preserves unprinted entries", () => {
+  const song = { sections: [{ bars: [[
+    { chord: "C", voicing: "x,3,2,0,1,0", voicing_printed: "x,3,5,5,5,3", observation_id: "one" },
+    { chord: "C", voicing: "x,3,2,0,1,0", voicing_printed: "x,3,2,0,1,0" },
+    { chord: "C", voicing: "x,3,2,0,1,0" },
+  ]] }] };
+  const group = Dict.buildDictionary(song)[0];
+  assert.equal(group.printedVariants, 2);
+  assert.equal(group.printedCount, 2);
+  assert.equal(group.unprintedCount, 1);
+  assert.equal(group.printDiffCount, 1);
+  assert.equal(group.printed, null);
+  assert.equal(Dict.applyPrinted(song, group.key), 1);
+  assert.equal(song.sections[0].bars[0][0].observation_id, "one");
+  assert.equal(song.sections[0].bars[0][0].voicing_printed, "x,3,5,5,5,3");
+  assert.equal(song.sections[0].bars[0][2].voicing, "x,3,2,0,1,0");
+  assert.equal("voicing_printed" in song.sections[0].bars[0][2], false);
+});
+
 test("applyEdit with empty voicing deletes the voicing key", () => {
   const song = makeSong();
   const key = Dict.entryKey("G7", "3,x,3,4,3,x");

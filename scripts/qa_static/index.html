@@ -312,10 +312,16 @@
   .scan-fingering-proposal button{cursor:pointer}
   .scan-fingering-proposal small{flex-basis:100%;color:var(--muted);font:11px/1.35 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
   .dprint{font-size:11px;margin-left:8px;cursor:pointer;color:#d29922;background:none;border:1px solid var(--border);border-radius:5px;padding:2px 7px}
-  .ly-edit{font-size:15px;font-family:inherit;background:var(--panel);color:inherit;border:1px solid var(--accent);border-radius:4px;padding:0 3px}
+  .ly-edit{font:inherit;background:var(--panel);color:inherit;border:1px solid var(--accent);border-radius:4px;padding:0 3px}
   .ly-modebar{display:flex;gap:6px;margin-bottom:8px}
   .ly-row{margin:10px 0 14px}
-  .ly-chordline{font:12px ui-monospace,monospace;color:var(--accent);white-space:pre-wrap;margin-bottom:3px}
+  .ly-chordline{position:relative;height:1.5em;overflow:hidden;font:14px ui-monospace,monospace;color:var(--accent);white-space:pre;margin:0 9px 3px}
+  .ly-text-chord{position:absolute;top:0}.ly-text-chord.active{background:var(--sel);outline:1px solid var(--accent);border-radius:3px}
+  .ly-marker-count{display:block;text-align:right;font:11px ui-monospace,monospace;margin-bottom:3px}.ly-marker-count.ok{color:var(--ok)}.ly-marker-count.bad{color:var(--bad)}
+  .dict-filters{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:8px 0}
+  .dict-search{background:var(--panel);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:6px}
+  .dict-occurrences{padding:5px 10px;color:var(--muted);font-size:12px}.dict-occurrences summary{cursor:pointer}.dict-occurrences button{margin:5px 5px 0 0;cursor:pointer}
+  .dprint-conflict{color:#d29922;font-size:12px}.dhead:focus-visible{outline:2px solid var(--accent)}
   .ly-line-edit{width:100%;box-sizing:border-box;font:14px ui-monospace,monospace;background:var(--panel);color:inherit;border:1px solid var(--border);border-radius:6px;padding:6px 8px}
   .ly-line-edit:focus{border-color:var(--accent);outline:none}
   .ly-line-err{color:var(--bad);font-size:11px;min-height:14px;margin-top:2px}
@@ -448,6 +454,10 @@
   #lyrics{height:calc(100vh - var(--qa-header-height,49px) - 51px);overflow:auto;padding-bottom:40px}
   .ly-hint{color:var(--muted);font-size:12px;line-height:1.4;margin:0 0 10px;padding:6px 8px;background:var(--panel);border-left:2px solid var(--border-2);border-radius:0 5px 5px 0}
   .ly-arrange-message{min-height:18px;margin:0 0 10px;color:var(--muted);font-size:12px}
+  .ly-move-banner{position:sticky;top:0;z-index:4;display:flex;align-items:center;gap:12px;background:var(--bg);padding:4px 0}
+  .ly-moving .ly-move-banner{border:1px dashed var(--accent);border-radius:6px;padding:8px;margin-bottom:8px}
+  .ly-moving .ly-arrange-message{color:var(--accent);margin:0}.ly-chord.armed{outline:2px dashed var(--accent);outline-offset:3px}
+  .ly-moving .ly-text,.ly-moving .ly-flow-fragment{cursor:copy}
   .ly-section{margin-bottom:22px}
   .ly-seclabel{color:var(--muted);text-transform:uppercase;font-size:11px;letter-spacing:.08em;margin:0 0 8px}
   .ly-line{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;align-items:stretch;margin-bottom:8px;line-height:1.35}
@@ -488,6 +498,7 @@
   .ly-flow-lyric{position:relative;white-space:pre;color:var(--text)}
   .ly-flow-fragment{display:inline;margin:0;padding:0;border:0;background:none;color:inherit;font:inherit;border-radius:2px;cursor:text;transition:background .12s,box-shadow .12s}
   .ly-flow-fragment:hover{background:var(--panel-2)}
+  .ly-flow-bar-start{position:relative}.ly-flow-bar-start::before{content:"|";position:absolute;left:-.4ch;bottom:-.7em;font-size:10px;color:var(--border-2);pointer-events:none}
   .ly-flow-fragment:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
   .ly-flow-fragment.drop-ok{background:var(--sel);box-shadow:0 0 0 1px var(--accent)}
   .ly-flow-fragment.drop-blocked{box-shadow:inset 0 0 0 1px #d29922}

@@ -2,6 +2,7 @@
 // Per-song chord dictionary UI: grouped voicings (pure logic in
 // chord_dictionary.js), batch edit, and the multi-select merge flow.
 let dictMergeDraft = null;
+let dictNotice = "";
 
 function pruneDictSelection(entries) {
   const validKeys = new Set(entries.map((e) => e.key));
@@ -32,18 +33,53 @@ function renderDict() {
     b.addEventListener("click", () => { state.dictSort = b.dataset.sort; renderDict(); }));
   root.appendChild(sortBar);
 
+  const filters = document.createElement("div");
+  filters.className = "dict-filters";
+  for (const [value, label] of [["all", "All"], ["mismatch", "Mismatches"], ["print", "Print diffs"], ["duplicates", "Duplicate names"]]) {
+    const button = document.createElement("button");
+    button.className = "tab" + ((state.dictFilter || "all") === value ? " active" : "");
+    button.textContent = label;
+    button.setAttribute("aria-pressed", String((state.dictFilter || "all") === value));
+    button.addEventListener("click", () => { state.dictFilter = value; renderDict(); });
+    filters.appendChild(button);
+  }
+  const search = document.createElement("input");
+  search.type = "search";
+  search.placeholder = "Search chords or voicings";
+  search.setAttribute("aria-label", search.placeholder);
+  search.value = state.dictSearch || "";
+  search.addEventListener("input", () => {
+    state.dictSearch = search.value;
+    const caret = search.selectionStart;
+    renderDict();
+    const next = $("dict").querySelector(".dict-search");
+    next?.focus();
+    if (caret != null) next?.setSelectionRange(caret, caret);
+  });
+  search.className = "dict-search";
+  filters.appendChild(search);
+  root.appendChild(filters);
+  if (dictNotice) {
+    const notice = document.createElement("p");
+    notice.setAttribute("role", "status");
+    notice.textContent = dictNotice;
+    root.appendChild(notice);
+    dictNotice = "";
+  }
+
   // merge bar (shown when 2+ selected). If dictMergeOpen, render the inline merge form.
   if (state.dictSel.size < 2) state.dictMergeOpen = false;
   if (!state.dictMergeOpen) dictMergeDraft = null;
   const mergeBar = document.createElement("div");
   mergeBar.className = "dmergebar" + (state.dictSel.size >= 2 ? " show" : "");
-  mergeBar.innerHTML = `<b>${state.dictSel.size} selected</b> — merge into one chord:
-    <button class="apply" id="dMergeBtn">Merge…</button>
+  const affected = entries.filter((entry) => state.dictSel.has(entry.key)).reduce((sum, entry) => sum + entry.count, 0);
+  mergeBar.innerHTML = `<b>${state.dictSel.size} groups · ${affected} occurrences selected</b> — merge into one chord:
+    <button id="dMergeBtn">Merge…</button>
     <button id="dClearSel">Clear</button>
     <div class="dmergeform" id="dMergeForm" style="display:none">
       <input type="text" id="dMergeName" placeholder="chord name">
       <input type="text" id="dMergeVoicing" placeholder="voicing (comma form, blank = none)">
-      <button class="apply" id="dMergeApply">Apply</button>
+      <button class="apply" id="dMergeApply">Apply merge</button>
       <button id="dMergeCancel">Cancel</button>
       <span class="err" id="dMergeErr" role="alert"></span>
     </div>`;
@@ -102,13 +138,21 @@ function renderDict() {
     }
   }
 
-  entries.forEach((e) => {
+  const names = new Map();
+  entries.forEach((entry) => names.set(entry.chord, (names.get(entry.chord) || 0) + 1));
+  const shown = entries.filter((entry) => {
+    if (state.dictFilter === "mismatch" && entry.nameMatchesVoicing !== false) return false;
+    if (state.dictFilter === "print" && !entry.printDiffCount) return false;
+    if (state.dictFilter === "duplicates" && names.get(entry.chord) < 2) return false;
+    return `${entry.chord} ${entry.voicing || ""}`.toLowerCase().includes((state.dictSearch || "").toLowerCase());
+  });
+  shown.forEach((e) => {
     const row = document.createElement("div");
     row.className = "drow" + (state.dictSel.has(e.key) ? " sel" : "");
     const mism = e.nameMatchesVoicing === false ? '<span class="warn"></span>' : "";
     const ivals = intervalsFor(e.voicing);
     const civals = chordIvalsFor(e.voicing, e.chord);
-    row.innerHTML = `<div class="dhead">
+    row.innerHTML = `<div class="dhead" tabindex="0" role="button" aria-expanded="${state.dictEdit === e.key}" aria-label="Edit ${esc(e.chord)} group">
       <input type="checkbox" ${state.dictSel.has(e.key) ? "checked" : ""} data-sel="${esc(e.key)}">
       <span class="dnm">${esc(e.chord)}</span>${mism}
       <span class="dvc">${esc(e.voicing || "—")}</span>
@@ -117,8 +161,9 @@ function renderDict() {
       ${civals ? `<span class="dci">${esc(civals)}</span>` : ""}
       ${ivals ? `<span class="div">${esc(ivals)}</span>` : ""}
       <span class="dct">${e.count}×</span>
+      ${e.printedVariants > 1 ? `<span class="dprint-conflict">⚠ ${e.printedVariants} conflicting prints</span>` : ""}
       ${e.printed && e.printed !== (e.voicing || "")
-        ? `<button class="dprint" title="set all ${e.count} occurrences to the printed voicing">print ${esc(e.printed)} → ${e.count}×</button>`
+        ? `<button class="dprint" title="Apply to ${e.printedCount} printed occurrences; leave ${e.unprintedCount} without printed evidence unchanged">print ${esc(e.printed)} → ${e.printedCount}× · ${e.unprintedCount} unprinted unchanged</button>`
         : ""}
     </div>`;
     const pb = row.querySelector(".dprint");
@@ -126,7 +171,8 @@ function renderDict() {
       pb.addEventListener("click", (ev) => {
         ev.stopPropagation();
         pushUndo();
-        window.ChordDictionary.applyEdit(song(), e.key, { voicing: e.printed });
+        const changed = window.ChordDictionary.applyPrinted(song(), e.key);
+        dictNotice = `Applied printed voicing to ${changed} occurrences; ${e.unprintedCount} unprinted unchanged. Undo with ⌘Z / Ctrl+Z.`;
         state.dictSel.delete(e.key);
         if (state.dictEdit === e.key) state.dictEdit = null;
         markDirty();
@@ -144,9 +190,33 @@ function renderDict() {
       state.dictEdit = state.dictEdit === e.key ? null : e.key;
       renderDict();
     });
+    row.querySelector(".dhead").addEventListener("keydown", (event) => {
+      if (event.target !== event.currentTarget || !["Enter", " "].includes(event.key)) return;
+      event.preventDefault();
+      state.dictEdit = state.dictEdit === e.key ? null : e.key;
+      renderDict();
+    });
+    const occurrences = document.createElement("details");
+    occurrences.className = "dict-occurrences";
+    const summary = document.createElement("summary");
+    summary.textContent = `${e.count} occurrences`;
+    occurrences.appendChild(summary);
+    for (const coords of e.occurrences) {
+      const chip = document.createElement("button");
+      chip.type = "button";
+      chip.textContent = `Sec ${coords.si + 1} · b.${coords.bi + 1} · #${coords.ei + 1}`;
+      chip.addEventListener("click", () => jumpToEntry(coords));
+      occurrences.appendChild(chip);
+    }
+    row.appendChild(occurrences);
     if (state.dictEdit === e.key) row.appendChild(buildDictEditor(e));
     root.appendChild(row);
   });
+  if (!shown.length) {
+    const empty = document.createElement("p");
+    empty.textContent = "No chord groups match these filters.";
+    root.appendChild(empty);
+  }
 }
 
 // Apply the inline merge form: validate name and voicing, merge selected groups, re-render.
