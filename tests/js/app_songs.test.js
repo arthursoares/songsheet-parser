@@ -404,3 +404,197 @@ test("SongsUI.loadSong integrated with ReviewUI clears stale review evidence and
     removeLoadHarness();
   }
 });
+
+test("save flushes active blur-committed inputs before serializing state.doc and skips .fb-text", async () => {
+  const doc = {
+    document: { title: "Album", status: "in_progress" },
+    songs: [{ note: "old", sections: [{ label: "Verse", bars: [[{ chord: "C" }]] }] }],
+  };
+  const elements = {
+    saveBtn: { disabled: false },
+    saveStatus: { textContent: "", style: {} },
+  };
+  const activeInput = {
+    id: "songNote",
+    className: "",
+    _commitOnSave() {
+      doc.songs[0].note = "flushed note";
+      global.state.dirty = true;
+      return true;
+    },
+  };
+  global.document = { activeElement: activeInput };
+  global.state = { doc, album: "album", file: "song.json", dirty: false, activeView: "bars" };
+  global.albums = [];
+  global.$ = (id) => elements[id];
+  const bodies = [];
+  global.api = async (_path, options) => {
+    bodies.push(JSON.parse(options.body));
+    return { ok: true };
+  };
+
+  await SongsUI.save();
+  assert.equal(bodies.length, 1);
+  assert.equal(bodies[0].songs[0].note, "flushed note");
+  assert.equal(global.state.dirty, false);
+  assert.equal(global.state.savedSnapshot, JSON.stringify(doc));
+
+  // Fallback to blur() when _commitOnSave is absent on a blur-committed class
+  let blurred = false;
+  global.document = {
+    activeElement: {
+      id: "",
+      className: "seclabel",
+      blur() {
+        blurred = true;
+        doc.songs[0].sections[0].label = "Chorus";
+      },
+    },
+  };
+  await SongsUI.save();
+  assert.equal(blurred, true);
+  assert.equal(bodies[1].songs[0].sections[0].label, "Chorus");
+
+  // Never blindly blur .fb-text
+  let fbBlurred = false;
+  global.document = {
+    activeElement: {
+      id: "",
+      className: "fb-text",
+      blur() { fbBlurred = true; },
+    },
+  };
+  await SongsUI.save();
+  assert.equal(fbBlurred, false);
+
+  for (const name of ["document", "state", "albums", "$", "api"]) delete global[name];
+});
+
+test("save aborts without calling api when active input commit fails", async () => {
+  const doc = { document: { status: "pending" }, songs: [{ sections: [] }] };
+  const elements = {
+    saveBtn: { disabled: false },
+    saveStatus: { textContent: "", style: {} },
+  };
+  global.document = {
+    activeElement: {
+      className: "ly-line-edit",
+      _commitOnSave: () => false,
+    },
+  };
+  global.state = { doc, album: "album", file: "song.json", dirty: true, activeView: "lyrics" };
+  global.albums = [];
+  global.$ = (id) => elements[id];
+  let requests = 0;
+  global.api = async () => { requests += 1; return { ok: true }; };
+
+  const res = await SongsUI.save();
+  assert.equal(res.ok, false);
+  assert.equal(res.blocked, true);
+  assert.equal(requests, 0);
+  assert.equal(global.state.dirty, true);
+  assert.equal(elements.saveStatus.style.color, "var(--bad)");
+  assert.equal(elements.saveBtn.disabled, false);
+
+  for (const name of ["document", "state", "albums", "$", "api"]) delete global[name];
+});
+
+test("save applies valid chord drafts across views and blocks invalid drafts", async () => {
+  const doc = { document: { status: "pending" }, songs: [{ sections: [{ bars: [[{ chord: "C" }]] }] }] };
+  const elements = {
+    saveBtn: { disabled: false },
+    saveStatus: { textContent: "", style: {} },
+  };
+  let draft = true;
+  let applyResult = true;
+  const switchedViews = [];
+  global.state = { doc, album: "album", file: "song.json", dirty: false, activeView: "preview" };
+  global.albums = [];
+  global.$ = (id) => elements[id];
+  global.chordEditorHasDraft = () => draft;
+  global.showView = (view) => { switchedViews.push(view); global.state.activeView = view; };
+  global.submitActiveChord = () => {
+    if (!applyResult) return false;
+    doc.songs[0].sections[0].bars[0][0].chord = "Cmaj7";
+    draft = false;
+    global.state.dirty = true;
+    return true;
+  };
+  const saved = [];
+  global.api = async (_path, options) => {
+    saved.push(JSON.parse(options.body));
+    return { ok: true };
+  };
+
+  await SongsUI.save();
+  assert.deepEqual(switchedViews, ["bars"]);
+  assert.equal(saved.length, 1);
+  assert.equal(saved[0].songs[0].sections[0].bars[0][0].chord, "Cmaj7");
+  assert.equal(global.state.dirty, false);
+
+  // Invalid draft blocks save and preserves dirty state
+  draft = true;
+  applyResult = false;
+  global.state.dirty = true;
+  const blocked = await SongsUI.save();
+  assert.equal(blocked.ok, false);
+  assert.equal(blocked.blocked, true);
+  assert.equal(saved.length, 1);
+  assert.equal(global.state.dirty, true);
+  assert.equal(elements.saveStatus.style.color, "var(--bad)");
+  assert.equal(elements.saveBtn.disabled, false);
+
+  for (const name of [
+    "state", "albums", "$", "api", "chordEditorHasDraft", "showView", "submitActiveChord",
+  ]) delete global[name];
+});
+
+test("confirmDiscard checks confirmChordDraftDiscard before state.dirty", () => {
+  let confirmCalls = 0;
+  let draftOk = false;
+  global.state = { dirty: false };
+  global.confirm = () => { confirmCalls += 1; return true; };
+  global.confirmChordDraftDiscard = () => draftOk;
+
+  assert.equal(SongsUI.confirmDiscard(), false);
+  assert.equal(confirmCalls, 0);
+
+  draftOk = true;
+  assert.equal(SongsUI.confirmDiscard(), true);
+  assert.equal(confirmCalls, 0);
+
+  global.state.dirty = true;
+  assert.equal(SongsUI.confirmDiscard(), true);
+  assert.equal(confirmCalls, 1);
+
+  for (const name of ["state", "confirm", "confirmChordDraftDiscard"]) delete global[name];
+});
+
+test("loadSong records savedSnapshot and saveOnce updates savedSnapshot even with concurrent edits", async () => {
+  const { elements } = installLoadHarness();
+  elements.songSel.options = [];
+  const loaded = { document: { status: "pending" }, songs: [{ title: "First", sections: [{ bars: [[{ chord: "C" }]] }] }] };
+  global.api = async () => loaded;
+
+  await SongsUI.loadSong();
+  assert.equal(global.state.savedSnapshot, JSON.stringify(loaded));
+  assert.equal(global.state.dirty, false);
+
+  // Concurrent edit while save is in flight
+  const pending = deferred();
+  loaded.songs[0].sections[0].bars[0][0].chord = "Dm";
+  global.state.dirty = true;
+  global.state.editVersion = 1;
+  global.api = async () => pending.promise;
+  elements.saveBtn = { disabled: false };
+  const saving = SongsUI.save();
+
+  loaded.songs[0].sections[0].bars[0][0].chord = "Em";
+  global.state.editVersion = 2;
+  pending.resolve({ ok: true });
+  await saving;
+
+  assert.equal(JSON.parse(global.state.savedSnapshot).songs[0].sections[0].bars[0][0].chord, "Dm");
+  assert.equal(global.state.dirty, true);
+  removeLoadHarness();
+});
