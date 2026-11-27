@@ -47,12 +47,18 @@ async function init() {
     KEYS.map((k) => `<option value="${esc(k)}">key: ${esc(k)}</option>`).join("");
   keySel.addEventListener("change", (ev) => {
     if (!state.doc) return;
+    if (typeof confirmChordDraftDiscard === "function" && !confirmChordDraftDiscard()) {
+      keySel.value = songKey();
+      return;
+    }
     pushUndo();
     song().key = ev.target.value || null;
     markDirty();
     window.ChordNaming.setKeyTonic(songKey());
     renderBars();
+    if (state.activeView === "review" && typeof renderReview === "function") renderReview();
     if (state.activeView === "dict") renderDict();
+    if (state.activeView === "harmony" && typeof renderHarmony === "function") renderHarmony();
     if (state.activeView === "preview") renderPreview();
     if (state.activeView === "json" && typeof renderJson === "function" &&
         !(typeof hasUnappliedJsonEdits === "function" && hasUnappliedJsonEdits())) {
@@ -85,7 +91,12 @@ async function init() {
   $("jsonApply").addEventListener("click", jsonApply);
   $("jsonReload").addEventListener("click", jsonReload);
   $("jsonFormat").addEventListener("click", jsonFormat);
-  $("reviewRecord").addEventListener("click", ReviewUI.recordSelected);
+  if (typeof ReviewUI === "object" && ReviewUI) {
+    $("reviewRecord")?.addEventListener("click", ReviewUI.recordSelected);
+    $("reviewField")?.addEventListener("change", () => {
+      if (typeof ReviewUI.syncInputs === "function") ReviewUI.syncInputs();
+    });
+  }
   $("cmCopy").addEventListener("click", copyChordmark);
   ["pvStyle", "pvDict", "pvDiagrams", "pvBars"].forEach((id) =>
     $(id).addEventListener("change", () => {
@@ -100,11 +111,13 @@ async function init() {
   // global flat/sharp spelling toggle — re-renders bars (and editor if open)
   const spellBtn = $("spellToggle");
   spellBtn.addEventListener("click", () => {
+    if (typeof confirmChordDraftDiscard === "function" && !confirmChordDraftDiscard()) return;
     const next = window.ChordNaming.getSpelling() === "sharp" ? "flat" : "sharp";
     window.ChordNaming.setSpelling(next);
     spellBtn.textContent = next === "flat" ? "♭ flat" : "♯ sharp";
     renderBars();
     if (state.activeView === "dict") renderDict();
+    if (state.activeView === "harmony" && typeof renderHarmony === "function") renderHarmony();
     if (state.sel) openEditor(state.sel.si, state.sel.bi, state.sel.ei);
   });
 
@@ -119,23 +132,33 @@ async function init() {
 
   window.addEventListener("beforeunload", (e) => {
     const jsonEdits = typeof hasUnappliedJsonEdits === "function" && hasUnappliedJsonEdits();
-    if (state.dirty || jsonEdits) { e.preventDefault(); e.returnValue = ""; }
+    const chordDraft = typeof chordEditorHasDraft === "function" && chordEditorHasDraft();
+    if (state.dirty || jsonEdits || chordDraft) {
+      e.preventDefault();
+      e.returnValue = "";
+    }
   });
 
   // per-song note: one undo per editing session (focus → blur), commit on blur.
   const noteTa = $("songNote");
   if (noteTa) {
-    let noteStart = "";
-    noteTa.addEventListener("focus", () => { noteStart = noteTa.value; });
-    noteTa.addEventListener("blur", () => {
-      if (!state.doc) return;
+    let noteStart = noteTa.value || "";
+    const syncBaseline = () => { noteStart = noteTa.value; };
+    const commitNote = () => {
+      if (!state.doc) return true;
       const next = noteTa.value;
-      if (next === noteStart) return;
+      if (next === noteStart) return true;
       pushUndo();
       if (next.trim() === "") delete song().note;
       else song().note = next;
+      noteStart = next;
       markDirty();
-    });
+      return true;
+    };
+    noteTa._syncBaseline = syncBaseline;
+    noteTa._commitOnSave = commitNote;
+    noteTa.addEventListener("focus", syncBaseline);
+    noteTa.addEventListener("blur", commitNote);
   }
 
   $("nextFlagBtn").addEventListener("click", () => {
@@ -272,12 +295,14 @@ function onKeydown(ev) {
   }
   // Esc → close editor (always)
   if (ev.key === "Escape") {
+    if (ev.defaultPrevented) return;
     if (state.activeView === "chordReview" && !typing) {
       showView("bars");
       $("chordReviewToggle").focus();
       return;
     }
     if (state.activeView === "bars" && $("editor").classList.contains("open")) {
+      if (typeof confirmChordDraftDiscard === "function" && !confirmChordDraftDiscard()) return;
       $("editor").classList.remove("open");
       state.sel = null;
       renderBars();

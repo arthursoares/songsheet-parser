@@ -66,16 +66,60 @@ async function openShapesForEntry(si, bi, ei) {
     album, file, song_index: "0", si, bi, ei, revision: songRevision || "",
   });
   showView("shapes");
-  const detailGeneration = shapesUI.detailGeneration;
+  const hasShapesUI = typeof shapesUI === "object" && shapesUI !== null;
+  if (hasShapesUI) {
+    shapesUI.detailGeneration += 1;
+    shapesUI.detailPending = true;
+    shapesUI.detail = null;
+    shapesUI.selected?.clear();
+    if (typeof syncShapeControls === "function") syncShapeControls();
+  }
+  const detailGeneration = hasShapesUI ? shapesUI.detailGeneration : 0;
   const isCurrent = () => state.activeView === "shapes" && state.album === album &&
-    state.file === file && shapesUI.detailGeneration === detailGeneration;
+    state.file === file && (!hasShapesUI || shapesUI.detailGeneration === detailGeneration);
+  const detailEl = typeof $ === "function" ? $("shapeDetail") : null;
+  const reportStatus = (msg, kind) => {
+    if (typeof setShapeStatus === "function") setShapeStatus(msg, kind);
+  };
+  const loadingHtml = (seconds = 0) =>
+    `<div class="shape-empty">Finding matching shape in library index (first run may take 10–60s)…${seconds > 0 ? ` (${seconds}s)` : ""}</div>`;
+  if (detailEl) detailEl.innerHTML = loadingHtml(0);
+  reportStatus("Finding matching shape in library index…");
+  const startedAt = Date.now();
+  const timer = setInterval(() => {
+    if (!isCurrent()) return;
+    const seconds = Math.max(1, Math.floor((Date.now() - startedAt) / 1000));
+    if (detailEl) detailEl.innerHTML = loadingHtml(seconds);
+    reportStatus(`Finding matching shape in library index… (${seconds}s)`);
+  }, 1000);
   try {
     const result = await api(`/api/shapes/entry?${params}`);
     if (!isCurrent()) return;
-    if (result.error) throw new Error(result.error);
-    await openShapeGroup(result.id, { library: true });
+    if (!result || result.error) throw new Error(result?.error || "Could not locate matching shape.");
+    clearInterval(timer);
+    if (hasShapesUI && shapesUI.detailGeneration === detailGeneration) {
+      shapesUI.detailPending = false;
+    }
+    if (typeof openShapeGroup === "function") {
+      await openShapeGroup(result.id, { library: true });
+    }
   } catch (error) {
-    if (isCurrent()) setShapeStatus(error.message, "error");
+    if (isCurrent()) {
+      const msg = String(error?.message || error || "Could not locate matching shape.");
+      if (detailEl) {
+        const safe = typeof esc === "function"
+          ? esc(msg)
+          : msg.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+        detailEl.innerHTML = `<div class="shape-error">${safe}</div>`;
+      }
+      reportStatus(msg, "error");
+    }
+  } finally {
+    clearInterval(timer);
+    if (hasShapesUI && shapesUI.detailGeneration === detailGeneration) {
+      shapesUI.detailPending = false;
+      if (typeof syncShapeControls === "function") syncShapeControls();
+    }
   }
 }
 

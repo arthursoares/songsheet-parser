@@ -109,9 +109,11 @@ header.shapes-mode > :not(.qa-workspaces,.spacer,#saveStatus,#saveBtn,#kbdHint){
 .shape-occurrence-main mark{background:var(--sel);color:var(--accent);border-radius:2px}
 .shape-occurrence-label{color:var(--accent)}
 .shape-occurrence-names,.shape-occurrence-voicings{display:grid;grid-template-columns:100px minmax(0,1fr);align-items:baseline;gap:2px 4px}
-.shape-occurrence-names code,.shape-occurrence-voicings code{overflow-wrap:anywhere}
-.shape-occurrence-string{display:inline-block;min-width:14px;text-align:center;border-radius:3px}
-.shape-occurrence-string.shape-changed{background:var(--sel);color:var(--text);font-weight:700}
+.shape-occurrence-names code{overflow-wrap:anywhere}
+.shape-occurrence-voicings code{display:inline-flex;flex-wrap:wrap;gap:4px;align-items:center}
+.shape-occurrence-string{display:inline-flex;align-items:center;justify-content:center;min-width:18px;padding:1px 5px;border:1px solid var(--border);border-radius:4px;background:var(--panel);text-align:center;font-variant-numeric:tabular-nums}
+.shape-occurrence-string.shape-unresolved{color:var(--muted)}
+.shape-occurrence-string.shape-changed{background:var(--sel);border-color:var(--accent);color:var(--text);font-weight:700}
 .shape-occurrence-warning{color:var(--bad)}
 .shape-selection{display:grid;gap:4px;color:var(--muted);font-size:12px}
 .shape-selection ul{margin:0;padding-left:18px;max-height:75px;overflow:auto}

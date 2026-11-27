@@ -85,22 +85,34 @@ function renderLyricsText(root) {
       input.className = "ly-line-edit";
       input.value = window.DocOps.buildLyricLine(entries);
       input.spellcheck = false;
-      const original = input.value;
+      let original = input.value;
       const errEl = document.createElement("div");
       errEl.className = "ly-line-err";
       const prevRef = prevEntry; // entry preceding this row, frozen at render
       let cancelled = false;
-      const commit = () => {
-        if (cancelled || input.value === original) return;
+      const parseDraft = () => {
+        if (cancelled) return null;
+        if (input.value === original) {
+          errEl.textContent = "";
+          return null;
+        }
         const parsed = window.DocOps.parseLyricLine(input.value, entries.length);
         if (parsed === null) {
           const got = (input.value.match(/_/g) || []).length;
           errEl.textContent =
             `needs exactly ${entries.length} markers for the chords above (found ${got}) — not applied`;
-          return;
+          return false;
         }
         errEl.textContent = "";
-        if (!prepareLyricEdit()) return;
+        return parsed;
+      };
+      const validate = () => parseDraft() !== false;
+      const commit = (opts = {}) => {
+        const parsed = parseDraft();
+        if (parsed === false) return false;
+        if (parsed === null) return true;
+        if (!opts?.skipChordDraftDiscard && !prepareLyricEdit()) return false;
+        original = input.value;
         pushUndo();
         if (parsed.leading) {
           if (prevRef) prevRef.text = ((prevRef.text || "") + " " + parsed.leading).trim();
@@ -111,9 +123,16 @@ function renderLyricsText(root) {
           if (frag) e.text = frag; else delete e.text;
         });
         markDirty();
-        renderBars();
-        renderLyrics();
+        if (opts?.deferRender) {
+          opts.onCommit?.();
+        } else {
+          renderBars();
+          renderLyrics();
+        }
+        return true;
       };
+      input._validateOnSave = validate;
+      input._commitOnSave = commit;
       input.addEventListener("keydown", (ev) => {
         if (ev.key === "Enter") { ev.preventDefault(); commit(); }
         else if (ev.key === "Escape") { cancelled = true; input.value = original; errEl.textContent = ""; input.blur(); cancelled = false; }
@@ -165,9 +184,9 @@ function selectLyricChord(coords, { pick = false, focus = false } = {}) {
 }
 
 function prepareLyricEdit() {
-  if (!confirmChordDraftDiscard()) return false;
+  if (typeof confirmChordDraftDiscard === "function" && !confirmChordDraftDiscard()) return false;
   state.sel = null;
-  $("editor").classList.remove("open");
+  $("editor")?.classList.remove("open");
   return true;
 }
 
@@ -558,18 +577,32 @@ function editLyricToken(column, text, entry, word, wordIndex) {
   input.focus();
   input.select();
   let done = false;
-  const commit = () => {
-    if (done) return;
-    done = true;
+  const commit = (opts = {}) => {
+    if (done) return true;
     const next = window.DocOps.replaceTextToken(entry.text, wordIndex, input.value);
-    if (next !== null && next !== entry.text && prepareLyricEdit()) {
+    if (next !== null && next !== entry.text) {
+      if (!opts?.skipChordDraftDiscard && !prepareLyricEdit()) return false;
+      done = true;
       pushUndo();
       if (next) entry.text = next; else delete entry.text;
       markDirty();
-      renderBars();
+      if (opts?.deferRender) {
+        opts.onCommit?.();
+      } else {
+        renderBars();
+        renderLyrics();
+      }
+    } else {
+      done = true;
+      if (opts?.deferRender) {
+        opts.onCommit?.();
+      } else {
+        renderLyrics();
+      }
     }
-    renderLyrics();
+    return true;
   };
+  input._commitOnSave = commit;
   input.addEventListener("keydown", (ev) => {
     if (ev.key === "Enter") { ev.preventDefault(); commit(); }
     else if (ev.key === "Escape") {

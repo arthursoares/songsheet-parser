@@ -8,6 +8,9 @@ const STRING_LABELS = ["E", "A", "D", "G", "B", "e"];
 function Fretboard(container, onChange) {
   let voicing = ["x", "x", "x", "x", "x", "x"];
   let start = 1; // top fret of the visible window
+  let textError = "";
+  let textEl = null;
+  let errEl = null;
 
   function fittedStart(v) {
     const fretted = v.filter((f) => f !== "x" && f !== 0).map(Number);
@@ -30,7 +33,39 @@ function Fretboard(container, onChange) {
     return { voicing: out };
   }
 
+  function currentError() {
+    if (textEl) return parseText(textEl.value).error || "";
+    return textError;
+  }
+
+  function applyText({ focusOnError = false, rerenderOnValid = true } = {}) {
+    const raw = textEl ? textEl.value : voicing.join(",");
+    const r = parseText(raw);
+    if (r.error) {
+      textError = r.error;
+      if (errEl) errEl.textContent = r.error;
+      textEl?.setAttribute?.("aria-invalid", "true");
+      if (focusOnError) textEl?.focus?.();
+      return false;
+    }
+    textError = "";
+    if (errEl) errEl.textContent = "";
+    textEl?.setAttribute?.("aria-invalid", "false");
+    const nextJoined = r.voicing.join(",");
+    const curJoined = voicing.join(",");
+    if (nextJoined !== curJoined) {
+      voicing = r.voicing;
+      start = fittedStart(voicing);
+      emit();
+      if (rerenderOnValid) render();
+    } else if (rerenderOnValid && textEl && textEl.value !== curJoined) {
+      textEl.value = curJoined;
+    }
+    return true;
+  }
+
   function render() {
+    textError = "";
     container.innerHTML = "";
     // fret window controls
     const ctl = document.createElement("div");
@@ -93,19 +128,30 @@ function Fretboard(container, onChange) {
     text.type = "text";
     text.className = "fb-text";
     text.value = voicing.join(",");
+    text.setAttribute?.("aria-invalid", "false");
     const err = document.createElement("div");
     err.className = "fb-err";
-    const apply = () => {
+    textEl = text;
+    errEl = err;
+    text.oninput = () => {
       const r = parseText(text.value);
-      if (r.error) { err.textContent = r.error; return; }
-      err.textContent = "";
-      voicing = r.voicing;
-      start = fittedStart(voicing);
-      emit();
-      render();
+      if (r.error) {
+        textError = r.error;
+        err.textContent = r.error;
+        text.setAttribute?.("aria-invalid", "true");
+      } else {
+        textError = "";
+        err.textContent = "";
+        text.setAttribute?.("aria-invalid", "false");
+      }
     };
-    text.onchange = apply;
-    text.onkeydown = (e) => { if (e.key === "Enter") apply(); };
+    text.onchange = () => applyText({ focusOnError: false, rerenderOnValid: true });
+    text.onkeydown = (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault?.();
+        applyText({ focusOnError: true, rerenderOnValid: true });
+      }
+    };
     container.appendChild(text);
     container.appendChild(err);
 
@@ -132,8 +178,17 @@ function Fretboard(container, onChange) {
 
   render();
   return {
-    set(v) { voicing = v.slice(); start = fittedStart(voicing); render(); },
+    set(v) { voicing = v.slice(); start = fittedStart(voicing); textError = ""; render(); },
     get() { return voicing.slice(); },
+    isValid() { return !currentError(); },
+    getError() { return currentError(); },
+    commit() { return applyText({ focusOnError: true, rerenderOnValid: true }); },
+    hasUncommittedText() {
+      if (!textEl) return false;
+      const r = parseText(textEl.value);
+      return Boolean(r.error || r.voicing.join(",") !== voicing.join(","));
+    },
+    focusText() { textEl?.focus?.(); },
   };
 }
 
