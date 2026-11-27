@@ -109,7 +109,7 @@ def _attach_crop(path: Path) -> None:
         "page": 2,
         "native_image": {"width": 100, "height": 100, "sha256": "b" * 64},
         "crop_box": [10, 20, 30, 40],
-        "voicing_printed": NEW,
+        "voicing_printed": entry["voicing_printed"],
         "original_symbol": "Em9",
     }
     doc["_meta"]["diagram_evidence"] = {
@@ -585,3 +585,64 @@ def test_recovery_conflict_is_surfaced_before_any_recovery_write(tmp_path):
     assert first.read_bytes() == first_after
     assert second.read_bytes() == b"external content"
     assert json.loads((batch_dir / "state.json").read_text()) == {"state": "prepared"}
+
+
+def test_unresolved_apply_verifies_individual_prints_without_global_correction(tmp_path):
+    root, history = tmp_path / "songs", tmp_path / "history"
+    paths = [_write_song(root, "a", f"{i}.json", f"Song {i}") for i in range(2)]
+    second = load_document(paths[1])
+    second["songs"][0]["sections"][0]["bars"][0][0]["voicing_printed"] = MANUAL
+    save_document(paths[1], second, overwrite=True)
+    for path in paths:
+        _attach_crop(path)
+    before = {p: p.read_bytes() for p in paths}
+    rows = [_row(path, root) for path in paths]
+    for row in rows:
+        row["editable"] = False
+    group = {**_group(*rows), "voicing": None}
+    with pytest.raises(edits.ShapeEditError, match="invalid target voicing"):
+        edits.apply_shape_batch(root, history, group, [rows[0]["id"]])
+    result = edits.apply_shape_batch(
+        root, history, group, [row["id"] for row in rows], voicing=MANUAL_LATER
+    )
+    assert [_entry(path)["voicing_printed"] for path in paths] == [NEW, MANUAL]
+    assert all(_entry(path)["voicing"] == MANUAL_LATER for path in paths)
+    assert all(load_document(path)["_meta"] == json.loads(before[path])["_meta"] for path in paths)
+    assert edits.latest_shape_corrections(history) == {}
+    assert not (history / result["batch_id"] / "shape.json").exists()
+    edits.undo_shape_batch(root, history, result["batch_id"])
+    assert all(path.read_bytes() == before[path] for path in paths)
+
+
+def test_exclude_preserves_entry_and_evidence_and_recovers_with_journal(tmp_path):
+    root, history = tmp_path / "songs", tmp_path / "history"
+    path = _write_song(root, "a", "01.json", "First", two=True)
+    _attach_crop(path)
+    before = path.read_bytes()
+    row = _row(path, root)
+    result = edits.exclude_shape_batch(root, history, _group(row), [row["id"]])
+    doc = load_document(path)
+    entry = doc["songs"][0]["sections"][0]["bars"][0][0]
+    marker = entry.pop("shape_exclusion")
+    assert marker["voicing"] == OLD and len(marker["rejected"]) == 1
+    assert doc == json.loads(before)
+    assert edits.latest_shape_corrections(history) == {}
+    # Interrupted exclusions use the same recovery protocol as chart corrections.
+    (history / result["batch_id"] / "state.json").write_text('{"state":"prepared"}')
+    edits.recover_shape_batches(root, history)
+    assert path.read_bytes() == before
+
+
+def test_exclude_rejects_stale_document_and_duplicate_ids(tmp_path):
+    root, history = tmp_path / "songs", tmp_path / "history"
+    path = _write_song(root, "a", "01.json", "First", two=True)
+    row = _row(path, root)
+    with pytest.raises(edits.ShapeEditError, match="duplicate selected"):
+        edits.exclude_shape_batch(root, history, _group(row), [row["id"], row["id"]])
+    doc = load_document(path)
+    doc["songs"][0]["sections"][0]["bars"][0].reverse()
+    save_document(path, doc, overwrite=True)
+    before = path.read_bytes()
+    with pytest.raises(edits.ShapeEditError, match="stale song"):
+        edits.exclude_shape_batch(root, history, _group(row), [row["id"]])
+    assert path.read_bytes() == before

@@ -203,10 +203,16 @@ fingering. Enter a **Chord name** to rename the selected entries, or leave it bl
 to keep each chart's name. The occurrence list previews the result and identifies
 name and fingering conflicts. Select the chart entries to update and check the
 affected files before applying. Saved edits appear in the selected songs, and the
-latest applied fingering is offered the next time you open that shape. Entries whose
-base fret is unresolved are available for individual inspection. **Undo most recent
-batch** restores the prior files when their saved revisions still match. The index
-cache and undo journal live under `.local/shapes/`.
+latest applied fingering is offered the next time you open a resolved shape. For an
+unresolved shape, enter the fingering manually and select the occurrences that use
+it. A different fret position can be applied separately.
+
+Use **Remove match** on an occurrence when its scan crop belongs elsewhere.
+Shapes rules out the rejected group for that chord and looks for a unique
+replacement crop within the song. The chord stays ungrouped if there is no
+reliable alternative. **Undo match removal** restores the previous match.
+**Undo last batch** restores the prior files when their saved revisions still
+match. The index cache and undo journal live under `.local/shapes/`.
 
 ### QA correction tool (browser)
 

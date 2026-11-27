@@ -32,6 +32,7 @@ RECORDED_BASIS = "recorded_evidence"
 LEGACY_BASIS = "legacy_exact_count"
 LEGACY_ALIGNED_BASIS = "legacy_unique_alignment"
 LEGACY_EDITORIAL_BASIS = "legacy_editorial_fallback"
+REMATCHED_BASIS = "rematched_evidence"
 _READER_PATH = Path(__file__).resolve().with_name("diagram_reader.py")
 _TEMPLATES_PATH = Path(__file__).resolve().with_name("diagram_digits.json")
 
@@ -281,7 +282,7 @@ def _occurrence(
     # Bind UI selections to the exact saved revision.  A rebuild after any
     # document edit therefore cannot leave a stale occurrence ID targeting a
     # different entry at the same coordinates.
-    identity = [document_sha, album, song_file.name, song_index, si, bi, ei]
+    identity = [document_sha, album, song_file.name, song_index, si, bi, ei, pdf_sha, page, box]
     occurrence_id = (
         "occ-"
         + hashlib.sha256(
@@ -541,6 +542,123 @@ def _shape_id(shape: dict) -> str:
     )
 
 
+def shape_exclusion_key(group_id: str, row: dict) -> str:
+    """Identify a rejected group under the exact source PDF revision."""
+    identity = [
+        group_id,
+        row.get("pdf"),
+        row.get("pdf_sha256"),
+    ]
+    return hashlib.sha256(
+        json.dumps(identity, ensure_ascii=False, separators=(",", ":")).encode()
+    ).hexdigest()
+
+
+def _rematch_items(reader, song, items):
+    """Replace rejected pairings only with unique, unclaimed editorial matches.
+
+    Original matches remain anchors. Conflicting order, duplicate candidates,
+    and competing claims leave the rejected entry unmatched.
+    """
+    kept, pending = [], []
+    for shape, row, entry in items:
+        exclusion = entry.get("shape_exclusion", {})
+        rejected = exclusion.get("rejected", [])
+        if shape_exclusion_key(_shape_id(shape), row) in rejected:
+            pending.append((shape, row, entry))
+        else:
+            kept.append((shape, row, entry))
+    if not pending:
+        return kept
+
+    def crop_key(row):
+        return row["pdf"], row["pdf_sha256"], row["page"], tuple(row["box"])
+
+    def position(row):
+        return row["si"], row["bi"], row["ei"]
+
+    claimed = {crop_key(row) for _, row, _ in kept}
+    proposals = []
+    candidate_order = {}
+    for _, original, entry in pending:
+        pdf = reader.safe_recorded_pdf({"name": original["pdf"], "sha256": original["pdf_sha256"]})
+        if pdf is None:
+            continue
+        pages = song.get("pages") or [original["page"]]
+        if any(type(page) is not int or page < 1 for page in pages):
+            continue
+        try:
+            raw = [(page, row) for page in sorted(set(pages)) for row in reader.diagrams(pdf, page)]
+        except (Exception, SystemExit):
+            continue
+        decoded = _decoded_legacy_rows(raw)
+        scan_positions = {(page, tuple(row["box"])): i for i, (page, row, _) in enumerate(decoded)}
+        anchors = sorted(
+            (position(row), scan_positions[(row["page"], tuple(row["box"]))])
+            for _, row, _ in kept
+            if row["pdf"] == original["pdf"]
+            and row["pdf_sha256"] == original["pdf_sha256"]
+            and (row["page"], tuple(row["box"])) in scan_positions
+        )
+        if any(left[1] >= right[1] for left, right in zip(anchors, anchors[1:])):
+            continue
+        before = [i for at, i in anchors if at < position(original)]
+        after = [i for at, i in anchors if at > position(original)]
+        lower, upper = max(before, default=-1), min(after, default=len(decoded))
+        exclusion = entry["shape_exclusion"]
+        candidates = []
+        for i, (page, raw_row, shape) in enumerate(decoded):
+            if not lower < i < upper or shape is None or not shape["editable"]:
+                continue
+            if shape["voicing"] != exclusion["voicing"]:
+                continue
+            row = {
+                **original,
+                "page": page,
+                "box": list(raw_row["box"]),
+                "printed": shape["voicing"],
+                "editable": True,
+                "basis": REMATCHED_BASIS,
+                "source_evidence": original,
+            }
+            if (
+                crop_key(row) in claimed
+                or shape_exclusion_key(_shape_id(shape), row) in exclusion["rejected"]
+            ):
+                continue
+            # Include the newly selected crop in the revision-bound UI identity.
+            row["id"] = (
+                "occ-"
+                + hashlib.sha256(
+                    json.dumps([original["id"], _shape_id(shape), page, row["box"]]).encode()
+                ).hexdigest()[:24]
+            )
+            candidate_order[crop_key(row)] = (page, i)
+            candidates.append((shape, row, entry))
+        proposals.append(candidates)
+    unique = []
+    for candidates in proposals:
+        if len(candidates) != 1:
+            continue
+        item = candidates[0]
+        key = crop_key(item[1])
+        if sum(any(crop_key(row) == key for _, row, _ in rows) for rows in proposals) == 1:
+            unique.append(item)
+    for item in unique:
+        row = item[1]
+        key = crop_key(row)
+        if any(
+            other is not row
+            and crop_key(other)[:2] == key[:2]
+            and (position(row) < position(other))
+            != (candidate_order[key] < candidate_order[crop_key(other)])
+            for _, other, _ in unique
+        ):
+            continue
+        kept.append(item)
+    return kept
+
+
 def build_shape_index(songs_root: Path, pdf_dir: Path, cache_dir: Path) -> dict:
     """Return deterministic diagram groups for the Songsheet QA interface."""
     songs_root, pdf_dir, cache_dir = map(Path, (songs_root, pdf_dir, cache_dir))
@@ -573,7 +691,8 @@ def build_shape_index(songs_root: Path, pdf_dir: Path, cache_dir: Path) -> dict:
         group["occurrences"].append(occurrence)
         counts["occurrences"] += 1
         counts["editable" if occurrence["editable"] else "unresolved"] += 1
-        counts["recorded" if occurrence["basis"] == RECORDED_BASIS else "legacy"] += 1
+        evidence = occurrence.get("source_evidence", occurrence)
+        counts["recorded" if evidence["basis"] == RECORDED_BASIS else "legacy"] += 1
 
     for song_file in sorted(songs_root.rglob("*.json")):
         if not song_file.is_file():
@@ -592,6 +711,7 @@ def build_shape_index(songs_root: Path, pdf_dir: Path, cache_dir: Path) -> dict:
             if not isinstance(song, dict):
                 continue
             counts["songs"] += 1
+            items = []
             for si, bi, ei, entry in _entries(song):
                 if not entry.get("observation_id"):
                     continue
@@ -599,45 +719,56 @@ def build_shape_index(songs_root: Path, pdf_dir: Path, cache_dir: Path) -> dict:
                 if recorded is None:
                     continue
                 shape, pdf, page_number, box = recorded
-                add(
-                    shape,
-                    _occurrence(
-                        album=album,
-                        song_file=song_file,
-                        document_sha=document_sha,
-                        song=song,
-                        song_index=song_index,
-                        position=(si, bi, ei),
-                        entry=entry,
-                        pdf=pdf,
-                        pdf_sha=reader.digest(pdf),
-                        page=page_number,
-                        box=box,
-                        basis=RECORDED_BASIS,
-                        editable=shape["editable"],
-                    ),
+                items.append(
+                    (
+                        shape,
+                        _occurrence(
+                            album=album,
+                            song_file=song_file,
+                            document_sha=document_sha,
+                            song=song,
+                            song_index=song_index,
+                            position=(si, bi, ei),
+                            entry=entry,
+                            pdf=pdf,
+                            pdf_sha=reader.digest(pdf),
+                            page=page_number,
+                            box=box,
+                            basis=RECORDED_BASIS,
+                            editable=shape["editable"],
+                        ),
+                        entry,
+                    )
                 )
-            if doc.get("_meta", {}).get("legacy_scan_order_changed"):
-                continue
-            for shape, pdf, page_number, box, position, entry in _legacy_items(reader, album, song):
-                add(
-                    shape,
-                    _occurrence(
-                        album=album,
-                        song_file=song_file,
-                        document_sha=document_sha,
-                        song=song,
-                        song_index=song_index,
-                        position=position,
-                        entry=entry,
-                        pdf=pdf,
-                        pdf_sha=reader.digest(pdf),
-                        page=page_number,
-                        box=box,
-                        basis=LEGACY_BASIS,
-                        editable=shape["editable"],
-                    ),
+            legacy = (
+                []
+                if doc.get("_meta", {}).get("legacy_scan_order_changed")
+                else _legacy_items(reader, album, song)
+            )
+            for shape, pdf, page_number, box, position, entry in legacy:
+                items.append(
+                    (
+                        shape,
+                        _occurrence(
+                            album=album,
+                            song_file=song_file,
+                            document_sha=document_sha,
+                            song=song,
+                            song_index=song_index,
+                            position=position,
+                            entry=entry,
+                            pdf=pdf,
+                            pdf_sha=reader.digest(pdf),
+                            page=page_number,
+                            box=box,
+                            basis=LEGACY_BASIS,
+                            editable=shape["editable"],
+                        ),
+                        entry,
+                    )
                 )
+            for shape, occurrence, _entry in _rematch_items(reader, song, items):
+                add(shape, occurrence)
 
     ordered = []
     for group_id in sorted(groups):
