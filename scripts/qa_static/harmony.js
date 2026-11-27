@@ -161,6 +161,7 @@ function hmKeybar(analysis) {
   bar.appendChild(confirm);
 
   const sel = document.createElement("select");
+  sel.setAttribute("aria-label", "Choose an alternative key");
   sel.innerHTML = '<option value="">or pick another…</option>' +
     (k.candidates || [])
       .filter((c) => c.tonic_pc != null)
@@ -189,6 +190,7 @@ const HM_FN_CHIPS = [
 ];
 const HM_DEV_CHIPS = [
   ["ii-V-I", "ii–V–I"],
+  ["ii-V", "ii–V"],
   ["secondary_dominant", "secondary dom"],
   ["tritone_sub", "tritone sub"],
   ["chromatic_bass_run", "chromatic bass"],
@@ -210,6 +212,14 @@ function hmApplySpotlight() {
     const el = hmCellEls[e.idx];
     if (el) el.classList.toggle("hm-dim", !hmMatchesSpot(e));
   }
+  document.querySelectorAll(".hm-lanes [data-event]").forEach((node) => {
+    const e = hmAnalysis.events[Number(node.dataset.event)];
+    node.classList.toggle("hm-dim", !!e && !hmMatchesSpot(e));
+  });
+  document.querySelectorAll(".hm-lanes [data-events]").forEach((node) => {
+    const matches = node.dataset.events.split(",").some((idx) => hmMatchesSpot(hmAnalysis.events[Number(idx)]));
+    node.classList.toggle("hm-dim", !matches);
+  });
   document.querySelectorAll("#hmBrackets .hm-bracket").forEach((b) => {
     const on = hmSpotlight.size === 0 || hmSpotlight.has(b.dataset.devkey);
     b.classList.toggle("hm-dim", !on);
@@ -220,7 +230,13 @@ function hmLegend() {
   const wrap = document.createElement("div");
   wrap.className = "hm-legend";
   const chip = (key, label, color, dev) => {
-    const c = document.createElement("span");
+    const c = document.createElement("button");
+    c.type = "button";
+    const fn = HM_FN_CHIPS.find(([k]) => k === key);
+    const count = dev ? (hmAnalysis?.devices || []).filter((d) => d.type === key).length
+      : (hmAnalysis?.events || []).filter((e) => fn && fn[2](e)).length;
+    c.disabled = count === 0;
+    c.setAttribute("aria-pressed", String(hmSpotlight.has(key)));
     c.className = "hm-chip" + (dev ? " dev" : "");
     if (color) {
       const dot = document.createElement("span");
@@ -228,11 +244,12 @@ function hmLegend() {
       dot.style.background = color;
       c.appendChild(dot);
     }
-    c.appendChild(document.createTextNode(label));
+    c.appendChild(document.createTextNode(`${label} ${count}`));
     c.onclick = () => {
       if (hmSpotlight.has(key)) hmSpotlight.delete(key);
       else hmSpotlight.add(key);
       c.classList.toggle("active", hmSpotlight.has(key));
+      c.setAttribute("aria-pressed", String(hmSpotlight.has(key)));
       hmApplySpotlight();
     };
     if (hmSpotlight.has(key)) c.classList.add("active");
@@ -245,12 +262,13 @@ function hmLegend() {
   wrap.appendChild(sep);
   HM_DEV_CHIPS.forEach(([key, label]) =>
     wrap.appendChild(chip(key, label, null, true)));
-  const clear = document.createElement("span");
+  const clear = document.createElement("button");
+  clear.type = "button";
   clear.className = "hm-chip";
   clear.textContent = "clear";
   clear.onclick = () => {
     hmSpotlight.clear();
-    wrap.querySelectorAll(".hm-chip").forEach((x) => x.classList.remove("active"));
+    wrap.querySelectorAll(".hm-chip").forEach((x) => { x.classList.remove("active"); x.setAttribute("aria-pressed", "false"); });
     hmApplySpotlight();
   };
   wrap.appendChild(clear);
@@ -297,7 +315,8 @@ function hmBuildScore(analysis) {
       const barEl = document.createElement("div");
       barEl.className = "hm-bar";
       for (const e of events) {
-        const cell = document.createElement("div");
+        const cell = document.createElement("button");
+        cell.type = "button";
         cell.className = "hm-cell" +
           (e.is_percent ? " held" : "") +
           (e.confidence === "low" ? " lowconf" :
@@ -341,97 +360,125 @@ function hmBuildScore(analysis) {
 }
 
 // ---- C2: lanes (tension contour / bass line / tonicization ribbon) ----
-function hmXs(n) {
-  const pad = 12, w = 1000 - 2 * pad;
-  return Array.from({ length: n }, (_, i) => pad + (w * (i + 0.5)) / n);
+let hmLaneWidth = 1000;
+function hmBeats(e) {
+  const beats = Number(e?.beats);
+  return Number.isFinite(beats) && beats > 0 ? beats : 1;
 }
-
+function hmXs(events, width = hmLaneWidth) {
+  if (typeof events === "number") events = Array.from({ length: events }, () => ({ beats: 1 }));
+  const total = events.reduce((sum, e) => sum + hmBeats(e), 0);
+  let beat = 0;
+  return events.map((e) => {
+    const x = 32 + (width - 44) * beat / total;
+    beat += hmBeats(e);
+    return x;
+  });
+}
+function hmLaneTicks(events, xs, height) {
+  return events.map((e, i) => {
+    if (i && e.bar === events[i - 1].bar && e.section === events[i - 1].section) return "";
+    const section = !i || e.section !== events[i - 1].section;
+    return `<line x1="${xs[i]}" x2="${xs[i]}" y1="0" y2="${height}" stroke="${hmCss("--muted")}" opacity="${section ? .4 : .15}"/>`;
+  }).join("");
+}
 function hmBuildTension(events, xs) {
   const svg = document.getElementById("hmTensionSvg");
-  const H = 90, pad = 8, maxT = 3;
-  if (!events.length) { svg.innerHTML = ""; return; }
-  const ys = events.map((e) => H - pad - ((H - 2 * pad) * ((e.tension || 0) / maxT)));
-  let line = `M ${xs[0]} ${ys[0]}`;
-  for (let i = 1; i < events.length; i++) {
-    const mx = (xs[i - 1] + xs[i]) / 2;
-    line += ` C ${mx} ${ys[i - 1]} ${mx} ${ys[i]} ${xs[i]} ${ys[i]}`;
-  }
-  const area = `${line} L ${xs[events.length - 1]} ${H} L ${xs[0]} ${H} Z`;
-  let s = '<defs><linearGradient id="hmTg" x1="0" y1="0" x2="0" y2="1">' +
-    `<stop offset="0%" stop-color="${hmCss("--fn-dominant")}" stop-opacity="0.55"/>` +
-    `<stop offset="100%" stop-color="${hmCss("--fn-tonic")}" stop-opacity="0.08"/>` +
-    "</linearGradient></defs>";
-  s += `<path d="${area}" fill="url(#hmTg)"/>`;
-  s += `<path d="${line}" fill="none" stroke="${hmCss("--text")}" stroke-width="1.3" opacity="0.85"/>`;
+  const H = 90, ys = events.map((e) => 78 - 66 * (e.tension || 0) / 3);
+  let s = hmLaneTicks(events, xs, H);
+  [0, 3].forEach((t) => { s += `<text x="5" y="${78 - 22 * t}" font-size="10" fill="${hmCss("--muted")}">${t}</text>`; });
   events.forEach((e, i) => {
-    s += `<circle cx="${xs[i]}" cy="${ys[i]}" r="2.2" fill="${hmColor(e.function)}"/>`;
+    const x1 = xs[i + 1] ?? hmLaneWidth - 12, y1 = ys[i + 1] ?? ys[i];
+    s += `<g data-event="${e.idx}"><path d="M ${xs[i]} ${ys[i]} L ${x1} ${y1}" fill="none" stroke="${hmColor(e.function)}" stroke-width="1.5"/>` +
+      `<circle cx="${xs[i]}" cy="${ys[i]}" r="3" fill="${hmColor(e.function)}"/></g>`;
   });
   svg.innerHTML = s;
 }
-
 function hmBuildBass(events, xs) {
-  const svg = document.getElementById("hmBassSvg");
-  const H = 70, pad = 10;
-  const pts = [];
+  const svg = document.getElementById("hmBassSvg"), H = 70;
   let last = null;
-  events.forEach((e, i) => {
-    const v = (e.midis && e.midis.length) ? e.midis[0] : last;
-    if (v != null) { pts.push([xs[i], v]); last = v; }
-  });
-  if (!pts.length) { svg.innerHTML = ""; return; }
-  const vals = pts.map((p) => p[1]);
-  const lo = Math.min(...vals), hi = Math.max(...vals);
-  const yfor = (v) => H - pad - ((H - 2 * pad) * (v - lo)) / Math.max(1, hi - lo);
-  let path = `M ${pts[0][0]} ${yfor(pts[0][1])}`;
-  for (let i = 1; i < pts.length; i++) {
-    path += ` L ${pts[i][0]} ${yfor(pts[i - 1][1])} L ${pts[i][0]} ${yfor(pts[i][1])}`;
-  }
+  const vals = events.map((e) => { if (e.midis?.length) last = e.midis[0]; return last; });
+  const pitches = vals.filter((v) => v != null);
+  if (!pitches.length) { svg.innerHTML = ""; return; }
+  const lo = Math.min(...pitches), hi = Math.max(...pitches);
+  const yfor = (v) => 58 - 42 * (v - lo) / Math.max(1, hi - lo);
   const col = hmCss("--fn-chrombass");
-  let s = `<path d="${path}" fill="none" stroke="${col}" stroke-width="1.6"/>`;
-  let prev = null;
-  pts.forEach(([x, v]) => {
-    s += `<circle cx="${x}" cy="${yfor(v)}" r="2" fill="${col}"/>`;
-    const name = hmPcName(v % 12);
-    if (name !== prev) {
-      s += `<text x="${x}" y="${yfor(v) - 4}" fill="${hmCss("--muted")}" font-size="8" text-anchor="middle">${hmEsc(name)}</text>`;
-      prev = name;
-    }
+  let s = hmLaneTicks(events, xs, H);
+  s += `<text x="3" y="65" fill="${hmCss("--muted")}" font-size="9">${hmPcName(lo)}</text>`;
+  events.forEach((e, i) => {
+    const v = vals[i];
+    if (v == null) return;
+    const x1 = xs[i + 1] ?? hmLaneWidth - 12, next = vals[i + 1] ?? v;
+    s += `<g data-event="${e.idx}"><path d="M ${xs[i]} ${yfor(v)} H ${x1} V ${yfor(next)}" fill="none" stroke="${col}" stroke-width="1.6"/>` +
+      `<circle cx="${xs[i]}" cy="${yfor(v)}" r="2.5" fill="${col}"/>`;
+    if (i === 0 || (v !== vals[i - 1] && x1 - xs[i] > 18)) s += `<text x="${xs[i]}" y="${yfor(v) - 5}" fill="${hmCss("--muted")}" font-size="10" text-anchor="middle">${hmEsc(hmPcName(v))}</text>`;
+    s += "</g>";
   });
   svg.innerHTML = s;
 }
-
 function hmBuildRibbon(analysis, xs) {
   const svg = document.getElementById("hmRibbonSvg");
   if (!svg) return;
-  const events = analysis.events;
-  const H = 26, n = events.length, pad = 12, w = 1000 - 2 * pad;
-  const home = (analysis.key || {}).tonic_name || null;
-  // palette per target pitch class, cycling the function hues
-  const palette = ["--fn-subdominant", "--fn-secondary", "--fn-passing",
-                   "--fn-dominant", "--fn-chromatic", "--fn-chrombass"];
-  let s = "", i = 0;
-  while (i < n) {
-    let j = i;
-    const t = events[i].tonic_target;
-    while (j + 1 < n && events[j + 1].tonic_target === t) j++;
-    const x0 = pad + (w * i) / n, x1 = pad + (w * (j + 1)) / n;
-    const isHome = t == null;
-    const pc = hmNoteToPc(t);
-    const col = isHome ? hmCss("--fn-tonic")
-      : hmCss(pc >= 0 ? palette[pc % palette.length] : "--fn-chromatic");
-    s += `<rect x="${x0}" y="3" width="${x1 - x0}" height="${H - 6}" rx="3" ` +
-      `fill="${col}" fill-opacity="${isHome ? 0.10 : 0.30}" ` +
-      `stroke="${col}" stroke-opacity="0.5"/>`;
-    if (x1 - x0 > 30) {
-      const homeLab = hmFormatNoteLabel(home);
-      const targLab = hmFormatNoteLabel(t);
-      const lab = isHome ? (homeLab ? `${hmEsc(homeLab)} (home)` : "home") : `→ ${hmEsc(targLab)}`;
-      s += `<text x="${(x0 + x1) / 2}" y="${H / 2 + 3}" fill="${hmCss("--text")}" ` +
-        `font-size="9" text-anchor="middle">${lab}</text>`;
-    }
-    i = j + 1;
+  const events = analysis.events, home = analysis.key?.tonic_name;
+  const palette = ["--fn-subdominant", "--fn-secondary", "--fn-passing", "--fn-dominant", "--fn-chromatic", "--fn-chrombass"];
+  let s = "";
+  events.forEach((e, i) => {
+    const t = e.tonic_target, isHome = t == null, pc = hmNoteToPc(t);
+    const col = hmCss(isHome ? "--fn-tonic" : pc >= 0 ? palette[pc % palette.length] : "--fn-chromatic");
+    const x0 = xs[i], x1 = xs[i + 1] ?? hmLaneWidth - 12;
+    const lab = isHome ? (home ? `${hmFormatNoteLabel(home)} (home)` : "home") : `→ ${hmFormatNoteLabel(t)}`;
+    s += `<g data-event="${e.idx}"><title>${hmEsc(lab)}</title><rect x="${x0}" y="3" width="${Math.max(0, x1 - x0)}" height="20" rx="2" fill="${col}" fill-opacity="${isHome ? .10 : .30}" stroke="${col}" stroke-opacity="0.5"/>`;
+
+    s += "</g>";
+  });
+  for (let i = 0; i < events.length;) {
+    let j = i + 1;
+    while (j < events.length && events[j].tonic_target === events[i].tonic_target) j++;
+    const x1 = xs[j] ?? hmLaneWidth - 12, target = events[i].tonic_target;
+    const label = target == null ? (home ? `${hmFormatNoteLabel(home)} (home)` : "home") : `→ ${hmFormatNoteLabel(target)}`;
+    if (x1 - xs[i] > 40) s += `<text data-events="${events.slice(i, j).map((e) => e.idx).join(",")}" x="${(xs[i] + x1) / 2}" y="17" fill="${hmCss("--text")}" font-size="10" text-anchor="middle">${hmEsc(label)}</text>`;
+    i = j;
   }
-  svg.innerHTML = s;
+  svg.innerHTML = s + hmLaneTicks(events, xs, 26);
+}
+function hmRenderLanes() {
+  if (!hmAnalysis) return;
+  const lanes = document.querySelector("#harmony .hm-lanes");
+  hmLaneWidth = Math.max(80, lanes?.clientWidth || 1000);
+  const xs = hmXsCache = hmXs(hmAnalysis.events);
+  for (const [id, height] of [["hmTensionSvg", 90], ["hmBassSvg", 70], ["hmRibbonSvg", 26], ["hmCursorSvg", lanes?.clientHeight || 260]]) {
+    const svg = document.getElementById(id);
+    svg.setAttribute("viewBox", `0 0 ${hmLaneWidth} ${height}`);
+    if (id !== "hmCursorSvg") {
+      svg.setAttribute("tabindex", "0");
+      svg.setAttribute("role", "group");
+      svg.setAttribute("aria-label", `${id === "hmTensionSvg" ? "Tension" : id === "hmBassSvg" ? "Bass notes" : "Local key"} timeline. Arrow keys seek; Enter plays from selection.`);
+      svg.onkeydown = (ev) => {
+        if (!["ArrowLeft", "ArrowRight", "Home", "End", "Enter"].includes(ev.key)) return;
+        ev.preventDefault(); ev.stopPropagation();
+        const current = hmSelected ?? Math.max(0, hmCurIdx);
+        const idx = ev.key === "Home" ? 0 : ev.key === "End" ? xs.length - 1 : Math.max(0, Math.min(xs.length - 1, current + (ev.key === "ArrowRight" ? 1 : ev.key === "ArrowLeft" ? -1 : 0)));
+        hmSelect(idx); hmSeek(idx, ev.key === "Enter" || hmPlaying);
+      };
+      svg.onclick = (ev) => {
+      const x = (ev.clientX - svg.getBoundingClientRect().left) * hmLaneWidth / (svg.clientWidth || hmLaneWidth);
+      let idx = xs.findIndex((start, i) => x >= start && x < (xs[i + 1] ?? Infinity));
+      if (idx < 0) idx = 0;
+      hmSelect(idx);
+      hmSeek(idx);
+      };
+    }
+  }
+  hmBuildTension(hmAnalysis.events, xs);
+  hmBuildBass(hmAnalysis.events, xs);
+  hmBuildRibbon(hmAnalysis, xs);
+  if (hmCurIdx >= 0) {
+    hmSegX0 = xs[hmCurIdx];
+    hmSegX1 = xs[hmCurIdx + 1] ?? hmLaneWidth - 12;
+    const progress = hmSegDur > 0 ? (hmPausedAt ?? (hmNow() - hmSegStart)) / hmSegDur : 0;
+    hmSetCursorX(hmSegX0 + (hmSegX1 - hmSegX0) * Math.max(0, Math.min(1, progress)));
+  }
+  hmApplySpotlight();
 }
 
 // ---- C3: device brackets with pedagogical tooltips ----
@@ -449,6 +496,7 @@ const HM_DEV_EXPLAIN = {
 };
 const HM_DEV_COLORS = {
   "ii-V-I": "--fn-tonic",
+  "ii-V": "--fn-subdominant",
   secondary_dominant: "--fn-secondary",
   tritone_sub: "--fn-secondary",
   chromatic_bass_run: "--fn-chrombass",
@@ -490,65 +538,64 @@ function hmRenderBracketsNow(mine) {
   const wrap = document.getElementById("hmScoreWrap");
   if (!wrap) return;
   layer.innerHTML = "";
-  const wrapRect = wrap.getBoundingClientRect();
   const events = hmAnalysis.events;
-  const inIiVI = new Set();
+  const bars = [...new Set(Object.values(hmCellEls).map((cell) => cell.parentNode).filter(Boolean))];
+  bars.forEach((bar) => { bar.style.marginTop = "0px"; });
+  const rows = [];
+  events.forEach((e) => {
+    const cell = hmCellEls[e.idx];
+    if (!cell) return;
+    const rect = cell.getBoundingClientRect();
+    let row = rows.find((r) => Math.abs(r.top - rect.top) <= 2);
+    if (!row) { row = { top: rect.top, cells: [], lanes: [] }; rows.push(row); }
+    row.cells.push({ e, cell, rect });
+  });
+  const segments = [];
+  const inIiVI = new Set(hmAnalysis.devices.filter((d) => d.type === "ii-V-I").flatMap((d) => d.event_idxs));
   for (const d of hmAnalysis.devices) {
-    if (d.type === "ii-V-I") d.event_idxs.forEach((i) => inIiVI.add(i));
+    if (!(d.type in HM_DEV_COLORS) || !d.event_idxs.length) continue;
+    if (d.type === "secondary_dominant" && d.event_idxs.every((i) => inIiVI.has(i))) continue;
+    const first = Math.min(...d.event_idxs), last = Math.max(...d.event_idxs);
+    const parts = rows.map((row) => ({ row, cells: row.cells.filter(({ e }) => e.idx >= first && e.idx <= last) })).filter((part) => part.cells.length);
+    parts.forEach(({ row, cells }, part) => {
+      const x0 = cells[0].rect.left, x1 = cells[cells.length - 1].rect.right;
+      let lane = 0;
+      while (row.lanes[lane]?.some((range) => !(x1 < range[0] || x0 > range[1]))) lane++;
+      (row.lanes[lane] ||= []).push([x0, x1]);
+      segments.push({ d, cells, lane, before: part > 0, after: part < parts.length - 1 });
+    });
   }
-  const lanes = []; // occupied x-ranges per stacking lane, per row band
-  for (const d of hmAnalysis.devices) {
-    if (!(d.type in HM_DEV_COLORS)) continue;
-    // a secondary_dominant span inside a ii–V–I is already bracketed there
-    if (d.type === "secondary_dominant" &&
-        d.event_idxs.every((i) => inIiVI.has(i))) continue;
-    const ca = hmCellEls[Math.min(...d.event_idxs)];
-    const cb = hmCellEls[Math.max(...d.event_idxs)];
-    if (!ca || !cb) continue;
-    const ra = ca.getBoundingClientRect(), rb = cb.getBoundingClientRect();
-    if (rb.top !== ra.top) continue; // spans a line wrap — skip the bracket
-    const x0 = ra.left - wrapRect.left, x1 = rb.right - wrapRect.left;
-    const y = ra.top - wrapRect.top;
-    let lane = 0;
-    for (const o of lanes) {
-      if (o.y === y && !(x1 < o.x0 || x0 > o.x1)) lane = Math.max(lane, o.lane + 1);
-    }
-    // the 44px row gap fits 3 lanes; anything deeper folds back onto lane 2
-    // (its label is dropped below so the pile-up stays legible)
-    const overflow = lane > 2;
-    if (overflow) lane = 2;
-    lanes.push({ x0, x1, y, lane });
+  rows.forEach((row) => {
+    const gap = row.lanes.length ? 14 + row.lanes.length * 16 : 0;
+    row.cells.forEach(({ cell }) => {
+      if (cell.parentNode) cell.parentNode.style.marginTop = Math.max(parseFloat(cell.parentNode.style.marginTop) || 0, gap) + "px";
+    });
+  });
+  const wrapRect = wrap.getBoundingClientRect();
+  for (const { d, cells, lane, before, after } of segments) {
+    const ra = cells[0].cell.getBoundingClientRect(), rb = cells[cells.length - 1].cell.getBoundingClientRect();
     const div = document.createElement("div");
-    div.className = "hm-bracket";
-    div.style.left = x0 + "px";
-    div.style.width = Math.max(14, x1 - x0) + "px";
-    // lane 0 sits 13px above the cells, each extra lane climbs 12px;
-    // the label straddles the bracket's top edge
-    div.style.top = (y - 13 - lane * 12) + "px";
-    const col = hmCss(HM_DEV_COLORS[d.type]);
+    div.className = "hm-bracket" + (before ? " continued-before" : "") + (after ? " continued-after" : "");
+    div.style.left = (ra.left - wrapRect.left) + "px";
+    div.style.width = Math.max(14, rb.right - ra.left) + "px";
+    div.style.top = (ra.top - wrapRect.top - 13 - lane * 16) + "px";
+    const col = hmCss(HM_DEV_COLORS[d.type]), target = hmFormatNoteLabel(d.target);
     div.style.borderColor = col;
     div.dataset.devkey = d.type;
-    // compact labels — the full name lives in the hover tooltip
-    const target = hmFormatNoteLabel(d.target);
-    const label = {
-      "ii-V-I": `ii–V–I→${target}`,
-      secondary_dominant: `V7/${target || "x"}`,
-      tritone_sub: `tritone→${target}`,
-      chromatic_bass_run: "chrom bass",
-    }[d.type] || d.type;
-    div.innerHTML = `<span class="hm-blab" style="color:${col}">${hmEsc(label)}</span>`;
-    const span = `${events[Math.min(...d.event_idxs)].symbol}…` +
-      `${events[Math.max(...d.event_idxs)].symbol}`;
-    const expl = (HM_DEV_EXPLAIN[d.type] || label) + ` Spans ${span}.`;
-    div.addEventListener("mousemove", (ev) => hmShowTip(ev, expl));
+    const label = { "ii-V-I": `ii–V–I→${target}`, "ii-V": `ii–V→${target}`, secondary_dominant: `V7/${target || "x"}`, tritone_sub: `tritone→${target}`, chromatic_bass_run: "chrom bass" }[d.type];
+    div.innerHTML = `<span class="hm-blab" style="color:${col}">${before ? "┈ " : ""}${hmEsc(label)}${after ? " ┈" : ""}</span>`;
+    div.title = HM_DEV_EXPLAIN[d.type];
+    div.tabIndex = 0;
+    div.setAttribute("role", "button");
+    div.setAttribute("aria-label", HM_DEV_EXPLAIN[d.type]);
+    const show = () => { const rect = div.getBoundingClientRect(); hmShowTip({ clientX: rect.left, clientY: rect.bottom }, div.title); };
+    div.addEventListener("focus", show);
+    div.addEventListener("blur", hmHideTip);
+    div.addEventListener("click", show);
+    div.addEventListener("keydown", (ev) => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); show(); } if (ev.key === "Escape") hmHideTip(); });
+    div.addEventListener("mousemove", (ev) => hmShowTip(ev, HM_DEV_EXPLAIN[d.type]));
     div.addEventListener("mouseleave", hmHideTip);
     layer.appendChild(div);
-    // a label wider than its bracket would spill into the neighbours —
-    // drop the text (the tooltip still names the device)
-    const blab = div.firstChild;
-    if (overflow || (blab && blab.offsetWidth > Math.max(14, x1 - x0) + 16)) {
-      blab.style.display = "none";
-    }
   }
   hmApplySpotlight();
 }
@@ -580,14 +627,19 @@ function hmEnsureScoreObserver() {
   if (!wrap) return;
   hmScoreObserver = new ResizeObserver(() => {
     if (typeof state === "object" && state && state.activeView === "harmony" && hmAnalysis) {
+      hmRenderLanes();
       hmBuildBrackets();
     }
   });
   hmScoreObserver.observe(wrap);
+  const lanes = document.querySelector("#harmony .hm-lanes");
+  if (lanes) hmScoreObserver.observe(lanes);
 }
 
 // ---- C4: selection + rich side panel ----
-function hmSelect(idx) {
+function hmSelect(idx, manual = true) {
+  if (!hmAnalysis?.events[idx]) return;
+  if (manual) hmSetFollow(false);
   if (hmSelected != null && hmCellEls[hmSelected]) {
     hmCellEls[hmSelected].classList.remove("selected");
   }
@@ -597,14 +649,28 @@ function hmSelect(idx) {
 }
 
 // C7: jump from a Harmony cell into the chord editor (Bars view)
+let hmReturn = null;
+function hmSyncBackLink() {
+  const back = document.getElementById("hmBackBtn");
+  if (back) back.hidden = !hmReturn || state.activeView !== "bars" || hmReturn.album !== state.album || hmReturn.file !== state.file;
+}
 function hmEditChord(e) {
-  showView("bars");
+  hmReturn = { album: state.album, file: state.file, idx: e.idx, scroll: document.getElementById("harmony")?.scrollTop || 0 };
+  if (showView("bars") === false) return;
   openEditor(e.section, e.bar_in_section, e.pos);
+  const bars = document.getElementById("bars");
+  if (!bars) return;
+  let back = document.getElementById("hmBackBtn");
+  if (!back) { back = document.createElement("button"); back.id = "hmBackBtn"; back.className = "tab hm-back"; bars.parentNode ? bars.parentNode.insertBefore(back, bars) : bars.prepend(back); }
+  back.hidden = false;
+  back.textContent = "← Back to Harmony";
+  back.onclick = () => { if (showView("harmony") !== false) back.hidden = true; };
 }
 
 function hmPanel(e) {
   const p = document.getElementById("hmPanel");
   if (!p) return;
+  if (!e) return;
   const col = hmColor(e.function);
   const noteNames = (e.notes || []).map((pc) => hmPcName(pc)).join(" ");
   const bassName = e.bass ||
@@ -635,7 +701,12 @@ function hmPanel(e) {
   html += `<div class="hm-conf ${lvl}">confidence: <b>${lvl.toUpperCase()}</b>` +
     (e.discrepancy ? "<br>⚠ " + hmEsc(e.discrepancy) : "") + "</div>";
   html += '<button id="hmEditBtn" class="btn-primary" style="margin-top:10px;width:100%">Edit chord →</button>';
+  html += '<div class="hm-panel-actions"><button id="hmAuditionBtn" class="tab">Audition</button><button id="hmFromBtn" class="tab">Play from here</button></div>';
   p.innerHTML = html;
+  const audition = document.getElementById("hmAuditionBtn");
+  if (audition) { audition.disabled = !e.midis?.length; audition.onclick = () => hmAudition(e); }
+  const from = document.getElementById("hmFromBtn");
+  if (from) from.onclick = () => hmSeek(e.idx, true);
   const editBtn = document.getElementById("hmEditBtn");
   if (editBtn) editBtn.onclick = () => hmEditChord(e);
 }
@@ -648,18 +719,57 @@ function hmPanel(e) {
 let hmActx = null, hmMaster = null;
 let hmPlaying = false, hmCurIdx = -1, hmRaf = null;
 let hmActiveVoices = [];
-let hmOnsetToken = 0;
+let hmOnsetToken = 0, hmPlayRequest = 0;
 let hmLastMidis = null;       // held/% and voicing-less events carry the last real chord
 let hmSegStart = 0, hmSegDur = 0, hmSegX0 = 0, hmSegX1 = 0;
 let hmPausedAt = null;
 let hmXsCache = [];
-const HM_RIGHT_EDGE = 1000 - 12;  // matches hmXs() pad
+let hmFollow = true, hmVolume = 0.15, hmMuted = false;
+function hmSetFollow(follow) {
+  hmFollow = follow;
+  const input = document.getElementById("hmFollow");
+  if (input) input.checked = follow;
+}
+function hmUpdateVolume() {
+  if (hmMaster) hmMaster.gain.value = hmMuted ? 0 : hmVolume;
+  const mute = document.getElementById("hmMuteBtn");
+  if (mute) { mute.textContent = hmMuted ? "Unmute" : "Mute"; mute.setAttribute("aria-pressed", String(hmMuted)); }
+}
+function hmProgress() {
+  const el = document.getElementById("hmAudioState"), events = hmAnalysis?.events || [];
+  const bars = [...new Set(events.map((e) => `${e.section}:${e.bar}`))];
+  const e = events[hmCurIdx];
+  const bar = e ? bars.indexOf(`${e.section}:${e.bar}`) + 1 : 0;
+  if (el) el.textContent = `bar ${bar} / ${bars.length} · event ${e ? hmCurIdx + 1 : 0} / ${events.length}`;
+}
+function hmTogglePlayback() { return hmPlaying ? hmPause() : hmPlay(); }
+async function hmAudition(e) {
+  hmPause();
+  const request = ++hmPlayRequest, analysis = hmAnalysis;
+  try { await hmEnsureAudio(); if (request !== hmPlayRequest || analysis !== hmAnalysis) return; hmSilenceVoices(); hmPlayChord(e.midis, 1.2); }
+  catch (_) { document.getElementById("hmAudioState").textContent = "Audio unavailable"; }
+}
+function hmSeek(idx, play = hmPlaying) {
+  if (!hmAnalysis?.events[idx]) return;
+  hmStopPlayback();
+  hmCurIdx = idx;
+  hmLastMidis = null;
+  for (let i = 0; i <= idx; i++) if (hmAnalysis.events[i].midis?.length) hmLastMidis = hmAnalysis.events[i].midis;
+  hmSegDur = hmStepDur(hmAnalysis.events[idx]);
+  hmSegX0 = hmXsCache[idx];
+  hmSegX1 = hmXsCache[idx + 1] ?? hmLaneWidth - 12;
+  hmPausedAt = 0;
+  hmCellEls[idx]?.classList.add("cur");
+  hmSetCursorX(hmSegX0);
+  hmProgress();
+  if (play) return hmPlay();
+}
 
 function hmEnsureAudio() {
   if (!hmActx) {
     hmActx = new (window.AudioContext || window.webkitAudioContext)();
     hmMaster = hmActx.createGain();
-    hmMaster.gain.value = 0.15;
+    hmMaster.gain.value = hmMuted ? 0 : hmVolume;
     hmMaster.connect(hmActx.destination);
   }
   if (hmActx.state === "suspended") return hmActx.resume();
@@ -722,7 +832,7 @@ function hmCursorLine() {
   const cs = document.getElementById("hmCursorSvg");
   let ln = cs.querySelector("line");
   if (!ln) {
-    cs.innerHTML = '<line x1="0" y1="0" x2="0" y2="100"/>';
+    cs.innerHTML = '<line x1="0" y1="0" x2="0" y2="100%"/>';
     ln = cs.querySelector("line");
   }
   return ln;
@@ -757,9 +867,10 @@ function hmOnsetChord() {
     }
     if (hmCellEls[hmCurIdx]) {
       hmCellEls[hmCurIdx].classList.add("cur");
-      hmCellEls[hmCurIdx].scrollIntoView({ block: "nearest", behavior: "smooth" });
+      if (hmFollow) hmCellEls[hmCurIdx].scrollIntoView({ block: "nearest", behavior: window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ? "auto" : "smooth" });
     }
-    hmPanel(e);   // panel follows the playhead
+    if (hmFollow) hmSelect(hmCurIdx, false);
+    hmProgress();
   } catch (err) {
     console.warn("harmony onset: skipping event " + hmCurIdx, err);
   }
@@ -767,7 +878,7 @@ function hmOnsetChord() {
   hmSegStart = hmNow();
   hmSegX0 = isFinite(hmXsCache[hmCurIdx]) ? hmXsCache[hmCurIdx] : 0;
   hmSegX1 = (hmCurIdx + 1 < hmAnalysis.events.length && isFinite(hmXsCache[hmCurIdx + 1]))
-    ? hmXsCache[hmCurIdx + 1] : HM_RIGHT_EDGE;
+    ? hmXsCache[hmCurIdx + 1] : (hmLaneWidth - 12);
   hmSetCursorX(hmSegX0);
 }
 
@@ -778,7 +889,7 @@ function hmFrame() {
     while (prog >= 1 && hmPlaying) {
       hmCurIdx++;
       if (hmCurIdx >= hmAnalysis.events.length) {
-        hmSetCursorX(HM_RIGHT_EDGE);
+        hmSetCursorX((hmLaneWidth - 12));
         hmStopPlayback();
         return;
       }
@@ -793,18 +904,19 @@ function hmFrame() {
 
 async function hmPlay() {
   if (!hmAnalysis || !hmAnalysis.events.length) return;
-  const mine = hmAnalysis;
-  await hmEnsureAudio();
-  if (!hmAnalysis || hmAnalysis !== mine || !hmAnalysis.events.length) return;
+  const mine = hmAnalysis, request = ++hmPlayRequest;
+  try { await hmEnsureAudio(); }
+  catch (_) { document.getElementById("hmAudioState").textContent = "Audio unavailable"; return; }
+  if (request !== hmPlayRequest || !hmAnalysis || hmAnalysis !== mine || !hmAnalysis.events.length) return;
   if (typeof state === "object" && state && state.activeView !== "harmony") return;
   if (hmPlaying) return;
   const btn = document.getElementById("hmPlayBtn");
   if (btn) {
     btn.textContent = "⏸";
     btn.classList.add("playing");
+    btn.setAttribute("aria-pressed", "true");
   }
-  const audioStateEl = document.getElementById("hmAudioState");
-  if (audioStateEl && hmActx) audioStateEl.textContent = "audio: " + hmActx.state;
+  hmProgress();
   if (hmPausedAt != null) {
     // resume: re-anchor the in-progress segment and re-trigger the paused chord
     const pausedAt = hmPausedAt;
@@ -845,6 +957,7 @@ function hmPause() {
   if (btn) {
     btn.textContent = "▶";
     btn.classList.remove("playing");
+    btn.setAttribute("aria-pressed", "false");
   }
   if (hmRaf) cancelAnimationFrame(hmRaf);
   hmRaf = null;
@@ -853,10 +966,11 @@ function hmPause() {
 
 // full reset (also called when leaving the tab or re-rendering)
 function hmStopPlayback() {
+  hmPlayRequest++;
   hmPlaying = false;
   hmPausedAt = null;
   const btn = document.getElementById("hmPlayBtn");
-  if (btn) { btn.textContent = "▶"; btn.classList.remove("playing"); }
+  if (btn) { btn.textContent = "▶"; btn.classList.remove("playing"); btn.setAttribute("aria-pressed", "false"); }
   if (hmRaf) cancelAnimationFrame(hmRaf);
   hmRaf = null;
   if (hmActx) hmSilenceVoices();
@@ -864,7 +978,7 @@ function hmStopPlayback() {
     hmOnsetToken += 1;
     hmRetireVoices();
   }
-  if (hmCurIdx >= 0 && hmCellEls[hmCurIdx]) hmCellEls[hmCurIdx].classList.remove("cur");
+  Object.values(hmCellEls).forEach((cell) => cell.classList.remove("cur"));
   hmCurIdx = -1;
   hmLastMidis = null;
   hmSegStart = 0;
@@ -873,6 +987,7 @@ function hmStopPlayback() {
   hmSegX1 = 0;
   const cs = document.getElementById("hmCursorSvg");
   if (cs) cs.innerHTML = "";
+  hmProgress();
 }
 
 function hmOnTempoInput() {
@@ -988,7 +1103,7 @@ function hmSnapshotHtml() {
     "body{background:#0f1115;color:#e6e8ee;margin:0;padding:20px;" +
     "font:14px/1.4 -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}" +
     "h1{font-size:18px;margin:0 0 10px}" +
-    `.hm-wrap{width:${width}px}` +
+    `.hm-wrap{width:${Math.max(width, lanes?.clientWidth || width)}px}#hmScoreWrap{width:${width}px}.hm-lanes{width:${lanes?.clientWidth || width}px}` +
     "#hmCursorSvg{display:none}" +
     `</style></head><body><h1>${hmEsc(title)}</h1>` +
     `<div class="hm-wrap">${body}</div></body></html>`;
@@ -1009,7 +1124,15 @@ function hmWireToolbar() {
   if (hmToolbarWired) return;
   hmToolbarWired = true;
   document.getElementById("hmPlayBtn").onclick =
-    () => (hmPlaying ? hmPause() : hmPlay());
+    hmTogglePlayback;
+  const stop = document.getElementById("hmStopBtn");
+  if (stop) stop.onclick = hmStopPlayback;
+  const volume = document.getElementById("hmVolume");
+  if (volume) volume.oninput = () => { hmVolume = Number(volume.value) / 100 * .3; hmUpdateVolume(); };
+  const mute = document.getElementById("hmMuteBtn");
+  if (mute) mute.onclick = () => { hmMuted = !hmMuted; hmUpdateVolume(); };
+  const follow = document.getElementById("hmFollow");
+  if (follow) follow.onchange = () => { hmSetFollow(follow.checked); if (hmFollow && hmCurIdx >= 0) hmSelect(hmCurIdx, false); };
   const tempo = document.getElementById("hmTempo");
   tempo.oninput = hmOnTempoInput;
   const guard = (fn) => () => {
@@ -1134,10 +1257,8 @@ async function renderHarmony() {
       legend.innerHTML = "";
       legend.appendChild(hmLegend());
     }
-    const xs = hmXsCache = hmXs(hmAnalysis.events.length);
-    hmBuildTension(hmAnalysis.events, xs);
-    hmBuildBass(hmAnalysis.events, xs);
-    hmBuildRibbon(hmAnalysis, xs);
+    hmRenderLanes();
+    hmProgress();
     const scoreWrap = document.getElementById("hmScore");
     if (scoreWrap) {
       scoreWrap.innerHTML = "";
@@ -1149,6 +1270,16 @@ async function renderHarmony() {
         '<div class="muted" style="text-align:center;margin-top:40px">' +
         "click a chord — double-click (or Edit) jumps to the editor</div>";
     }
+    const bookmark = hmReturn;
+    if (bookmark && bookmark.album === album && bookmark.file === file) {
+      hmSelect(bookmark.idx, false);
+      const restore = () => { const view = document.getElementById("harmony"); if (view && isCurrent()) view.scrollTop = bookmark.scroll; };
+      requestAnimationFrame(() => requestAnimationFrame(restore));
+      hmReturn = null;
+    } else if (bookmark) hmReturn = null;
+    const back = document.getElementById("hmBackBtn");
+    if (back) back.hidden = true;
+    hmApplySpotlight();
     hmBuildBrackets();
     // brackets are absolutely positioned from cell rects, so any late reflow
     // (font metrics settling, scrollbar appearing) leaves them stale — rebuild

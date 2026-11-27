@@ -395,6 +395,15 @@ header .spacer{flex:1}
 .hm-error span{flex:1}
 .hm-legend{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:12px}
 .hm-chip{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:20px;border:1px solid var(--border);background:var(--panel-2);font-size:12px;color:var(--text);user-select:none;cursor:pointer}
+.hm-chip:disabled{opacity:.4;cursor:default}
+.hm-panel-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.hm-back{margin-bottom:8px}
+.hm-toolbar input[type=range]{max-width:100px}
+.hm-follow{font-size:12px;display:flex;align-items:center;gap:5px}
+.hm-bracket.continued-before{border-left-style:dashed}
+.hm-bracket.continued-after{border-right-style:dashed}
+.hm-blab{max-width:100%;overflow:hidden;text-overflow:ellipsis}
+.hm-lanes svg:not(#hmCursorSvg){cursor:pointer}
 .hm-chip.dev{border-style:dashed}
 .hm-chip.active{outline:2px solid var(--accent);outline-offset:1px}
 .hm-sep{width:1px;background:var(--border);margin:0 4px;align-self:stretch}
@@ -410,14 +419,15 @@ header .spacer{flex:1}
 .hm-cell.cur{outline:2px solid #fff;outline-offset:1px;box-shadow:0 0 12px rgba(255,255,255,.25)}
 .hm-lane-title{color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.07em;padding:0 14px;margin:6px 0 2px}
 .hm-lanes svg{display:block;width:100%}
-.hm-main{display:grid;grid-template-columns:1fr 270px;gap:12px;align-items:start}
-#hmScoreWrap{position:relative;padding-top:48px}
+.hm-main{display:grid;grid-template-columns:minmax(0,1fr) 270px;gap:12px;align-items:start}
+#hmScoreWrap{position:relative;min-width:0}
+@container (max-width:720px){.hm-main{grid-template-columns:minmax(0,1fr)}#hmPanel{position:static}}
 #hmPanel{position:sticky;top:0;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:12px;min-height:120px}
 .hm-bigsym{font-size:26px;font-weight:700}
 .hm-rompanel{font-size:15px;margin:2px 0 6px}
 .hm-whybox{background:var(--panel-2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:12px;margin:8px 0}
 .hm-diagram{display:flex;justify-content:center;margin:8px 0 4px}
-.hm-diagram svg{transform:scale(1.7);transform-origin:top center;margin-bottom:34px}
+.hm-diagram svg{width:150px;height:auto;max-width:100%}
 .hm-kv{display:flex;gap:8px;font-size:12px;margin:3px 0}
 .hm-kv .k{color:var(--muted);min-width:64px}
 .hm-tags{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
@@ -431,13 +441,11 @@ header .spacer{flex:1}
 #hmTip{position:fixed;z-index:50;max-width:280px;background:var(--bg-deep);border:1px solid var(--border);border-radius:8px;padding:9px 11px;font-size:12px;color:var(--text);box-shadow:0 8px 24px rgba(0,0,0,.5);pointer-events:none;opacity:0;transition:opacity .1s}
 .hm-dim{opacity:.13}
 .hm-section{margin-bottom:16px}
-.hm-seclabel{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:32px}
-/* the 44px row gap is the home of the device brackets between systems
-   (sized for 3 stacked bracket lanes: chained ii-V-I cadences share cells) */
-.hm-bars{display:flex;flex-wrap:wrap;gap:44px 4px;align-items:stretch}
-.hm-bar{display:flex;align-items:stretch;gap:3px;padding:0 4px;border-left:2px solid var(--border)}
+.hm-seclabel{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px}
+.hm-bars{display:flex;flex-wrap:wrap;gap:10px 4px;align-items:stretch}
+.hm-bar{display:flex;flex-wrap:wrap;max-width:100%;box-sizing:border-box;align-items:stretch;gap:3px;padding:0 4px;border-left:2px solid var(--border)}
 .hm-bar:last-child{border-right:2px solid var(--border)}
-.hm-cell{position:relative;min-width:54px;padding:5px 7px 6px;border-radius:7px;border:1px solid transparent;background:var(--panel-2);display:flex;flex-direction:column;justify-content:flex-start}
+.hm-cell{font:inherit;color:var(--text);text-align:left;cursor:pointer;position:relative;min-width:54px;padding:5px 7px 6px;border-radius:7px;border:1px solid transparent;background:var(--panel-2);display:flex;flex-direction:column;justify-content:flex-start}
 .hm-cell:hover{border-color:var(--border-2)}
 .hm-sym{font-weight:600;font-size:13px;white-space:nowrap}
 .hm-rom{font-size:10px;margin-top:1px}

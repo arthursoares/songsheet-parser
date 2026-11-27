@@ -24,6 +24,7 @@ function showView(which) {
       typeof hmStopPlayback === "function") hmStopPlayback();
   if (state.activeView === "preview" && which !== "preview") setPreviewSnapshot(null);
   state.activeView = which;
+  if (typeof hmSyncBackLink === "function") hmSyncBackLink();
   $("shapes")?.classList.toggle("hidden", !shapes);
   for (const [id, active] of [["workspaceSongs", !shapes], ["workspaceShapes", shapes]]) {
     const button = $(id);
