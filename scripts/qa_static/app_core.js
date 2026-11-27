@@ -22,6 +22,7 @@ const esc = (s) =>
 function markDirty() {
   state.dirty = true;
   state.editVersion = (state.editVersion || 0) + 1;
+  $("saveBtn")?.classList?.toggle("dirty", true);
   if (typeof ReviewUI === "object") ReviewUI.documentChanged?.();
   const status = $("saveStatus");
   if (status) {
@@ -33,6 +34,7 @@ function markDirty() {
 function syncUndoRedoDirty() {
   if (typeof state.savedSnapshot === "string" && JSON.stringify(state.doc) === state.savedSnapshot) {
     state.dirty = false;
+    $("saveBtn")?.classList?.toggle("dirty", false);
     state.editVersion = (state.editVersion || 0) + 1;
     if (typeof ReviewUI === "object") ReviewUI.documentChanged?.();
     const status = $("saveStatus");
@@ -51,6 +53,12 @@ function syncUndoRedoDirty() {
 let undoStack = [];
 let redoStack = [];
 
+function syncHistoryButtons() {
+  const undoButton = $("undoBtn"), redoButton = $("redoBtn");
+  if (undoButton) undoButton.disabled = !state.doc || !undoStack.length;
+  if (redoButton) redoButton.disabled = !state.doc || !redoStack.length;
+}
+
 function snapshot() {
   const copy = JSON.parse(JSON.stringify(state.doc));
   if (typeof copyLegacyScanLinks === "function") copyLegacyScanLinks(copy);
@@ -64,6 +72,7 @@ function pushUndo() {
   undoStack.push(snapshot());
   if (undoStack.length > 100) undoStack.shift();
   redoStack = [];
+  syncHistoryButtons();
 }
 
 // Re-render everything that reads from state.doc after an undo/redo swap.
@@ -108,6 +117,7 @@ function undo() {
   if (!state.doc || !undoStack.length) return;
   redoStack.push(snapshot());
   state.doc = undoStack.pop();
+  syncHistoryButtons();
   syncUndoRedoDirty();
   rerenderAll();
 }
@@ -116,6 +126,7 @@ function redo() {
   if (!state.doc || !redoStack.length) return;
   undoStack.push(snapshot());
   state.doc = redoStack.pop();
+  syncHistoryButtons();
   syncUndoRedoDirty();
   rerenderAll();
 }

@@ -14,6 +14,7 @@
 </head>
 <body>
 <header>
+  <div class="header-zone header-library">
   <nav class="qa-workspaces" aria-label="Workspace">
     <button type="button" class="tab active" id="workspaceSongs" aria-pressed="true">Songs</button>
     <button type="button" class="tab" id="workspaceShapes" aria-pressed="false">Shapes</button>
@@ -22,27 +23,33 @@
   <select id="songSel" class="hidden"></select>
   <span id="currentSongTitle" class="current-song-title" aria-live="polite"></span>
   <span id="albumProgress" class="muted"></span>
-  <button id="nextFlagBtn" class="tab" title="jump to next flagged chord (} next, { previous; ]/[ step every chord)">Next flagged ›</button>
+  </div>
+  <div class="header-zone header-review">
   <select id="keySel" title="song key (for interval analysis)">
     <option value="">key: —</option>
   </select>
-  <label class="song-status-control">Song status
-    <select id="statusSel">
+  <label class="song-status-control">
+    <select id="statusSel" aria-label="Song status">
       <option value="pending">○ pending</option>
       <option value="in_progress">◐ in progress</option>
       <option value="done">✓ done</option>
     </select>
   </label>
   <button id="reviewDoneWarning" class="tab" type="button" hidden></button>
-  <span id="flagCount" class="muted"></span>
-  <button id="songsToggle" class="tab" title="show/hide the song list (focus mode)">☰ songs</button>
-  <button id="scanToggle" class="tab" title="show/hide the PDF scan pane (\)">⊞ scan</button>
-  <button id="chordReviewToggle" class="tab" aria-pressed="false">Chord review</button>
-  <button id="spellToggle" class="tab" title="toggle note spelling">♯ sharp</button>
-  <span class="spacer"></span>
+  <button type="button" id="nextFlagBtn" class="tab" title="jump to next flagged chord (} next, { previous; ]/[ step every chord)">Next flagged (<span id="flagCount">0</span>) ›</button>
+  <button type="button" id="chordReviewToggle" class="tab" aria-pressed="false">Review</button>
+  </div>
+  <div class="header-zone header-actions">
+  <button type="button" id="undoBtn" class="tab" title="Undo (⌘Z / Ctrl+Z)" aria-label="Undo" disabled>↶</button>
+  <button type="button" id="redoBtn" class="tab" title="Redo (⌘⇧Z / Ctrl+Y)" aria-label="Redo" disabled>↷</button>
+  <button type="button" id="songsToggle" class="tab" aria-label="Toggle song list" title="show/hide the song list (focus mode)">☰</button>
+  <button type="button" id="scanToggle" class="tab" aria-label="Toggle PDF scan" title="show/hide the PDF scan pane (\)">⊞</button>
+  <button type="button" id="noteToggle" class="tab" title="Edit song note">Note</button>
+  <button type="button" id="spellToggle" class="tab" aria-label="Toggle note spelling" title="toggle note spelling">♯/♭</button>
   <span id="saveStatus" class="muted" role="status" aria-live="polite"></span>
   <button class="kbdhint" id="kbdHint" type="button" aria-label="Keyboard shortcuts" aria-haspopup="dialog" aria-controls="shortcutDialog" title="Keyboard shortcuts (? or /)">?</button>
-  <button id="saveBtn" class="btn-primary">Save song</button>
+  <button type="button" id="saveBtn" class="btn-primary" title="Save song (⌘S / Ctrl+S)">Save ⌘S</button>
+  </div>
 </header>
 <dialog id="shortcutDialog" class="shortcut-dialog" aria-labelledby="shortcutDialogTitle">
   <form method="dialog">
@@ -102,12 +109,13 @@
 <div class="layout">
   <div class="col songs" id="songsPanel">
     <div class="songs-tools">
-      <input type="text" id="songSearch" aria-label="Search songs" placeholder="search songs…" autocomplete="off">
+      <div class="songs-search"><input type="text" id="songSearch" aria-label="Search songs" placeholder="search songs…" autocomplete="off"><button type="button" id="songSearchClear" class="tab" aria-label="Clear song search" hidden>×</button></div>
       <div class="songs-filter" id="songsFilter">
         <button type="button" data-filter="all" class="active" aria-pressed="true">All</button>
         <button type="button" data-filter="pending" aria-label="Pending songs" title="Pending songs" aria-pressed="false">○</button>
         <button type="button" data-filter="in_progress" aria-label="Songs in progress" title="Songs in progress" aria-pressed="false">◐</button>
         <button type="button" data-filter="done" aria-label="Done songs" title="Done songs" aria-pressed="false">✓</button>
+        <button type="button" data-filter="diffs" aria-label="Songs with print differences" aria-pressed="false">Diffs</button>
       </div>
     </div>
     <div class="songs-list" id="songsList"></div>

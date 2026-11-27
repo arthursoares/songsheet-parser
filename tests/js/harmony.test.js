@@ -636,6 +636,7 @@ test("app.js #keySel change and #spellToggle click call renderHarmony only when 
     fillSongs() {},
     loadSong() {},
     save() {},
+    undo() {}, redo() {},
     showView() {},
     nextFlagged() {},
     moveChordReview() {},

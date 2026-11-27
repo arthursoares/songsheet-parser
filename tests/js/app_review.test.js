@@ -694,6 +694,7 @@ test("keySel change in app.js calls renderReview only in review view and preserv
   let renderReviewCalls = 0;
   let syncInputsCalls = 0;
   const context = vm.createContext({
+    undo() {}, redo() {},
     state,
     albums: [],
     $: get,

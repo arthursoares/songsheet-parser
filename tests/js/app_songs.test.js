@@ -202,6 +202,58 @@ test("song rows are native buttons with an accessible current state", () => {
   removeLoadHarness();
 });
 
+test("sidebar searches readable names, filters print differences, counts statuses, and reveals selection", () => {
+  const { elements, rows } = installLoadHarness();
+  const filters = ["all", "pending", "in_progress", "done", "diffs"].map((filter) => ({ dataset: { filter } }));
+  elements.songsFilter = { querySelectorAll: () => filters };
+  elements.songSearchClear = { hidden: true };
+  global.albums[0].songs = [
+    { file: "05-desafinado.json", status: "pending", audited: true, print_diffs: 49 },
+    { file: "06-chega-de-saudade.json", status: "done", audited: true, print_diffs: 0 },
+  ];
+  let scrolled = 0;
+  const createElement = global.document.createElement;
+  global.document.createElement = (tag) => ({ ...createElement(tag), scrollIntoView: () => { scrolled++; } });
+  global.state.file = "05-desafinado.json";
+  global.state.songFilter = "diffs";
+  SongsUI.renderSongList();
+  assert.equal(rows.length, 1);
+  assert.match(rows[0].innerHTML, />desafinado</);
+  assert.match(rows[0].innerHTML, /49 diffs/);
+  assert.equal(scrolled, 1);
+  assert.deepEqual(filters.map((filter) => filter.textContent), ["All 2", "○ 1", "◐ 0", "✓ 1", "Diffs 1"]);
+
+  rows.length = 0;
+  global.state.songFilter = "all";
+  global.state.songSearch = "chega de saudade";
+  SongsUI.renderSongList();
+  assert.equal(rows.length, 1);
+  assert.match(rows[0].innerHTML, /CV ✓/);
+  assert.equal(elements.songSearchClear.hidden, false);
+  rows.length = 0;
+  global.state.songSearch = "05-desafinado.json";
+  SongsUI.renderSongList();
+  assert.equal(rows.length, 1);
+  removeLoadHarness();
+});
+
+test("history buttons track undo, redo, and empty-document states", () => {
+  const elements = { undoBtn: {}, redoBtn: {} };
+  const context = vm.createContext({ document: { getElementById: (id) => elements[id] }, window: {} });
+  vm.runInContext(fs.readFileSync(require.resolve("../../scripts/qa_static/app_core.js"), "utf8"), context);
+  vm.runInContext("syncHistoryButtons()", context);
+  assert.equal(elements.undoBtn.disabled, true);
+  assert.equal(elements.redoBtn.disabled, true);
+  vm.runInContext("state.doc = {songs: []}; pushUndo()", context);
+  assert.equal(elements.undoBtn.disabled, false);
+  assert.equal(elements.redoBtn.disabled, true);
+  vm.runInContext("undoStack = []; redoStack = [{}]; syncHistoryButtons()", context);
+  assert.equal(elements.undoBtn.disabled, true);
+  assert.equal(elements.redoBtn.disabled, false);
+  vm.runInContext("state.doc = null; syncHistoryButtons()", context);
+  assert.equal(elements.redoBtn.disabled, true);
+});
+
 test("fillSongs restores the last successfully loaded song for an album", () => {
   const { elements, storage } = installLoadHarness();
   storage.qaLastSongByAlbum = JSON.stringify({ album: "second.json" });
