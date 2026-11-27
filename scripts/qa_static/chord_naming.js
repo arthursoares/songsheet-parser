@@ -184,20 +184,34 @@
   // Does the typed name's pitch set match the voicing's pitch set?
   // Returns true / false, or null when it can't be determined.
   function nameMatchesVoicing(name, voicing) {
-    const parsed = _parseChordmark(name);
-    const want = parsed && parsed.normalized && parsed.normalized.notes;
-    if (!want) return null;
+    return matchesVoicing(_parseChordmark(name), voicing);
+  }
+
+  function shapeNameMatchesVoicing(name, voicing) {
+    // The printed Brazilian 7-9 means a dominant seventh with a flat ninth.
+    const symbol = name.replace(/7-9(?=$|\/[A-G][#b♯♭]?$)/, "7b9");
+    return matchesVoicing(_parseChordmark(symbol), voicing, true);
+  }
+
+  function matchesVoicing(parsed, voicing, allowOmittedFifth = false) {
+    const want = parsed?.normalized;
+    if (!want?.notes) return null;
     const chroma = (n) => window.Tonal.Note.chroma(n);
-    const wantSet = new Set(want.map(chroma));
+    const wantSet = new Set(want.notes.map(chroma));
     const haveSet = new Set(voicingToNotes(voicing).map(chroma));
     if (wantSet.size === 0 || haveSet.size === 0) return null;
+    if (allowOmittedFifth && !want.bassNote && want.intervals.includes("5") &&
+        want.intervals.some((interval) => interval === "7" || interval === "b7")) {
+      const fifth = (chroma(want.rootNote) + 7) % 12;
+      if (!haveSet.has(fifth)) wantSet.delete(fifth);
+    }
     if (wantSet.size !== haveSet.size) return false;
     for (const c of wantSet) if (!haveSet.has(c)) return false;
     return true;
   }
 
   window.ChordNaming = {
-    pcNotes, suggestNames, validateName, nameMatchesVoicing,
+    pcNotes, suggestNames, validateName, nameMatchesVoicing, shapeNameMatchesVoicing,
     setSpelling, getSpelling, parseKey, setKeyTonic, getKeyTonic,
     perStringNotes, perStringInKey, perStringChordIntervals,
   };

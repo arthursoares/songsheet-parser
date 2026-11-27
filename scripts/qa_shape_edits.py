@@ -112,7 +112,7 @@ def _entry_at(doc: dict, row: dict) -> tuple[dict, dict]:
     return song, entry
 
 
-def _verify_occurrence(doc: dict, row: dict, printed_voicing: str) -> tuple[dict, int]:
+def _verify_occurrence(doc: dict, row: dict, printed_voicing: str | None) -> tuple[dict, int]:
     song, entry = _entry_at(doc, row)
     if not isinstance(row.get("title"), str) or song.get("title") != row["title"]:
         raise ShapeEditError("song title no longer matches the reviewed occurrence")
@@ -120,9 +120,10 @@ def _verify_occurrence(doc: dict, row: dict, printed_voicing: str) -> tuple[dict
         raise ShapeEditError("chord label no longer matches the reviewed occurrence")
     if entry.get("voicing") != row.get("editorial"):
         raise ShapeEditError("editorial voicing no longer matches the reviewed occurrence")
-    if row.get("printed") != printed_voicing:
+    if printed_voicing is not None and row.get("printed") != printed_voicing:
         raise ShapeEditError("occurrence belongs to a different shape group")
-    if entry.get("voicing_printed") != row.get("printed"):
+    source = row.get("source_evidence", row)
+    if entry.get("voicing_printed") != source.get("printed"):
         raise ShapeEditError("printed voicing no longer matches the reviewed occurrence")
     observation_id = row.get("observation_id")
     if observation_id is not None and not _valid_digest(observation_id):
@@ -136,17 +137,20 @@ def _verify_occurrence(doc: dict, row: dict, printed_voicing: str) -> tuple[dict
         wrapper = doc.get("_meta", {}).get("diagram_evidence", {}).get(observation_id)
         record = wrapper.get("record") if isinstance(wrapper, dict) else None
         if isinstance(record, dict):
-            source = record.get("source_pdf", {})
-            expected_pdf = row.get("pdf")
-            if expected_pdf is not None and source.get("name") != Path(str(expected_pdf)).name:
+            source_pdf = record.get("source_pdf", {})
+            expected_pdf = source.get("pdf")
+            if expected_pdf is not None and source_pdf.get("name") != Path(str(expected_pdf)).name:
                 raise ShapeEditError("PDF evidence no longer matches")
-            if row.get("pdf_sha256") is not None and source.get("sha256") != row["pdf_sha256"]:
+            if (
+                source.get("pdf_sha256") is not None
+                and source_pdf.get("sha256") != source["pdf_sha256"]
+            ):
                 raise ShapeEditError("PDF digest no longer matches")
-            if row.get("page") is not None and record.get("page") != row["page"]:
+            if source.get("page") is not None and record.get("page") != source["page"]:
                 raise ShapeEditError("PDF page evidence no longer matches")
-            if row.get("box") is not None and record.get("crop_box") != row["box"]:
+            if source.get("box") is not None and record.get("crop_box") != source["box"]:
                 raise ShapeEditError("diagram crop evidence no longer matches")
-            if record.get("voicing_printed") != row.get("printed"):
+            if record.get("voicing_printed") != source.get("printed"):
                 raise ShapeEditError("diagram reading no longer matches")
     return entry, row["song_index"]
 
@@ -244,16 +248,34 @@ def apply_shape_batch(
     ``group`` is expected to come from the server's trusted, revision-bound
     shape index.  Callers must not accept a client-authored replacement group.
     """
+    return _shape_batch(root, history, group, selected, chord=chord, voicing=voicing)
+
+
+def exclude_shape_batch(root: Path, history: Path, group: dict, selected: list[str]) -> dict:
+    """Remove selected scan pairings using the ordinary revision-guarded journal."""
+    return _shape_batch(root, history, group, selected, exclude=True)
+
+
+def _shape_batch(
+    root: Path,
+    history: Path,
+    group: dict,
+    selected: list[str],
+    *,
+    chord: str | None = None,
+    voicing: str | None = None,
+    exclude: bool = False,
+) -> dict:
     root, history = Path(root), Path(history)
     if not isinstance(group, dict) or not isinstance(group.get("id"), str) or not group["id"]:
         raise ShapeEditError("invalid shape group")
     printed_voicing = group.get("voicing")
-    if not _valid_voicing(printed_voicing):
+    if printed_voicing is not None and not _valid_voicing(printed_voicing):
         raise ShapeEditError("invalid target voicing")
     if chord is not None and not _valid_chord(chord):
         raise ShapeEditError("invalid target chord")
     effective_voicing = printed_voicing if voicing is None else voicing
-    if not _valid_voicing(effective_voicing):
+    if not exclude and not _valid_voicing(effective_voicing):
         raise ShapeEditError("invalid target voicing")
     occurrences = group.get("occurrences")
     if not isinstance(occurrences, list) or any(not isinstance(row, dict) for row in occurrences):
@@ -280,7 +302,11 @@ def apply_shape_batch(
         raise ShapeEditError("selected occurrence is not in this shape group")
 
     selected_rows = [by_id[item] for item in selected]
-    if any(row.get("editable") is not True for row in selected_rows):
+    if (
+        not exclude
+        and printed_voicing is not None
+        and any(row.get("editable") is not True for row in selected_rows)
+    ):
         raise ShapeEditError("selected occurrence is not editable")
 
     documents: dict[Path, dict] = {}
@@ -314,14 +340,26 @@ def apply_shape_batch(
             raise ShapeEditError("multiple selected IDs identify the same occurrence")
         coordinates.add(coord)
         entry, song_index = _verify_occurrence(documents[path], row, printed_voicing)
-        if entry.get("voicing") == effective_voicing and (
-            chord is None or entry.get("chord") == chord
-        ):
-            raise ShapeEditError("selected occurrence does not need correction")
-        if chord is not None:
-            entry["chord"] = chord
-        entry["voicing"] = effective_voicing
-        entry["chord_review"] = {"status": "reviewed", "snapshot": _review_snapshot(entry)}
+        if exclude:
+            from qa_shapes import shape_exclusion_key
+
+            marker = shape_exclusion_key(group["id"], row)
+            rejected = entry.get("shape_exclusion", {}).get("rejected", [])
+            if marker in rejected:
+                raise ShapeEditError("selected occurrence is already excluded")
+            entry["shape_exclusion"] = {
+                "rejected": [*rejected, marker],
+                "voicing": entry.get("voicing"),
+            }
+        else:
+            if entry.get("voicing") == effective_voicing and (
+                chord is None or entry.get("chord") == chord
+            ):
+                raise ShapeEditError("selected occurrence does not need correction")
+            if chord is not None:
+                entry["chord"] = chord
+            entry["voicing"] = effective_voicing
+            entry["chord_review"] = {"status": "reviewed", "snapshot": _review_snapshot(entry)}
         songs.add((album, file, song_index))
 
     records = []
@@ -368,10 +406,13 @@ def apply_shape_batch(
             batch_dir / "manifest.json",
             json.dumps(manifest, ensure_ascii=False, indent=2, allow_nan=False).encode("utf-8"),
         )
-        _write_private(
-            batch_dir / "shape.json",
-            json.dumps(shape, ensure_ascii=False, indent=2, allow_nan=False).encode("utf-8"),
-        )
+        # Relative shapes can span transpositions. A selected absolute edit must
+        # never become a suggested correction for every member of that group.
+        if not exclude and printed_voicing is not None:
+            _write_private(
+                batch_dir / "shape.json",
+                json.dumps(shape, ensure_ascii=False, indent=2, allow_nan=False).encode("utf-8"),
+            )
         _set_state(batch_dir, "prepared", create=True)
     except (OSError, ValueError) as exc:
         raise ShapeEditError(f"could not prepare batch history: {exc}") from exc

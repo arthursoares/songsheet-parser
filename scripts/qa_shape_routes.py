@@ -240,7 +240,7 @@ def _detail(index, group, params, corrections):
                 {
                     key: value
                     for key, value in row.items()
-                    if key not in {"box", "pdf", "pdf_sha256"}
+                    if key not in {"box", "pdf", "pdf_sha256", "source_evidence"}
                 }
                 for row in rows
             ],
@@ -295,7 +295,10 @@ def _entry(index, params):
                         409, {"error": "The song changed. Reload it before finding its shape."}
                     )
                 return _json(200, {"id": group["id"], "occurrence_id": row["id"]})
-    return _json(404, {"error": "This chord has no reliably linked shape in the scan index."})
+    return _json(
+        404,
+        {"error": "This chord has no reliably linked shape in the scan index.", "unmatched": True},
+    )
 
 
 def handle_shapes(method, parts, req, pdf_dir, write_lock, pdf_lock):
@@ -303,6 +306,7 @@ def handle_shapes(method, parts, req, pdf_dir, write_lock, pdf_lock):
     from qa_shape_edits import (
         ShapeEditError,
         apply_shape_batch,
+        exclude_shape_batch,
         latest_shape_corrections,
         undo_shape_batch,
     )
@@ -335,16 +339,20 @@ def handle_shapes(method, parts, req, pdf_dir, write_lock, pdf_lock):
             return _json(404, {"error": "Shape not found."})
         if method == "GET" and len(parts) == 1:
             return _detail(index, group, req.params, latest_shape_corrections(history))
-        if method == "POST" and len(parts) == 2 and parts[1] == "apply":
+        if method == "POST" and len(parts) == 2 and parts[1] in {"apply", "exclude"}:
             try:
                 payload = json.loads(req.body)
                 selected = payload.get("selected") if isinstance(payload, dict) else None
             except (UnicodeDecodeError, ValueError):
                 return _json(400, {"error": "Invalid selection."})
             if not isinstance(selected, list) or not 0 < len(selected) <= MAX_SELECTION:
-                return _json(400, {"error": "Select at least one occurrence to apply."})
+                return _json(400, {"error": "Select at least one occurrence."})
             if any(not isinstance(value, str) for value in selected):
                 return _json(400, {"error": "Invalid occurrence identifiers."})
+            if parts[1] == "exclude":
+                with write_lock:
+                    result = exclude_shape_batch(req.root, history, group, selected)
+                    return _json(200, _track_edited_files(req.root, result))
             if "voicing" in payload and not isinstance(payload["voicing"], str):
                 return _json(400, {"error": "Enter six string values for the corrected fingering."})
             if "chord" in payload and not isinstance(payload["chord"], str):

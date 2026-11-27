@@ -175,7 +175,7 @@ test("apply posts the explicit occurrence IDs and effective manual voicing", asy
     album: "Album", file: "song.json",
   };
   global.window = { ChordNaming: {
-    validateName: () => ({ valid: true }), suggestNames: () => [], nameMatchesVoicing: () => true,
+    validateName: () => ({ valid: true }), suggestNames: () => [], shapeNameMatchesVoicing: () => true,
   } };
   Object.assign(Shapes.shapesUI, {
     container: null, detail: { id: "shape-1", voicing: "x,3,2,0,1,0", occurrences: [item] },
@@ -208,7 +208,7 @@ test("apply posts the explicit occurrence IDs and effective manual voicing", asy
 test("blank name retains each exact label while an explicit name enables name-only rows", () => {
   global.window = { ChordNaming: {
     validateName: (name) => ({ valid: name !== "%" }), suggestNames: () => [],
-    nameMatchesVoicing: () => true,
+    shapeNameMatchesVoicing: () => true,
   } };
   const voicing = "x,2,4,2,3,x";
   const item = { id: "name-only", editable: true, editorial: voicing, label: "Bm7/F#" };
@@ -229,10 +229,23 @@ test("blank name retains each exact label while an explicit name enables name-on
   Shapes.shapesUI.targetName = "";
 });
 
+test("Shapes recognizes the printed flat ninth and the optional fifth without changing exact matching", () => {
+  const ctx = vm.createContext({});
+  ctx.window = ctx;
+  for (const file of ["vendor/tonal.bundle.js", "vendor/chord-symbol.bundle.js", "chord_naming.js"]) {
+    vm.runInContext(fs.readFileSync(`${__dirname}/../../scripts/qa_static/${file}`, "utf8"), ctx);
+  }
+  const voicing = [0, "x", 6, 7, 6, "x"];
+  assert.equal(ctx.ChordNaming.shapeNameMatchesVoicing("E7-9", voicing), true);
+  assert.equal(ctx.ChordNaming.nameMatchesVoicing("E7b9", voicing), false);
+  assert.equal(ctx.ChordNaming.shapeNameMatchesVoicing("E7b9/C", voicing), false);
+  assert.equal(ctx.ChordNaming.shapeNameMatchesVoicing("Em7b5", [0, "x", 5, 7, "x", "x"]), false);
+});
+
 test("definite retained-label conflicts are protected but unknown compatibility is allowed", () => {
   global.window = { ChordNaming: {
     validateName: () => ({ valid: true }), suggestNames: () => [],
-    nameMatchesVoicing: (name) => name === "A13-9" ? false : null,
+    shapeNameMatchesVoicing: (name) => name === "A13-9" ? false : null,
   } };
   const target = "x,2,4,2,3,x";
   const conflict = {
@@ -258,7 +271,7 @@ test("invalid percent and explicit name-voicing conflicts block requests", async
   global.shapeWritesReady = () => true;
   global.window = { ChordNaming: {
     validateName: (name) => ({ valid: name !== "Bad" && name !== "%" }), suggestNames: () => [],
-    nameMatchesVoicing: (name) => name === "C" ? false : true,
+    shapeNameMatchesVoicing: (name) => name === "C" ? false : true,
   } };
   const item = {
     id: "blocked", editable: true, editorial: "x,3,2,0,1,0", label: "Am",
@@ -372,13 +385,18 @@ test("basis labels and changed strings are human-readable", () => {
   assert.match(html, /shape-changed[^>]*aria-label="D: muted"[^>]*title="D: muted"[^>]*>×<\/span>/);
 });
 
-test("unresolved base-fret shapes cannot enable checkboxes, chord-name inputs, or Apply", () => {
+test("unresolved shapes accept a manual fingering and optional name before enabling explicit selection", (t) => {
+  const previous = { ...Shapes.shapesUI };
+  t.after(() => {
+    Object.assign(Shapes.shapesUI, previous);
+    delete global.$; delete global.window;
+  });
   global.window = { ChordNaming: {
     validateName: () => ({ valid: true }), suggestNames: () => [{ name: "Am" }],
-    nameMatchesVoicing: () => true,
+    shapeNameMatchesVoicing: () => true,
   } };
   const occ = {
-    id: "unresolved-1", editable: true, editorial: "x,0,2,2,1,0",
+    id: "unresolved-1", editable: false, editorial: "x,0,2,2,1,0",
     label: "Am", title: "Song", file: "song.json", album: "Book",
   };
   assert.equal(Shapes.isSelectableShapeOccurrence(occ, "", "C"), false);
@@ -400,33 +418,93 @@ test("unresolved base-fret shapes cannot enable checkboxes, chord-name inputs, o
     detail: { id: "g-unresolved", voicing: null, pattern: "MFFFFM", songs: 1, matches: 1, occurrences: [occ] },
     targetVoicing: "",
     targetName: "",
-    selected: new Set(["unresolved-1"]),
+    selected: new Set(),
     listPending: false,
     detailPending: false,
     writePending: false,
   });
 
-  const nameHtml = Shapes.shapeNameControl(Shapes.shapesUI.detail);
-  assert.doesNotMatch(nameHtml, /id="shapeChordName"/);
-  assert.doesNotMatch(nameHtml, /data-shape-name-suggestion/);
-  assert.match(nameHtml, /unavailable until the scan fingering is resolved/);
-  assert.equal(Shapes.setShapeNameProposal("C", { announce: false }), false);
-  assert.equal(Shapes.shapeTargetName(), "");
-
   Shapes.renderShapeDetail();
-  assert.doesNotMatch(elements.shapeDetail.innerHTML, /id="shapeChordName"/);
+  assert.match(elements.shapeDetail.innerHTML, /id="shapeChordName"/);
+  assert.match(elements.shapeDetail.innerHTML, /id="shapeVoicingText"/);
   assert.doesNotMatch(elements.shapeDetail.innerHTML, /data-shape-select=/);
-  assert.match(elements.shapeDetail.innerHTML, /Group fingering is unresolved; edit this occurrence in its song\./);
-  assert.doesNotMatch(elements.shapeDetail.innerHTML, /already agree/);
+  assert.match(elements.shapeDetail.innerHTML, /Enter a fingering to select this occurrence/);
+  assert.match(elements.shapeDetail.innerHTML, /data-shape-exclude="unresolved-1"/);
   assert.equal(selectAllBtn.disabled, true);
   assert.equal(elements.shapeApply.disabled, true);
 
-  delete global.$;
-  delete global.window;
-  Object.assign(Shapes.shapesUI, {
-    container: null, detail: null, targetVoicing: "", targetName: "", selected: new Set(),
+  assert.equal(Shapes.setShapeNameProposal("C", { announce: false }), true);
+  assert.equal(Shapes.setShapeProposal("x,3,2,0,1,0"), true);
+  Shapes.renderShapeDetail();
+  assert.match(elements.shapeDetail.innerHTML, /data-shape-select="unresolved-1"/);
+  assert.match(elements.shapeDetail.innerHTML, /data-shape-name-suggestion="Am"/);
+  assert.equal(selectAllBtn.disabled, false);
+  assert.equal(elements.shapeApply.disabled, true);
+  Shapes.shapesUI.selected.add(occ.id);
+  Shapes.syncShapeControls();
+  assert.equal(elements.shapeApply.disabled, false);
+  assert.deepEqual(Shapes.shapeApplyPayload([occ]), {
+    selected: [occ.id], voicing: "x,3,2,0,1,0", chord: "C",
   });
 });
+
+for (const rematched of [true, false]) {
+  test(`remove match refreshes Shapes and ${rematched ? "opens the replacement" : "clears the empty group"}`, async (t) => {
+    const previous = { ...Shapes.shapesUI };
+    t.after(() => {
+      Object.assign(Shapes.shapesUI, previous);
+      delete global.$; delete global.api;
+    });
+    const item = {
+      id: "old-match", title: "Song", file: "song.json", album: "Book",
+      song_index: 0, si: 0, bi: 5, ei: 0, editable: false,
+    };
+    const container = {
+      dataset: { shapesReady: "true" }, querySelector: () => null, querySelectorAll: () => [],
+    };
+    const elements = {
+      shapes: container, shapeDetail: { scrollTop: 40 }, shapeAlbum: { value: "" },
+      shapeResults: {}, shapePager: {}, shapeGlobalUndo: { focus() {} },
+      shapeStatus: { dataset: {}, setAttribute() {} },
+    };
+    const replacement = {
+      id: "replacement", voicing: "x,7,6,7,6,x",
+      occurrences: [{ ...item, id: "replacement-occurrence", basis: "rematched_evidence" }],
+    };
+    const requests = [];
+    global.$ = (id) => elements[id];
+    global.api = async (url, options) => {
+      requests.push(url);
+      if (url === "/api/shapes/rejected/exclude") {
+        assert.deepEqual(JSON.parse(options.body), { selected: [item.id] });
+        return { ok: true, batch_id: "removal", entries: 1, songs: 1, files: [] };
+      }
+      if (url.startsWith("/api/shapes/entry?")) {
+        const params = new URLSearchParams(url.split("?")[1]);
+        assert.equal(params.get("bi"), "5");
+        assert.equal(params.get("file"), item.file);
+        return rematched ? { id: replacement.id } : { unmatched: true, error: "No match" };
+      }
+      if (url.startsWith("/api/shapes?")) return { groups: rematched ? [replacement] : [] };
+      if (url === "/api/shapes/replacement") return replacement;
+      assert.fail(`Unexpected request: ${url}`);
+    };
+    Object.assign(Shapes.shapesUI, {
+      container, album: "", detail: { id: "rejected", voicing: null, occurrences: [item] },
+      writePending: false, detailPending: false, listPending: false,
+      selected: new Set(), latestBatch: null,
+    });
+
+    await Shapes.removeShapeOccurrence(item.id);
+
+    assert.equal(requests.length, rematched ? 4 : 3);
+    assert.equal(Shapes.shapesUI.detail?.id, rematched ? replacement.id : undefined);
+    assert.match(elements.shapeStatus.textContent, rematched
+      ? /Rematched to x,7,6,7,6,x/ : /No reliable replacement crop was found/);
+    assert.match(Shapes.shapeUndoLabel(), /Undo match removal/);
+    assert.equal(Shapes.shapesUI.latestBatch.groupId, "rejected");
+  });
+}
 
 test("occurrence voicings render spaced guitar pills and handle unresolved blank targets cleanly", () => {
   const html = Shapes.renderOccurrenceFingering("x,0,2,2,1,0", "x,0,2,2,1,0");
@@ -447,7 +525,7 @@ test("proposal edits preserve compatible selections, checked state, and scrollTo
   global.window = { ChordNaming: {
     validateName: () => ({ valid: true }),
     suggestNames: () => [{ name: "C" }],
-    nameMatchesVoicing: (label, voicing) => {
+    shapeNameMatchesVoicing: (label, voicing) => {
       if (label === "Am" && voicing.join(",") === "x,3,2,0,3,0") return false;
       if (label === "C" && voicing.join(",") === "x,3,2,0,1,0") return true;
       if (label === "F" && voicing.join(",") === "x,3,2,0,1,0") return false;
@@ -570,6 +648,13 @@ test("typing valid voicing in .fb-text updates target on input and blur-into-App
   assert.equal(fretboardSetCalls, 0);
   assert.equal(fbInput.attrs["aria-invalid"], "false");
   assert.deepEqual([...Shapes.shapesUI.selected], ["occ-1"]);
+  assert.equal(elements.shapeApply.disabled, false);
+
+  fbInput.value = "x,3,2,0,3,";
+  listeners.input({ target: fbInput });
+  assert.equal(elements.shapeApply.disabled, true);
+  fbInput.value = "x,3,2,0,3,0";
+  listeners.input({ target: fbInput });
   assert.equal(elements.shapeApply.disabled, false);
 
   // Simulated blur -> change from fretboard.js keeps selection & Apply enabled

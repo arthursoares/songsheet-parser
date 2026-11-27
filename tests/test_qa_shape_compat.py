@@ -13,6 +13,23 @@ def test_node_browser_parity_accepts_match_and_rejects_mismatch():
         compat.check_shape_names(["G"], "x,3,2,0,1,0", explicit=True)
 
 
+@pytest.mark.parametrize("use_fallback", [False, True])
+def test_shapes_accept_source_flat_ninth_and_omit_only_the_optional_fifth(
+    monkeypatch, use_fallback
+):
+    if use_fallback:
+        monkeypatch.setattr(compat, "_node_results", lambda _names, _voicing: None)
+
+    shell = "0,x,6,7,6,x"
+    compat.check_shape_names(["E7-9", "E7b9"], shell, explicit=True)
+
+    for label in ("E7b9/B", "E7b9/C", "E7b9/G#", "E7"):
+        with pytest.raises(ShapeEditError, match="does not match target voicing"):
+            compat.check_shape_names([label], shell, explicit=True)
+    with pytest.raises(ShapeEditError, match="does not match target voicing"):
+        compat.check_shape_names(["Em7b5"], "0,x,5,7,x,x", explicit=True)
+
+
 def test_node_browser_parity_rejects_invalid_explicit_name_only():
     with pytest.raises(ShapeEditError, match="invalid target chord"):
         compat.check_shape_names(["not-a-chord"], "x,3,2,0,1,0", explicit=True)

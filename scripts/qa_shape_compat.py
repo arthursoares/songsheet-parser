@@ -27,7 +27,7 @@ const input = JSON.parse(fs.readFileSync(0, 'utf8'));
 const voicing = input.voicing.split(',');
 const results = input.names.map((name) => ({
   valid: ChordNaming.validateName(name).valid,
-  match: ChordNaming.nameMatchesVoicing(name, voicing),
+  match: ChordNaming.shapeNameMatchesVoicing(name, voicing),
 }));
 process.stdout.write(JSON.stringify(results));
 """.strip()
@@ -50,6 +50,9 @@ _INTERVALS = {
     "sus2": (0, 2, 7),
     "5": (0, 7),
     "7": (0, 4, 7, 10),
+    "7-9": (0, 1, 4, 7, 10),
+    "7b9": (0, 1, 4, 7, 10),
+    "7(b9)": (0, 1, 4, 7, 10),
     "maj7": (0, 4, 7, 11),
     "M7": (0, 4, 7, 11),
     "7+": (0, 4, 7, 11),
@@ -146,10 +149,17 @@ def _fallback_match(name: str, pitches: frozenset[int]) -> bool | None:
         return None
     root = _root_pc(root_letter, accidental)
     expected = {(root + interval) % 12 for interval in intervals}
-    if bass_letter is not None:
-        bass = _root_pc(bass_letter, bass_accidental)
-        if bass not in expected:
-            return None
+    bass = _root_pc(bass_letter, bass_accidental) if bass_letter is not None else None
+    if bass is not None and bass not in expected:
+        return None if bass in pitches else False
+    fifth = (root + 7) % 12
+    if (
+        7 in intervals
+        and (10 in intervals or 11 in intervals)
+        and bass is None
+        and fifth not in pitches
+    ):
+        expected.remove(fifth)
     return pitches == expected
 
 

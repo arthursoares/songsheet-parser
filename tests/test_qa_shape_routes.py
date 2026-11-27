@@ -295,3 +295,44 @@ def test_recovery_conflict_protects_regular_song_saves(tmp_path, monkeypatch):
     assert status == 409
     assert load_document(path) == external
     assert request("GET", route)[0] == 200
+
+
+def test_unresolved_route_requires_explicit_compatible_voicing(tmp_path, monkeypatch):
+    root, rows, request = _fixture(tmp_path, monkeypatch)
+    group = routes._get_index(root, None, None).groups["em-family"]
+    group["voicing"] = group["base"] = None
+    for row in rows:
+        row["editable"] = False
+    assert request("POST", "/api/shapes/em-family/apply", {"selected": [rows[0]["id"]]})[0] == 409
+    assert (
+        request(
+            "POST",
+            "/api/shapes/em-family/apply",
+            {"selected": [rows[0]["id"]], "voicing": "0,2,2,1,0,0", "chord": "C"},
+        )[0]
+        == 409
+    )
+    status, result = request(
+        "POST", "/api/shapes/em-family/apply", {"selected": [rows[0]["id"]], "voicing": PRINTED}
+    )
+    assert status == 200, result
+    from qa_shape_edits import latest_shape_corrections
+
+    assert latest_shape_corrections(routes._cache_path(root) / "batches") == {}
+
+
+def test_exclusion_route_preserves_marker_through_normal_save(tmp_path, monkeypatch):
+    root, rows, request = _fixture(tmp_path, monkeypatch)
+    status, result = request("POST", "/api/shapes/em-family/exclude", {"selected": [rows[0]["id"]]})
+    assert status == 200, result
+    assert result["songs"] == result["entries"] == 1
+    row = rows[0]
+    path = root / row["album"] / row["file"]
+    doc = load_document(path)
+    marker = doc["songs"][0]["sections"][0]["bars"][0][0]["shape_exclusion"]
+    doc["songs"][0]["note"] = "Ordinary save after removal"
+    status, body = request(
+        "POST", f"/api/song/{row['album']}/{row['file']}?revision={file_sha256(path)}", doc
+    )
+    assert status == 200, body
+    assert load_document(path)["songs"][0]["sections"][0]["bars"][0][0]["shape_exclusion"] == marker
