@@ -195,7 +195,17 @@ function installReviewDom({ field = "chords", reviewer = "AS" } = {}) {
     verificationChordProgress: { textContent: "" },
     reviewSourceIssues: { innerHTML: "", classList: { toggle() {}, add() {} } },
     reviewFlags: { innerHTML: "" },
+    reviewDefaultEvidence: { value: "" },
+    reviewBadge: { textContent: "", hidden: true },
+    reviewDone: { hidden: true, disabled: false },
+    reviewDoneWarning: { hidden: true, textContent: "" },
+    reviewDetails: { open: false },
+    statusSel: { value: "pending" },
   };
+  for (const element of Object.values(elements)) {
+    element.handlers = {};
+    element.addEventListener = (event, handler) => { element.handlers[event] = handler; };
+  }
   global.$ = (id) => elements[id];
   global.esc = (value) => String(value ?? "");
   global.entryCoords = () => [];
@@ -208,6 +218,9 @@ function removeReviewDom() {
   for (const name of [
     "state", "$", "esc", "api", "pushUndo", "markDirty", "renderProvenance",
     "entryCoords", "chordReviewStatus", "chordAt",
+    "localStorage", "save", "chordEditorHasDraft", "hasUnappliedJsonEdits",
+    "scrollScanToPage", "toggleChordReview", "selectChordReviewEntry", "showView",
+    "flushBlurCommittedInputs",
   ]) {
     delete global[name];
   }
@@ -265,6 +278,213 @@ test("render syncs reviewStatus and reviewEvidence per song without leaking acro
     assert.equal(elements.reviewEvidence.value, "draft note");
     await new Promise((done) => setImmediate(done));
   } finally {
+    removeReviewDom();
+  }
+});
+
+test("reviewer and default evidence persist across UI reloads, with storage optional", () => {
+  const saved = new Map();
+  global.localStorage = { getItem: (key) => saved.get(key), setItem: (key, value) => saved.set(key, value) };
+  try {
+    let elements = installReviewDom();
+    ReviewUI.wire();
+    elements.reviewReviewer.value = "Arthur";
+    elements.reviewReviewer.handlers.input();
+    elements.reviewDefaultEvidence.value = "Checked against book scan";
+    elements.reviewDefaultEvidence.handlers.input();
+    elements = installReviewDom();
+    ReviewUI.wire();
+    assert.equal(elements.reviewReviewer.value, "Arthur");
+    assert.equal(elements.reviewDefaultEvidence.value, "Checked against book scan");
+    global.localStorage = { getItem() { throw Error("blocked"); }, setItem() { throw Error("blocked"); } };
+    assert.doesNotThrow(() => ReviewUI.wire());
+    assert.doesNotThrow(() => elements.reviewReviewer.handlers.input());
+  } finally { removeReviewDom(); }
+});
+
+test("inline Verify records the clicked field with reviewer and default evidence, through undo", async () => {
+  const elements = installReviewDom({ field: "chords", reviewer: "Arthur" });
+  elements.reviewDefaultEvidence.value = "Checked against book scan";
+  elements.reviewEvidence.value = "Only for chords";
+  const original = { document: {}, songs: [{ sections: [] }] };
+  global.state = { doc: original, flags: [] };
+  const requests = [];
+  global.api = async (_url, options) => {
+    const payload = JSON.parse(options.body);
+    requests.push(payload);
+    return { ok: true, doc: { ...payload.doc, _meta: { review: { version: 1, fields: {
+      [payload.field]: { status: payload.status, evidence: payload.evidence },
+    } } } }, review: { fields: { [payload.field]: { status: "verified" } } } };
+  };
+  let beforeUndo;
+  global.pushUndo = () => { beforeUndo = global.state.doc; };
+  global.markDirty = () => { global.state.dirty = true; };
+  global.renderProvenance = () => {};
+  try {
+    ReviewUI.wire();
+    elements.reviewReviewer.value = "Arthur";
+    elements.reviewDefaultEvidence.value = "Checked against book scan";
+    const button = { dataset: { reviewAction: "verify", reviewField: "lyrics" } };
+    elements.reviewStatusBody.handlers.click({ target: { closest: () => button } });
+    await new Promise((done) => setImmediate(done));
+    assert.equal(requests.length, 1);
+    assert.equal(requests[0].field, "lyrics");
+    assert.equal(requests[0].status, "verified");
+    assert.equal(requests[0].reviewer, "Arthur");
+    assert.equal(requests[0].evidence, "Checked against book scan");
+    assert.equal(beforeUndo, original);
+    assert.equal(global.state.dirty, true);
+    assert.equal((elements.reviewStatusBody.innerHTML.match(/>Verify ✓<\/button>/g) || []).length, 6);
+    button.dataset.reviewAction = "edit";
+    elements.reviewStatusBody.handlers.click({ target: { closest: () => button } });
+    assert.equal(elements.reviewField.value, "lyrics");
+    assert.equal(elements.reviewDetails.open, true);
+    assert.equal(elements.reviewEvidence.value, "Checked against book scan");
+  } finally { removeReviewDom(); }
+});
+
+test("timestamps render relative text and retain the exact ISO timestamp", async () => {
+  const elements = installReviewDom();
+  const timestamp = "2026-11-25T10:00:00Z";
+  global.state = { doc: { document: {} }, flags: [] };
+  global.api = async () => ({ ok: true, review: { fields: { key: { status: "verified", timestamp } } } });
+  try {
+    assert.equal(ReviewUI.relativeTimestamp(timestamp, Date.parse("2026-11-25T12:00:00Z")), "2h ago");
+    await ReviewUI.refresh();
+    assert.match(elements.reviewStatusBody.innerHTML, /<time datetime="2026-11-25T10:00:00Z" title="2026-11-25T10:00:00Z">/);
+  } finally { removeReviewDom(); }
+});
+
+test("badges and Done bridge use current server evidence and retain normal save flow", async () => {
+  const elements = installReviewDom();
+  const fields = Object.fromEntries(Object.keys(ReviewUI.FIELD_LABELS).map((field) => [field, { status: "verified" }]));
+  global.state = { doc: { document: { status: "done" } }, flags: [{ chord: "C" }] };
+  global.api = async () => ({ ok: true, review: { fields } });
+  let undos = 0, saves = 0;
+  global.pushUndo = () => { undos += 1; };
+  global.markDirty = () => { global.state.dirty = true; };
+  global.save = async () => { saves += 1; };
+  try {
+    fields.key.status = "stale";
+    await ReviewUI.refresh();
+    assert.equal(elements.reviewBadge.textContent, "1 stale · 1 flags");
+    assert.equal(elements.reviewDone.hidden, true);
+    assert.equal(elements.reviewDoneWarning.hidden, false);
+    assert.match(elements.reviewDoneWarning.textContent, /1 unverified fields \(1 stale\)/);
+    await ReviewUI.markDoneAndSave();
+    assert.equal(saves, 0);
+    fields.key.status = "verified";
+    global.state.flags = [];
+    await ReviewUI.refresh();
+    assert.equal(elements.reviewDone.hidden, false);
+    assert.equal(elements.reviewDoneWarning.hidden, true);
+    global.state.doc.document.status = "pending";
+    ReviewUI.updateBridge();
+    assert.equal(elements.reviewDone.hidden, true); // changed revision cannot reuse readiness
+    global.chordEditorHasDraft = () => true;
+    await ReviewUI.markDoneAndSave();
+    assert.equal(saves, 0);
+    global.chordEditorHasDraft = () => false;
+    await ReviewUI.markDoneAndSave();
+    assert.equal(saves, 1);
+    assert.equal(undos, 1);
+    assert.equal(global.state.doc.document.status, "done");
+    assert.equal(global.state.dirty, true);
+  } finally { removeReviewDom(); }
+});
+
+test("Done bridge rejects a changed document while verification is in flight", async () => {
+  installReviewDom();
+  const pending = deferred();
+  const fields = Object.fromEntries(Object.keys(ReviewUI.FIELD_LABELS).map((field) => [field, { status: "verified" }]));
+  global.state = { doc: { document: { status: "pending" } }, flags: [] };
+  let calls = 0, saves = 0;
+  global.api = async () => ++calls === 1 ? pending.promise : { ok: true, review: { fields: {} } };
+  global.save = async () => { saves += 1; };
+  try {
+    const marking = ReviewUI.markDoneAndSave();
+    global.state.doc.document.title = "Edited while waiting";
+    pending.resolve({ ok: true, review: { fields } });
+    await marking;
+    await new Promise((done) => setImmediate(done));
+    assert.equal(saves, 0);
+    assert.equal(global.state.doc.document.status, "pending");
+  } finally { removeReviewDom(); }
+});
+
+test("source page and chord progress actions use existing navigation helpers", () => {
+  const elements = installReviewDom();
+  global.state = { doc: {}, activeView: "review", flags: [] };
+  let page, chordOpened = false;
+  global.scrollScanToPage = (value) => { page = value; };
+  global.toggleChordReview = () => { chordOpened = true; global.state.activeView = "chordReview"; };
+  try {
+    ReviewUI.wire();
+    elements.reviewSourceIssues.handlers.click({ target: { closest: () => ({ dataset: { reviewPage: "29" } }) } });
+    assert.equal(page, 29);
+    elements.verificationChordProgress.handlers.click();
+    assert.equal(chordOpened, true);
+  } finally { removeReviewDom(); }
+});
+
+test("edits outside Verification refresh badges and coalesce synchronous changes", async () => {
+  const elements = installReviewDom();
+  global.state = { doc: { document: { title: "Before" } }, flags: [] };
+  let calls = 0;
+  global.api = async () => {
+    calls += 1;
+    return { ok: true, review: { fields: { key: { status: "stale" } } } };
+  };
+  try {
+    ReviewUI.resetForDocument();
+    ReviewUI.documentChanged();
+    global.state.doc.document.title = "After";
+    ReviewUI.documentChanged();
+    await new Promise((done) => setImmediate(done));
+    assert.equal(calls, 1);
+    assert.equal(elements.reviewBadge.textContent, "1 stale");
+    ReviewUI.documentChanged();
+    await new Promise((done) => setImmediate(done));
+    assert.equal(calls, 1); // unchanged revisions reuse the canonical summary
+  } finally { removeReviewDom(); }
+});
+
+test("flagged rows show review and print differences with distinct guarded navigation", async () => {
+  const elements = installReviewDom();
+  const flag = { si: 0, bi: 1, ei: 0, chord: "C", label: "Verse", reason: "Print differs" };
+  global.state = { doc: { document: {} }, flags: [flag], activeView: "review" };
+  global.chordAt = () => ({ voicing: "x,3,2,0,1,0", voicing_printed: "x,3,2,0,1,3" });
+  global.chordReviewStatus = () => "deferred";
+  global.api = async () => ({ ok: true, review: { fields: {} } });
+  global.document = { createElement() {
+    return { children: [], handlers: {}, appendChild(child) { this.children.push(child); },
+      addEventListener(event, handler) { this.handlers[event] = handler; } };
+  } };
+  elements.reviewFlagsTitle = { textContent: "" };
+  elements.reviewFlags.children = [];
+  elements.reviewFlags.appendChild = (row) => elements.reviewFlags.children.push(row);
+  let selected, edited;
+  global.toggleChordReview = () => {}; // draft guard refuses navigation
+  global.selectChordReviewEntry = (coords) => { selected = coords; };
+  global.jumpToFlag = (coords) => { edited = coords; };
+  try {
+    ReviewUI.render();
+    const row = elements.reviewFlags.children[0];
+    assert.equal(elements.reviewFlagsTitle.textContent, "Flagged chords (1)");
+    assert.match(row.innerHTML, /deferred/);
+    assert.match(row.innerHTML, /Print differs/);
+    assert.match(row.innerHTML, /x,3,2,0,1,0/);
+    row.children[0].handlers.click();
+    assert.equal(selected, undefined);
+    global.toggleChordReview = () => { global.state.activeView = "chordReview"; };
+    row.children[0].handlers.click();
+    assert.equal(selected, flag);
+    row.children[1].handlers.click();
+    assert.equal(edited, flag);
+    await new Promise((done) => setImmediate(done));
+  } finally {
+    delete global.document;
+    delete global.jumpToFlag;
     removeReviewDom();
   }
 });

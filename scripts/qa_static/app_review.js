@@ -27,6 +27,123 @@
   let requestToken = 0;
   let syncedDoc = null;
   let syncedField = null;
+  let summarySnapshot = null;
+  let recording = false;
+  let refreshQueued = false;
+
+  function wire() {
+    for (const [id, key] of [["reviewReviewer", "qaReviewReviewer"], ["reviewDefaultEvidence", "qaReviewEvidence"]]) {
+      const input = $(id);
+      if (!input) continue;
+      try { input.value = localStorage.getItem(key) || ""; } catch { /* Storage is optional. */ }
+      input.addEventListener("input", () => {
+        try { localStorage.setItem(key, input.value); } catch { /* Recording still works. */ }
+      });
+    }
+    $("reviewStatusBody")?.addEventListener("click", (event) => {
+      const button = event.target.closest("button[data-review-field]");
+      if (!button || recording) return;
+      if (button.dataset.reviewAction === "verify") void verifyField(button.dataset.reviewField);
+      else editField(button.dataset.reviewField);
+    });
+    $("reviewSourceIssues")?.addEventListener("click", (event) => {
+      const button = event.target.closest("button[data-review-page]");
+      if (button && typeof scrollScanToPage === "function") scrollScanToPage(Number(button.dataset.reviewPage));
+    });
+    $("verificationChordProgress")?.addEventListener("click", () => openChordReview());
+    $("reviewDone")?.addEventListener("click", markDoneAndSave);
+    $("reviewDoneWarning")?.addEventListener("click", () => showView("review"));
+  }
+
+  function relativeTimestamp(timestamp, now = Date.now()) {
+    const date = new Date(timestamp);
+    if (!timestamp || !Number.isFinite(date.getTime())) return timestamp || "";
+    const seconds = Math.max(0, Math.floor((now - date.getTime()) / 1000));
+    if (seconds < 60) return "just now";
+    if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+    if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+    return `${Math.floor(seconds / 86400)}d ago`;
+  }
+
+  function currentSummary() {
+    return summarySnapshot && documentStillCurrent(summarySnapshot.doc, summarySnapshot.serialized)
+      ? summarySnapshot.review : null;
+  }
+
+  function updateBridge() {
+    const summary = currentSummary();
+    const fields = rows(summary);
+    const stale = summary ? fields.filter((row) => row.status === "stale").length : 0;
+    const flags = state.doc ? (state.flags || []).length : 0;
+    const badge = $("reviewBadge");
+    if (badge) {
+      badge.textContent = [stale ? `${stale} stale` : "", flags ? `${flags} flags` : ""].filter(Boolean).join(" · ");
+      badge.hidden = !badge.textContent;
+    }
+    const ready = !!summary && fields.every((row) => row.status === "verified") && !flags;
+    const done = $("reviewDone");
+    if (done) { done.hidden = !ready; done.disabled = recording; }
+    const warning = $("reviewDoneWarning");
+    if (warning) {
+      const remaining = fields.filter((row) => row.status !== "verified").length;
+      warning.hidden = !state.doc || state.doc.document?.status !== "done" || ready;
+      warning.textContent = summary
+        ? `Done with ${remaining} unverified fields${stale ? ` (${stale} stale)` : ""} and ${flags} flagged chords — Open Verification`
+        : "Done — verification status needs checking. Open Verification";
+    }
+  }
+
+  function documentChanged() {
+    updateBridge();
+    if (refreshQueued) return;
+    refreshQueued = true;
+    Promise.resolve().then(() => {
+      refreshQueued = false;
+      if (state.doc && !currentSummary()) void refresh();
+      else updateBridge();
+    });
+  }
+
+  function editField(field) {
+    if (!Object.prototype.hasOwnProperty.call(FIELD_LABELS, field)) return;
+    $("reviewField").value = field;
+    syncInputs();
+    const details = $("reviewDetails");
+    if (details) details.open = true;
+    $("reviewStatus")?.focus?.();
+  }
+
+  function openChordReview(coords) {
+    if (!state.doc) return;
+    if (state.activeView !== "chordReview") toggleChordReview();
+    if (state.activeView === "chordReview" && coords) selectChordReviewEntry(coords);
+  }
+
+  async function markDoneAndSave() {
+    if (!state.doc || recording) return;
+    if ((typeof chordEditorHasDraft === "function" && chordEditorHasDraft()) ||
+        (typeof hasUnappliedJsonEdits === "function" && hasUnappliedJsonEdits())) {
+      $("reviewMsg").textContent = "Apply pending editor changes before marking the song done.";
+      return;
+    }
+    if (typeof flushBlurCommittedInputs === "function" && !flushBlurCommittedInputs()) {
+      $("reviewMsg").textContent = "Fix invalid editor input before marking the song done.";
+      return;
+    }
+    const doc = state.doc;
+    const serialized = JSON.stringify(doc);
+    await refresh();
+    const summary = currentSummary();
+    if (!documentStillCurrent(doc, serialized) || !summary ||
+        rows(summary).some((row) => row.status !== "verified") || (state.flags || []).length) return;
+    pushUndo();
+    state.doc.document ||= {};
+    state.doc.document.status = "done";
+    $("statusSel").value = "done";
+    markDirty();
+    updateBridge();
+    await save();
+  }
 
   function documentStillCurrent(doc, serialized) {
     return state.doc === doc && JSON.stringify(state.doc) === serialized;
@@ -75,26 +192,32 @@
   }
 
   function clearSummary() {
+    summarySnapshot = null;
     const body = $("reviewStatusBody");
     if (body) body.innerHTML = "";
+    updateBridge();
   }
 
   function paintLoading() {
     const body = $("reviewStatusBody");
     if (body) {
-      body.innerHTML = '<tr><td colspan="4" class="muted">Loading verification status…</td></tr>';
+      body.innerHTML = '<tr><td colspan="5" class="muted">Loading verification status…</td></tr>';
     }
   }
 
   function paintSummary(summary) {
+    summarySnapshot = { doc: state.doc, serialized: JSON.stringify(state.doc), review: summary };
+    updateBridge();
     const body = $("reviewStatusBody");
     if (!body) return;
     body.innerHTML = rows(summary).map((row) =>
       `<tr>` +
       `<th>${esc(row.label)}</th>` +
       `<td><span class="review-state ${esc(row.status)}">${esc(row.statusLabel)}</span></td>` +
-      `<td>${esc(row.reviewer || "—")}</td>` +
+      `<td>${esc(row.reviewer || "—")}${row.timestamp ? `<time datetime="${esc(row.timestamp)}" title="${esc(row.timestamp)}">${esc(relativeTimestamp(row.timestamp))}</time>` : ""}</td>` +
       `<td title="${esc(row.evidence)}">${esc(row.evidence || "—")}</td>` +
+      `<td class="review-actions"><button type="button" data-review-action="verify" data-review-field="${row.field}"${recording ? " disabled" : ""}>Verify ✓</button> ` +
+      `<button type="button" data-review-action="edit" data-review-field="${row.field}"${recording ? " disabled" : ""}>Edit</button></td>` +
       `</tr>`).join("");
   }
 
@@ -118,20 +241,33 @@
     const list = $("reviewFlags");
     if (!list) return;
     const flags = state.flags || [];
+    const title = $("reviewFlagsTitle");
+    if (title) title.textContent = `Flagged chords (${flags.length})`;
     if (!flags.length) {
       list.innerHTML = `<div class="review-empty">No flagged chords ✓</div>`;
       return;
     }
     list.innerHTML = "";
     flags.forEach((flag) => {
-      const row = document.createElement("button");
-      row.type = "button";
+      const row = document.createElement("div");
       row.className = "rev-row";
+      const entry = typeof chordAt === "function" ? chordAt(flag) : {};
+      const reviewStatus = typeof chordReviewStatus === "function" ? chordReviewStatus(entry) : "pending";
+      const printDiff = entry.voicing_printed != null && entry.voicing_printed !== entry.voicing;
       row.innerHTML =
         `<span class="rnm">${esc(flag.chord || "—")}</span>` +
         `<span class="rwhere">${esc(flag.label)} · bar ${flag.bi + 1}</span>` +
+        `<code>${esc(entry.voicing || "No voicing")}</code>` +
+        `<span class="review-state">${esc(reviewStatus)}</span>` +
+        (printDiff ? '<span class="review-state stale">Print differs</span>' : "") +
         `<span class="rwhy">${esc(flag.reason)}</span>`;
-      row.addEventListener("click", () => jumpToFlag(flag));
+      for (const [label, action] of [["Review", () => openChordReview(flag)], ["Edit", () => jumpToFlag(flag)]]) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.textContent = label;
+        button.addEventListener("click", action);
+        row.appendChild(button);
+      }
       list.appendChild(row);
     });
   }
@@ -167,6 +303,7 @@
       return;
     }
     paintLoading();
+    updateBridge();
     let result;
     try {
       result = await api("/api/review-doc", {
@@ -232,21 +369,35 @@
     if (sourceBox) {
       const issues = sourceIssues(state.doc);
       sourceBox.classList?.toggle("hidden", !issues.length);
-      sourceBox.innerHTML = issues.map((message) => `<p>${esc(message)}</p>`).join("");
+      sourceBox.innerHTML = issues.map((message) => {
+        const page = /^Page (\d+)/.exec(message)[1];
+        return `<p><button type="button" data-review-page="${page}">Page ${page}</button>${esc(message.slice(`Page ${page}`.length))}</p>`;
+      }).join("");
     }
     paintFlags();
     void refresh();
   }
 
-  async function recordSelected() {
-    if (!state.doc) return;
+  function recordSelected() {
+    return recordField($("reviewField")?.value || "structure", $("reviewStatus").value, $("reviewEvidence").value);
+  }
+
+  function verifyField(field) {
+    const selected = $("reviewField")?.value === field;
+    const evidence = selected && $("reviewEvidence")?.value || $("reviewDefaultEvidence")?.value ||
+      storedFieldReview(state.doc, field)?.evidence || "";
+    return recordField(field, "verified", evidence);
+  }
+
+  async function recordField(field, status, evidence) {
+    if (!state.doc || recording || !Object.prototype.hasOwnProperty.call(FIELD_LABELS, field)) return;
+    recording = true;
     const button = $("reviewRecord");
     const message = $("reviewMsg");
     const doc = state.doc;
     const serialized = JSON.stringify(doc);
-    const fieldEl = $("reviewField");
-    const field = fieldEl && fieldEl.value ? fieldEl.value : "structure";
     if (button) button.disabled = true;
+    $("reviewStatusBody")?.querySelectorAll?.("button").forEach((el) => { el.disabled = true; });
     if (message) message.textContent = "recording…";
     try {
       const result = await api("/api/review-doc", {
@@ -255,9 +406,9 @@
         body: JSON.stringify({
           doc: JSON.parse(serialized),
           field,
-          status: $("reviewStatus").value,
+          status,
           reviewer: $("reviewReviewer").value,
-          evidence: $("reviewEvidence").value,
+          evidence,
         }),
       });
       if (state.doc !== doc) return;
@@ -273,8 +424,7 @@
       requestToken += 1;
       pushUndo();
       state.doc = result.doc;
-      syncedDoc = result.doc || null;
-      syncedField = field;
+      syncInputs();
       markDirty();
       renderProvenance();
       paintSummary(result.review);
@@ -283,7 +433,10 @@
       if (state.doc !== doc) return;
       if (message) message.textContent = `Could not record review: ${String(error)}`;
     } finally {
+      recording = false;
       if (button) button.disabled = !state.doc;
+      $("reviewStatusBody")?.querySelectorAll?.("button").forEach((el) => { el.disabled = !state.doc; });
+      updateBridge();
     }
   }
 
@@ -298,6 +451,12 @@
     render,
     refresh,
     recordSelected,
+    verifyField,
+    relativeTimestamp,
+    wire,
+    updateBridge,
+    documentChanged,
+    markDoneAndSave,
   };
 });
 

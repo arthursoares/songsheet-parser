@@ -146,6 +146,7 @@ function renderBars() {
     });
   });
   const flags = state.flags.length;
+  if (typeof ReviewUI === "object") ReviewUI.documentChanged?.();
   $("flagCount").textContent = flags ? `${flags} flagged` : "";
   renderScanReviewMarks();
   if (state.activeView === "review") renderReview();

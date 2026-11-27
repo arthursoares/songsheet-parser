@@ -34,6 +34,7 @@ async function init() {
     pushUndo();
     state.doc.document.status = ev.target.value;
     markDirty();
+    if (typeof ReviewUI === "object") ReviewUI.documentChanged?.();
     if (state.activeView === "json" && typeof renderJson === "function" &&
         !(typeof hasUnappliedJsonEdits === "function" && hasUnappliedJsonEdits())) {
       renderJson();
@@ -92,6 +93,7 @@ async function init() {
   $("jsonReload").addEventListener("click", jsonReload);
   $("jsonFormat").addEventListener("click", jsonFormat);
   if (typeof ReviewUI === "object" && ReviewUI) {
+    ReviewUI.wire?.();
     $("reviewRecord")?.addEventListener("click", ReviewUI.recordSelected);
     $("reviewField")?.addEventListener("change", () => {
       if (typeof ReviewUI.syncInputs === "function") ReviewUI.syncInputs();
