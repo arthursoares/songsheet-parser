@@ -675,9 +675,11 @@ test("jsonErrPos omits fake (line 1, col 1) for Safari errors and #jsonMsg click
 
 test("index.html includes #jsonDirtyBadge, CSS rules, and Cmd/Ctrl+Enter shortcut documentation", () => {
   const html = readStatic("index.html");
+  const css = readStatic("qa_base.css");
   assert.match(html, /id="jsonDirtyBadge"[^>]*>Unapplied JSON edits<\/span>/);
-  assert.match(html, /#jsonDirtyBadge\.hidden\{display:none\}/);
-  assert.match(html, /#jsonMsg\.clickable,#jsonMsg\.jumpable\{/);
+  assert.match(html, /href="qa_base\.css"/);
+  assert.match(css, /#jsonDirtyBadge\.hidden\{display:none\}/);
+  assert.match(css, /#jsonMsg\.clickable,#jsonMsg\.jumpable\{/);
   assert.match(html, /id="jsonApply"[^>]*⌘Enter \/ Ctrl\+Enter/);
   assert.match(html, /<kbd>⌘\/Ctrl<\/kbd>\+<kbd>Enter<\/kbd>/);
 });

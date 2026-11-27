@@ -8,7 +8,7 @@
   const LPAD = 13, TPAD = 11, RPAD = 4, BPAD = 2;
   const W = LPAD + (STR - 1) * SX + RPAD;
   const H = TPAD + ROWS * SY + BPAD;
-  const LINE = "#8a93a3", DOT = "#6ea8fe", MARK = "#c7ccd6";
+  const LINE = "var(--diagram-line,#8a93a3)", DOT = "var(--accent,#6ea8fe)", MARK = "var(--diagram-mark,#c7ccd6)";
 
   function parse(voicing) {
     return String(voicing).split(",").map((t) => {

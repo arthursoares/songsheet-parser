@@ -360,14 +360,14 @@ function openEditor(si, bi, ei, focus = false) {
     </div>
     <div id="edScanProposal" class="scan-fingering-proposal" hidden>
       <span>Proposed fingering <b id="edScanProposalValue"></b></span>
-      <button type="button" id="edUseScanProposal">Use proposed fingering</button>
+      <button id="edUseScanProposal" class="tab btn-sm" type="button">Use proposed fingering</button>
       <small>Inspect, then Apply manually.</small>
     </div>
     ${e.chord === "%" || inline ? "" : '<button type="button" id="edFindShapes" class="tab">Find matching shapes</button>'}
     ${e.voicing_printed && e.voicing_printed !== (e.voicing || "")
       ? `<div class="printhint">print reads <b>${esc(e.voicing_printed)}</b>
-           <button id="edUsePrint" title="set the fretboard to what the page prints">use</button>
-           ${inline ? "" : '<button id="edUsePrintNext" title="accept the printed voicing and jump to the next chord">use + next</button>'}</div>`
+           <button id="edUsePrint" class="tab btn-sm" type="button" title="set the fretboard to what the page prints">use</button>
+           ${inline ? "" : '<button id="edUsePrintNext" class="tab btn-sm" type="button" title="accept the printed voicing and jump to the next chord">use + next</button>'}</div>`
       : ""}
     <label>Suggestions</label>
     <div class="suggest" id="edSuggest"></div>

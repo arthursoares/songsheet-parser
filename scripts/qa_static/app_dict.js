@@ -74,8 +74,8 @@ function renderDict() {
   mergeBar.className = "dmergebar" + (state.dictSel.size >= 2 ? " show" : "");
   const affected = entries.filter((entry) => state.dictSel.has(entry.key)).reduce((sum, entry) => sum + entry.count, 0);
   mergeBar.innerHTML = `<b>${state.dictSel.size} groups · ${affected} occurrences selected</b> — merge into one chord:
-    <button id="dMergeBtn">Merge…</button>
-    <button id="dClearSel">Clear</button>
+    <button id="dMergeBtn" class="tab btn-sm" type="button">Merge…</button>
+    <button id="dClearSel" class="tab btn-sm" type="button">Clear</button>
     <div class="dmergeform" id="dMergeForm" style="display:none">
       <input type="text" id="dMergeName" placeholder="chord name">
       <input type="text" id="dMergeVoicing" placeholder="voicing (comma form, blank = none)">

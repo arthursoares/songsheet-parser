@@ -1,0 +1,47 @@
+/* Shared Songsheet QA theme. Harmony HTML exports include this rule. */
+:root{
+  color-scheme:dark;
+  --bg:#0f1115; --bg-deep:#0c0e12; --panel:#171a21; --panel-2:#1e222b;
+  --field:#11141b; --border:#2a2f3a; --border-2:#48515f;
+  --text:#e6e8ee; --muted:#9aa3b2; --accent:#6ea8fe; --accent-ink:#06132b;
+  --warn:#e3b341; --warn-bg:#2a2113;
+  --diagram-line:#8a93a3; --diagram-mark:#c7ccd6;
+  --sel:#2d3b5a; --chip:#222836;
+  --ok-bg:#10271a; --ok:#3fb950; --bad-bg:#2b1416; --bad:#f85149;
+  --note:#7fb3a0; --civ:#9d8df1; --iv:#c8a26b; --paper:#fff;
+  /* Harmony tab function colors (ported from the harmonic-analysis prototype) */
+  --fn-tonic:#3fb950; --fn-subdominant:#6ea8fe; --fn-dominant:#f0883e;
+  --fn-secondary:#9d8df1; --fn-passing:#5bb3a6; --fn-chromatic:#8a93a3;
+  --fn-chrombass:#c8a26b;
+}
+
+*,*::before,*::after{box-sizing:border-box}
+[hidden]{display:none!important}
+.hidden{display:none!important}
+.muted{color:var(--muted);font-size:12px}
+
+:where(button,select,input,textarea){font:inherit;color:var(--text)}
+:where(button,select,input:not([type=checkbox],[type=radio],[type=range]),textarea){
+  background:var(--field);border:1px solid var(--border-2);border-radius:6px
+}
+:where(button,select){background:var(--panel-2)}
+:where(button,select,input:not([type=checkbox],[type=radio],[type=range]),textarea){padding:4px 7px}
+:where(button){cursor:pointer}
+:where(input[type=checkbox],input[type=radio],input[type=range]){accent-color:var(--accent)}
+:where(button,select):enabled:hover{border-color:var(--accent)}
+:where(button):enabled:active{filter:brightness(.9)}
+:where(button,select,input,textarea):disabled{opacity:.45;cursor:not-allowed}
+
+.tab,.btn-secondary{
+  background:var(--panel-2);color:var(--muted);border:1px solid var(--border);
+  border-radius:6px;padding:5px 12px;cursor:pointer
+}
+.btn-ghost{background:transparent;color:var(--muted);border:1px solid transparent}
+.btn-sm{padding:3px 7px;font-size:12px}
+.btn-primary{
+  background:var(--accent);color:var(--accent-ink);border:1px solid var(--accent);
+  border-radius:6px;padding:7px 14px;font-weight:600;cursor:pointer
+}
+:is(.tab,.btn-secondary,.btn-ghost):enabled:hover{border-color:var(--accent);color:var(--text)}
+.btn-primary:enabled:hover{filter:brightness(1.12)}
+:is(.btn-primary,.tab,.btn-secondary,.btn-ghost):disabled{opacity:.45;cursor:not-allowed}
