@@ -332,6 +332,11 @@ function onKeydown(ev) {
   // Esc → close editor (always)
   if (ev.key === "Escape") {
     if (ev.defaultPrevented) return;
+    if (state.activeView === "chordReview" && $("editor").classList.contains("editor-inline")) {
+      ev.preventDefault();
+      $("edCancel").click();
+      return;
+    }
     if (state.activeView === "chordReview" && !typing) {
       showView("bars");
       $("chordReviewToggle").focus();

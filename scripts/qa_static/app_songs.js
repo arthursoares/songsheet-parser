@@ -191,7 +191,6 @@ function clearSongForLoad(message, view = "bars") {
 
 async function loadSong({ view = "bars" } = {}) {
   const generation = ++loadGeneration;
-  if (state.activeView === "chordReview") showView("bars");
   $("saveStatus").textContent = "";
   const album = $("albumSel").value;
   const file = $("songSel").value;
@@ -468,7 +467,8 @@ function save() {
     return saveBlocked((state.dirty ? "Unsaved changes · " : "") + "fix invalid input before saving");
   }
   if (typeof chordEditorHasDraft === "function" && chordEditorHasDraft()) {
-    if (state.activeView !== "bars" && typeof showView === "function") showView("bars");
+    if (state.activeView !== "bars" && state.activeView !== "chordReview" &&
+        typeof showView === "function") showView("bars");
     const applied = typeof submitActiveChord === "function" && submitActiveChord();
     if (!applied) {
       return saveBlocked((state.dirty ? "Unsaved changes · " : "") + "fix or apply chord edits before saving");
