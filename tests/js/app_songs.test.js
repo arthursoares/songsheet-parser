@@ -625,3 +625,58 @@ test("save marks shapesUI unloaded and stale on success, and keeps it loaded on 
 
   for (const name of ["state", "albums", "$", "api", "shapesUI"]) delete global[name];
 });
+
+test("confirmDiscard and save respect unapplied JSON edits via guarded hooks", async () => {
+  const prompts = [];
+  let confirmResult = false;
+  let jsonDirty = true;
+  let applyResult = false;
+  let apiCalls = 0;
+  const elements = {
+    saveBtn: { disabled: false },
+    saveStatus: { textContent: "", style: {} },
+  };
+  global.state = {
+    doc: { document: { status: "pending" }, songs: [{ sections: [] }] },
+    album: "album",
+    file: "song.json",
+    dirty: false,
+    activeView: "json",
+  };
+  global.albums = [];
+  global.$ = (id) => elements[id];
+  global.confirm = (msg) => { prompts.push(msg); return confirmResult; };
+  global.hasUnappliedJsonEdits = () => jsonDirty;
+  global.jsonApply = () => {
+    if (!applyResult) return false;
+    jsonDirty = false;
+    global.state.doc.songs[0].title = "From JSON";
+    return true;
+  };
+  global.api = async (_path, opts) => {
+    apiCalls += 1;
+    return { ok: true, body: opts.body };
+  };
+
+  assert.equal(SongsUI.confirmDiscard(), false);
+  assert.equal(prompts[0], "Discard unapplied JSON edits?");
+
+  global.state.dirty = true;
+  confirmResult = true;
+  assert.equal(SongsUI.confirmDiscard(), true);
+  assert.equal(prompts[1], "Discard unsaved changes and unapplied JSON edits?");
+
+  const blocked = await SongsUI.save();
+  assert.deepEqual(blocked, { ok: false, error: "Invalid JSON edits" });
+  assert.equal(apiCalls, 0);
+
+  applyResult = true;
+  const saved = await SongsUI.save();
+  assert.equal(saved.ok, true);
+  assert.equal(apiCalls, 1);
+  assert.equal(JSON.parse(saved.body).songs[0].title, "From JSON");
+
+  for (const name of [
+    "state", "albums", "$", "confirm", "hasUnappliedJsonEdits", "jsonApply", "api",
+  ]) delete global[name];
+});

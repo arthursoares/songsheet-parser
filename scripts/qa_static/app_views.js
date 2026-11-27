@@ -2,6 +2,10 @@
 // (CodeMirror) views.
 function showView(which) {
   if (!state.doc && which !== "shapes") which = "bars";
+  if (state.activeView === "json" && which !== "json" && hasUnappliedJsonEdits()) {
+    if (typeof confirm === "function" && !confirm("Discard unapplied JSON edits?")) return;
+    resetJsonEditorState();
+  }
   const wasChordReview = state.activeView === "chordReview";
   const wasShapes = state.activeView === "shapes";
   const shapes = which === "shapes";
@@ -126,15 +130,75 @@ async function openShapesForEntry(si, bi, ei) {
 // editor's text into the hidden #jsonSource textarea so any legacy reader still
 // works, but jsonGet()/jsonSet() are the canonical accessors.
 let jsonCM = null;
+let jsonDirty = false;
+let jsonBaselineText = "";
+let jsonHasBaseline = false;
+let jsonValidateTimer = null;
+let jsonLastErrPos = null;
+let jsonMsgWired = false;
+
+function clearJsonValidateTimer() {
+  if (jsonValidateTimer) {
+    if (typeof clearTimeout === "function") clearTimeout(jsonValidateTimer);
+    jsonValidateTimer = null;
+  }
+}
+
+function hasUnappliedJsonEdits() {
+  return Boolean(state.doc && (jsonDirty || (jsonHasBaseline && jsonGet() !== jsonBaselineText)));
+}
+
+function updateJsonDirtyBadge() {
+  const badge = $("jsonDirtyBadge");
+  if (!badge) return;
+  const dirty = hasUnappliedJsonEdits();
+  badge.hidden = !dirty;
+  badge.classList?.toggle("hidden", !dirty);
+}
+
+function updateJsonDirtyState() {
+  jsonDirty = Boolean(state.doc && jsonHasBaseline && jsonGet() !== jsonBaselineText);
+  updateJsonDirtyBadge();
+  return jsonDirty;
+}
+
+function resetJsonEditorState() {
+  clearJsonValidateTimer();
+  jsonHasBaseline = false;
+  jsonBaselineText = "";
+  jsonDirty = false;
+  jsonLastErrPos = null;
+  jsonSet("");
+  updateJsonDirtyState();
+  jsonMsg("", "");
+}
+
+function posFromTextIndex(text, index) {
+  const clamped = Math.max(0, Math.min(index, text.length));
+  let line = 0;
+  let lastNl = -1;
+  for (let i = 0; i < clamped; i += 1) {
+    if (text.charCodeAt(i) === 10) {
+      line += 1;
+      lastNl = i;
+    }
+  }
+  return { line, ch: clamped - lastNl - 1 };
+}
 
 // Derive a {line, ch} CodeMirror position from a JSON.parse error message.
 // V8 reports "... at position N", Firefox reports "line L column C".
+// Return null when the runtime (e.g. Safari) omits position details.
 function jsonErrPos(cm, msg) {
   let m = /line (\d+) column (\d+)/i.exec(msg);
   if (m) return { line: Math.max(0, +m[1] - 1), ch: Math.max(0, +m[2] - 1) };
   m = /position (\d+)/i.exec(msg);
-  if (m) return cm.posFromIndex(+m[1]);
-  return { line: 0, ch: 0 };
+  if (m) {
+    const idx = +m[1];
+    if (cm && typeof cm.posFromIndex === "function") return cm.posFromIndex(idx);
+    return posFromTextIndex(jsonGet(), idx);
+  }
+  return null;
 }
 
 // Custom CM lint helper: parse the text; on failure return one error annotation
@@ -145,12 +209,29 @@ function jsonLinter(text) {
   catch (e) {
     const msg = String(e.message || e);
     const cm = jsonCM;
-    const from = cm ? jsonErrPos(cm, msg) : { line: 0, ch: 0 };
+    const pos = cm ? jsonErrPos(cm, msg) : null;
+    const from = pos || { line: 0, ch: 0 };
     const to = cm
       ? { line: from.line, ch: (cm.getLine(from.line) || "").length }
       : { line: from.line, ch: from.ch + 1 };
     return [{ from, to, message: msg, severity: "error" }];
   }
+}
+
+function jumpToJsonError() {
+  if (!jsonCM || !jsonLastErrPos) return false;
+  if (typeof jsonCM.focus === "function") jsonCM.focus();
+  if (typeof jsonCM.setCursor === "function") jsonCM.setCursor(jsonLastErrPos);
+  if (typeof jsonCM.scrollIntoView === "function") jsonCM.scrollIntoView(jsonLastErrPos, 80);
+  return true;
+}
+
+function wireJsonMsgJump() {
+  if (jsonMsgWired) return;
+  const el = $("jsonMsg");
+  if (!el || typeof el.addEventListener !== "function") return;
+  jsonMsgWired = true;
+  el.addEventListener("click", jumpToJsonError);
 }
 
 // Lazily build the CodeMirror instance over #jsonEditor.
@@ -178,102 +259,225 @@ function ensureJsonCM() {
         else cm.replaceSelection("  ", "end");
       },
       "Shift-Tab"(cm) { cm.indentSelection("subtract"); },
-      // ⌘S / Ctrl+S → Save (let our global handler not be needed inside CM).
-      "Cmd-S"(cm) { save(); },
-      "Ctrl-S"(cm) { save(); },
+      // ⌘S / Ctrl+S → apply unapplied JSON edits first, then Save.
+      "Cmd-S"() {
+        if (hasUnappliedJsonEdits() && !jsonApply()) return;
+        if (typeof save === "function") save();
+      },
+      "Ctrl-S"() {
+        if (hasUnappliedJsonEdits() && !jsonApply()) return;
+        if (typeof save === "function") save();
+      },
+      // ⌘Enter / Ctrl+Enter → Apply JSON edits to model.
+      "Cmd-Enter"() { jsonApply(); },
+      "Ctrl-Enter"() { jsonApply(); },
     },
   });
   // Live validity feedback as the user types (debounced ~250ms), in addition to
-  // the gutter lint markers. Mirror text into the hidden textarea.
-  let t = null;
+  // the gutter lint markers. Mirror text into the hidden textarea and update
+  // unapplied-edit state synchronously.
   jsonCM.on("change", () => {
-    $("jsonSource").value = jsonCM.getValue();
-    if (t) clearTimeout(t);
-    t = setTimeout(jsonValidateLive, 250);
+    const ta = $("jsonSource");
+    if (ta) ta.value = jsonCM.getValue();
+    updateJsonDirtyState();
+    clearJsonValidateTimer();
+    jsonValidateTimer = setTimeout(jsonValidateLive, 250);
   });
+  wireJsonMsgJump();
   return jsonCM;
 }
 
 // Canonical text accessors (CM if present, else the textarea fallback).
-function jsonGet() { return jsonCM ? jsonCM.getValue() : $("jsonSource").value; }
+function jsonGet() {
+  if (jsonCM) return jsonCM.getValue();
+  const ta = $("jsonSource");
+  return ta ? ta.value : "";
+}
 function jsonSet(text) {
   if (jsonCM) jsonCM.setValue(text);
-  $("jsonSource").value = text;
+  const ta = $("jsonSource");
+  if (ta) ta.value = text;
+  clearJsonValidateTimer();
+}
+
+function setJsonSyntaxError(prefix, err) {
+  const msg = String((err && err.message) || err);
+  const pos = jsonErrPos(jsonCM, msg);
+  jsonLastErrPos = pos;
+  const loc = pos ? ` (line ${pos.line + 1}, col ${pos.ch + 1})` : "";
+  jsonMsg(`${prefix}${msg}${loc}`, "err");
 }
 
 // Debounced validity readout shown in #jsonMsg while typing.
 function jsonValidateLive() {
   const text = jsonGet();
-  if (!text.trim()) { jsonMsg("", ""); return; }
+  if (!text.trim()) {
+    jsonLastErrPos = null;
+    jsonMsg("", "");
+    updateJsonDirtyState();
+    return;
+  }
   try {
     JSON.parse(text);
+    jsonLastErrPos = null;
     jsonMsg("valid ✓", "ok");
   } catch (e) {
-    const msg = String(e.message || e);
-    const pos = jsonCM ? jsonErrPos(jsonCM, msg) : { line: 0, ch: 0 };
-    jsonMsg(`invalid — ${msg} (line ${pos.line + 1}, col ${pos.ch + 1})`, "err");
+    setJsonSyntaxError("invalid — ", e);
   }
+  updateJsonDirtyState();
 }
 
 // Populate the editor from the CURRENT in-memory document so it reflects
 // unsaved edits made in other tabs. Refresh CM (it mis-measures while hidden).
 function renderJson() {
   ensureJsonCM();
-  if (!state.doc) { jsonSet(""); jsonMsg("", ""); if (jsonCM) jsonCM.refresh(); return; }
-  jsonSet(JSON.stringify(state.doc, null, 2));
+  wireJsonMsgJump();
+  if (!state.doc) {
+    resetJsonEditorState();
+    if (jsonCM) jsonCM.refresh();
+    return;
+  }
+  if (hasUnappliedJsonEdits()) {
+    updateJsonDirtyBadge();
+    if (jsonCM) setTimeout(() => jsonCM.refresh(), 0);
+    return;
+  }
+  const text = JSON.stringify(state.doc, null, 2);
+  jsonBaselineText = text;
+  jsonHasBaseline = true;
+  jsonLastErrPos = null;
+  jsonSet(text);
+  updateJsonDirtyState();
   jsonMsg("", "");
   if (jsonCM) setTimeout(() => jsonCM.refresh(), 0);
 }
 
 function jsonMsg(text, cls) {
   const el = $("jsonMsg");
+  if (!el) return;
+  const jumpable = cls === "err" && Boolean(jsonLastErrPos);
   el.textContent = text;
-  el.className = cls || "muted";
+  el.className = (cls || "muted") + (jumpable ? " jumpable" : "");
+  el.title = jumpable ? "Click to jump to error" : "";
 }
 
-// Reload: repopulate from state.doc, discarding editor edits.
+// Reload: repopulate from state.doc, confirming if unapplied edits exist.
 function jsonReload() {
-  if (!state.doc) { jsonSet(""); jsonMsg("", ""); return; }
-  jsonSet(JSON.stringify(state.doc, null, 2));
+  if (hasUnappliedJsonEdits() && typeof confirm === "function" &&
+      !confirm("Discard unapplied JSON edits?")) {
+    return;
+  }
+  if (!state.doc) { resetJsonEditorState(); return; }
+  const text = JSON.stringify(state.doc, null, 2);
+  jsonBaselineText = text;
+  jsonHasBaseline = true;
+  jsonLastErrPos = null;
+  jsonSet(text);
+  updateJsonDirtyState();
   jsonMsg("", "");
 }
 
-// Format: pretty-print the editor text if it parses; otherwise show the error
-// and leave the text untouched.
+// Format: pretty-print the editor text if it parses, preserving CodeMirror undo
+// history and cursor/scroll position; otherwise show the error untouched.
 function jsonFormat() {
   let parsed;
   try {
     parsed = JSON.parse(jsonGet());
   } catch (e) {
-    jsonMsg(String(e.message || e), "err");
+    setJsonSyntaxError("invalid — ", e);
     return;
   }
-  jsonSet(JSON.stringify(parsed, null, 2));
+  const formatted = JSON.stringify(parsed, null, 2);
+  if (jsonCM) {
+    if (jsonCM.getValue() !== formatted) {
+      const cursor = typeof jsonCM.getCursor === "function" ? jsonCM.getCursor() : null;
+      const scroll = typeof jsonCM.getScrollInfo === "function" ? jsonCM.getScrollInfo() : null;
+      const lastLine = jsonCM.lastLine();
+      const endCh = (jsonCM.getLine(lastLine) || "").length;
+      const applyReplace = () => {
+        jsonCM.replaceRange(formatted, { line: 0, ch: 0 }, { line: lastLine, ch: endCh }, "+format");
+        if (cursor) {
+          const maxLine = jsonCM.lastLine();
+          const line = Math.min(cursor.line, maxLine);
+          const ch = Math.min(cursor.ch, (jsonCM.getLine(line) || "").length);
+          jsonCM.setCursor({ line, ch });
+        }
+        if (scroll && typeof jsonCM.scrollTo === "function") {
+          jsonCM.scrollTo(scroll.left, scroll.top);
+        }
+      };
+      if (typeof jsonCM.operation === "function") jsonCM.operation(applyReplace);
+      else applyReplace();
+      clearJsonValidateTimer();
+    }
+  } else {
+    const ta = $("jsonSource");
+    if (ta) ta.value = formatted;
+  }
+  jsonLastErrPos = null;
+  updateJsonDirtyState();
   jsonMsg("formatted ✓", "ok");
+}
+
+function jsonEqual(a, b) {
+  if (Object.is(a, b)) return true;
+  if (!a || !b || typeof a !== "object" || typeof b !== "object") return false;
+  if (Array.isArray(a) !== Array.isArray(b)) return false;
+  if (Array.isArray(a)) {
+    if (a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i += 1) {
+      if (!jsonEqual(a[i], b[i])) return false;
+    }
+    return true;
+  }
+  const keysA = Object.keys(a).filter((k) => a[k] !== undefined);
+  const keysB = Object.keys(b).filter((k) => b[k] !== undefined);
+  if (keysA.length !== keysB.length) return false;
+  for (const k of keysA) {
+    if (!Object.prototype.hasOwnProperty.call(b, k) || b[k] === undefined || !jsonEqual(a[k], b[k])) {
+      return false;
+    }
+  }
+  return true;
 }
 
 // Apply: parse + shape-guard, then swap state.doc and re-render. If re-render
 // throws (structurally bad doc), restore the pre-apply snapshot so the app
 // can't be left broken. Does NOT save — Save persists + schema-validates.
 function jsonApply() {
-  if (!state.doc) return;
+  if (!state.doc) return false;
   let parsed;
   try {
     parsed = JSON.parse(jsonGet());
   } catch (e) {
-    jsonMsg(String(e.message || e), "err");
-    return;
+    setJsonSyntaxError("", e);
+    return false;
   }
   const shapeOk = parsed && parsed.document && Array.isArray(parsed.songs)
     && parsed.songs[0] && Array.isArray(parsed.songs[0].sections);
   if (!shapeOk) {
+    jsonLastErrPos = null;
     jsonMsg("Bad shape: need { document, songs: [ { sections: [...] } ] }", "err");
-    return;
+    return false;
   }
+  if (jsonEqual(parsed, state.doc)) {
+    jsonBaselineText = jsonGet();
+    jsonHasBaseline = true;
+    jsonLastErrPos = null;
+    updateJsonDirtyState();
+    clearJsonValidateTimer();
+    jsonMsg(state.dirty ? "no model changes — Save to persist" : "no model changes", "ok");
+    return true;
+  }
+  const wasDirty = Boolean(state.dirty);
+  const prevEditVersion = state.editVersion || 0;
+  const statusEl = $("saveStatus");
+  const prevStatusText = statusEl ? statusEl.textContent : "";
+  const prevStatusColor = statusEl && statusEl.style ? statusEl.style.color : "";
   pushUndo();
   state.doc = parsed;
   state.sel = null;
-  $("editor").classList.remove("open");
+  $("editor")?.classList.remove("open");
   markDirty();
   try {
     rerenderAll();
@@ -281,11 +485,25 @@ function jsonApply() {
     // Re-render failed on the new doc — roll back to the snapshot we just pushed.
     state.doc = undoStack.pop();
     state.sel = null;
+    state.dirty = wasDirty;
+    state.editVersion = prevEditVersion;
+    if (statusEl) {
+      statusEl.textContent = prevStatusText;
+      if (statusEl.style) statusEl.style.color = prevStatusColor;
+    }
     try { rerenderAll(); } catch (e2) { /* best-effort recovery */ }
+    jsonLastErrPos = null;
     jsonMsg("Could not apply: " + String(e.message || e), "err");
-    return;
+    updateJsonDirtyState();
+    return false;
   }
+  jsonBaselineText = jsonGet();
+  jsonHasBaseline = true;
+  jsonLastErrPos = null;
+  updateJsonDirtyState();
+  clearJsonValidateTimer();
   jsonMsg("applied ✓ — Save to persist", "ok");
+  return true;
 }
 
 // Switch to Bars, select the flagged chip, and open its editor.

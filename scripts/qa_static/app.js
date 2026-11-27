@@ -34,6 +34,10 @@ async function init() {
     pushUndo();
     state.doc.document.status = ev.target.value;
     markDirty();
+    if (state.activeView === "json" && typeof renderJson === "function" &&
+        !(typeof hasUnappliedJsonEdits === "function" && hasUnappliedJsonEdits())) {
+      renderJson();
+    }
   });
   // key selector — drives interval analysis; stored on song.key. Major + minor.
   const keySel = $("keySel");
@@ -56,6 +60,10 @@ async function init() {
     if (state.activeView === "dict") renderDict();
     if (state.activeView === "harmony" && typeof renderHarmony === "function") renderHarmony();
     if (state.activeView === "preview") renderPreview();
+    if (state.activeView === "json" && typeof renderJson === "function" &&
+        !(typeof hasUnappliedJsonEdits === "function" && hasUnappliedJsonEdits())) {
+      renderJson();
+    }
     if (state.sel) openEditor(state.sel.si, state.sel.bi, state.sel.ei);
   });
   // song-list sidebar: search + status filter
@@ -123,7 +131,9 @@ async function init() {
   $("kbdHint").addEventListener("click", showShortcutDialog);
 
   window.addEventListener("beforeunload", (e) => {
-    if (state.dirty || (typeof chordEditorHasDraft === "function" && chordEditorHasDraft())) {
+    const jsonEdits = typeof hasUnappliedJsonEdits === "function" && hasUnappliedJsonEdits();
+    const chordDraft = typeof chordEditorHasDraft === "function" && chordEditorHasDraft();
+    if (state.dirty || jsonEdits || chordDraft) {
       e.preventDefault();
       e.returnValue = "";
     }
@@ -260,6 +270,13 @@ function onKeydown(ev) {
   if ((ev.metaKey || ev.ctrlKey) && (ev.key === "s" || ev.key === "S")) {
     ev.preventDefault();
     save();
+    return;
+  }
+  // ⌘Enter / Ctrl+Enter → Apply JSON edits when in JSON view
+  if ((ev.metaKey || ev.ctrlKey) && ev.key === "Enter" && !ev.defaultPrevented &&
+      state.activeView === "json" && typeof jsonApply === "function") {
+    ev.preventDefault();
+    jsonApply();
     return;
   }
   if (state.activeView === "shapes") {

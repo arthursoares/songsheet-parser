@@ -93,6 +93,10 @@ function rerenderAll() {
   if (state.activeView === "dict") renderDict();
   if (state.activeView === "harmony") renderHarmony();
   if (state.activeView === "preview") renderPreview();
+  if (state.activeView === "json" && typeof renderJson === "function" &&
+      !(typeof hasUnappliedJsonEdits === "function" && hasUnappliedJsonEdits())) {
+    renderJson();
+  }
 }
 
 function undo() {
