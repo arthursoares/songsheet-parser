@@ -52,7 +52,7 @@ test("save is single-flight and preserves edits made while the request is pendin
   assert.equal(scanSaved.unchanged, false);
   assert.equal(global.state.dirty, true);
   assert.equal(elements.saveStatus.textContent, "Unsaved changes");
-  assert.equal(elements.saveStatus.style.color, "#d29922");
+  assert.equal(elements.saveStatus.style.color, "var(--warn)");
   assert.equal(elements.saveBtn.disabled, false);
 
   for (const name of ["state", "albums", "$", "api", "syncSavedScanDocument"]) delete global[name];
@@ -72,7 +72,7 @@ test("markDirty reports unsaved changes immediately and advances the edit versio
   assert.equal(vm.runInContext("state.dirty", context), true);
   assert.equal(vm.runInContext("state.editVersion", context), 2);
   assert.equal(saveStatus.textContent, "Unsaved changes");
-  assert.equal(saveStatus.style.color, "#d29922");
+  assert.equal(saveStatus.style.color, "var(--warn)");
 });
 
 function installLoadHarness() {

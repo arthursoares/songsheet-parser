@@ -304,7 +304,7 @@ async function saveOnce() {
         typeof syncSavedScanDocument === "function") {
       syncSavedScanDocument(unchanged ? state.doc : JSON.parse(submittedJson), unchanged);
     }
-    if (sameDocument) status.style.color = unchanged ? "var(--ok)" : "#d29922";
+    if (sameDocument) status.style.color = unchanged ? "var(--ok)" : "var(--warn)";
     // reflect the saved status in the local album cache → progress count + dropdown label
     const a = albums.find((x) => x.album === submittedAlbum);
     const s = a && a.songs && a.songs.find((x) => x.file === submittedFile);

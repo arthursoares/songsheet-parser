@@ -26,7 +26,7 @@ function markDirty() {
   const status = $("saveStatus");
   if (status) {
     status.textContent = "Unsaved changes";
-    status.style.color = "#d29922";
+    status.style.color = "var(--warn)";
   }
 }
 
