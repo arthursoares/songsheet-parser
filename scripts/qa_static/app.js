@@ -9,9 +9,7 @@
 //   app_dict.js    Dictionary view (chord_dictionary.js logic)
 async function init() {
   if (typeof wireAccessibility === "function") wireAccessibility();
-  albums = await api("/api/albums");
   const albumSel = $("albumSel");
-  albumSel.innerHTML = albums.map((a) => `<option>${esc(a.album)}</option>`).join("");
   const songSel = $("songSel");
 
   $("workspaceSongs").addEventListener("click", () => {
@@ -20,12 +18,14 @@ async function init() {
   $("workspaceShapes").addEventListener("click", () => showView("shapes"));
 
   albumSel.addEventListener("change", () => {
-    if (!confirmDiscard()) { albumSel.value = state.album; return; }
-    fillSongs();
-    loadSong();
+    const album = albumSel.value;
+    const proceed = () => { albumSel.value = album; fillSongs(); loadSong(); };
+    if (!confirmDiscard(proceed)) { albumSel.value = state.album; return; }
+    proceed();
   });
   songSel.addEventListener("change", () => {
-    if (!confirmDiscard()) { songSel.value = state.file; return; }
+    const file = songSel.value;
+    if (!confirmDiscard(() => { songSel.value = file; loadSong(); })) { songSel.value = state.file; return; }
     loadSong();
   });
 
@@ -49,14 +49,15 @@ async function init() {
   const KEYS = ROOTS.concat(ROOTS.map((r) => r + "m")); // major then minor
   keySel.innerHTML = '<option value="">key: —</option>' +
     KEYS.map((k) => `<option value="${esc(k)}">key: ${esc(k)}</option>`).join("");
-  keySel.addEventListener("change", (ev) => {
+  const changeKey = (value) => {
     if (!state.doc) return;
-    if (typeof confirmChordDraftDiscard === "function" && !confirmChordDraftDiscard()) {
+    if (typeof confirmChordDraftDiscard === "function" && !confirmChordDraftDiscard(() => changeKey(value))) {
       keySel.value = songKey();
       return;
     }
     pushUndo();
-    song().key = ev.target.value || null;
+    keySel.value = value;
+    song().key = value || null;
     markDirty();
     window.ChordNaming.setKeyTonic(songKey());
     renderBars();
@@ -69,7 +70,8 @@ async function init() {
       renderJson();
     }
     if (state.sel) openEditor(state.sel.si, state.sel.bi, state.sel.ei);
-  });
+  };
+  keySel.addEventListener("change", (ev) => changeKey(ev.target.value));
   // song-list sidebar: search + status filter
   $("songSearchClear").addEventListener("click", () => {
     state.songSearch = "";
@@ -121,30 +123,32 @@ async function init() {
 
   // global flat/sharp spelling toggle — re-renders bars (and editor if open)
   const spellBtn = $("spellToggle");
-  spellBtn.addEventListener("click", () => {
-    if (typeof confirmChordDraftDiscard === "function" && !confirmChordDraftDiscard()) return;
+  const toggleSpelling = () => {
+    if (typeof confirmChordDraftDiscard === "function" && !confirmChordDraftDiscard(toggleSpelling)) return;
     const next = window.ChordNaming.getSpelling() === "sharp" ? "flat" : "sharp";
     window.ChordNaming.setSpelling(next);
     spellBtn.textContent = next === "flat" ? "♭/♯" : "♯/♭";
-    spellBtn.title = `Note spelling: ${next} (click to switch)`;
     spellBtn.setAttribute("aria-pressed", String(next === "flat"));
+    spellBtn.title = `Note spelling: ${next} (click to switch)`;
     renderBars();
     if (state.activeView === "dict") renderDict();
     if (state.activeView === "harmony" && typeof renderHarmony === "function") renderHarmony();
     if (state.sel) openEditor(state.sel.si, state.sel.bi, state.sel.ei);
-  });
+  };
+  spellBtn.addEventListener("click", toggleSpelling);
 
   // layout toggles (focus mode): hide the PDF-scan pane and/or the song list.
   // Persisted in localStorage; `\` toggles the scan pane from the keyboard.
   $("scanToggle").addEventListener("click", () => toggleLayoutPane("pages"));
   $("songsToggle").addEventListener("click", () => toggleLayoutPane("songs"));
   $("noteToggle").addEventListener("click", function openSongNote() {
-    if (state.activeView === "chordReview" && showView("bars") === false) return;
+    if (state.activeView === "chordReview" && showView("bars", openSongNote) === false) return;
     localStorage.setItem("qaHideSongs", "0");
     applyLayoutToggles();
     $("songNote").focus();
   });
   applyLayoutToggles();
+  if (typeof wireBarsDisplay === "function") wireBarsDisplay();
   wireChordReview();
   wireScanReview();
   $("kbdHint").addEventListener("click", showShortcutDialog);
@@ -152,7 +156,8 @@ async function init() {
   window.addEventListener("beforeunload", (e) => {
     const jsonEdits = typeof hasUnappliedJsonEdits === "function" && hasUnappliedJsonEdits();
     const chordDraft = typeof chordEditorHasDraft === "function" && chordEditorHasDraft();
-    if (state.dirty || jsonEdits || chordDraft) {
+    const lyricDraft = typeof hasLyricDrafts === "function" && hasLyricDrafts();
+    if (state.dirty || jsonEdits || chordDraft || lyricDraft) {
       e.preventDefault();
       e.returnValue = "";
     }
@@ -201,8 +206,22 @@ async function init() {
   syncHeaderHeight();
   if (typeof ResizeObserver === "function") new ResizeObserver(syncHeaderHeight).observe(header);
 
-  fillSongs();
-  loadSong();
+  await loadAlbums();
+}
+
+async function loadAlbums() {
+  $("bars").innerHTML = '<div class="empty" role="status">Loading library…</div>';
+  try {
+    const result = await api("/api/albums");
+    if (!Array.isArray(result)) throw new Error(result?.error || "Invalid library response");
+    albums = result;
+    $("albumSel").innerHTML = albums.map((a) => `<option>${esc(a.album)}</option>`).join("");
+    fillSongs();
+    await loadSong();
+  } catch (error) {
+    $("bars").innerHTML = `<div class="load-error" role="alert">Could not load the library: ${esc(error.message || String(error))} <button id="retryAlbums" type="button" class="tab">Retry</button></div>`;
+    $("retryAlbums")?.addEventListener("click", loadAlbums);
+  }
 }
 
 // ---- layout focus mode ----
@@ -321,7 +340,7 @@ function onKeydown(ev) {
   } else if (ev.key && !["Shift", "Control", "Alt", "Meta"].includes(ev.key) && ev.target?.tagName !== "BUTTON") {
     keyboardFocus = false;
   }
-  if ($("shortcutDialog").open) return;
+  if ($("shortcutDialog").open || $("unsavedDialog")?.open) return;
   const el = ev.target;
   const inCM = el && el.closest && el.closest(".CodeMirror");
   const typing = !!inCM ||
@@ -368,7 +387,8 @@ function onKeydown(ev) {
       return;
     }
     if (state.activeView === "bars" && $("editor").classList.contains("open")) {
-      if (typeof confirmChordDraftDiscard === "function" && !confirmChordDraftDiscard()) return;
+      const close = () => { closeChordEditor(); renderBars(); };
+      if (typeof confirmChordDraftDiscard === "function" && !confirmChordDraftDiscard(close)) return;
       $("editor").classList.remove("open");
       state.sel = null;
       renderBars();

@@ -178,7 +178,7 @@ function selectChordReviewEntry(selection, redrawBars = false) {
     c.si === selection.si && c.bi === selection.bi && c.ei === selection.ei);
   if (index < 0) return;
   if (index !== chordReview.index && $("editor").classList.contains("editor-inline")) {
-    if (!confirmChordDraftDiscard()) return;
+    if (!confirmChordDraftDiscard(() => selectChordReviewEntry(selection, redrawBars))) return;
     closeChordEditor();
   }
   chordReview.index = index;
@@ -220,7 +220,12 @@ function decideChordReview(action, advance = true) {
   }
   if ($("editor").classList.contains("editor-inline")) {
     if (action === "keep" && chordEditorHasDraft()) return submitActiveChord({ advance });
-    if (!confirmChordDraftDiscard()) return;
+    if (!confirmChordDraftDiscard(() => {
+      const current = activeChordSelection();
+      if (state.activeView === "chordReview" && current && chordAt(current) === entry) {
+        decideChordReview(action, advance);
+      }
+    })) return;
     closeChordEditor();
   }
   const status = action === "skip" ? "deferred" : "reviewed";
@@ -246,7 +251,7 @@ function decideChordReview(action, advance = true) {
 function toggleChordReview() {
   if (state.activeView === "chordReview") { showView("bars"); return; }
   if (!state.doc) return;
-  if (!confirmChordDraftDiscard()) return;
+  if (!confirmChordDraftDiscard(toggleChordReview)) return;
   const previous = state.sel;
   closeChordEditor();
   $("chordReviewMessage").textContent = "";

@@ -146,6 +146,13 @@ function harness({ split = false, savedDoc = null, storage = new Map() } = {}) {
     setScanProposal: (entry, proposal) => scanProposals.set(entry, proposal),
     refreshScanProposal: () => vm.runInContext("syncActiveChordProposal()", context),
     wireChordReview: () => context.wireChordReview(),
+    enableUnsavedDialog() {
+      const source = readFileSync(join(__dirname, "../../scripts/qa_static/app_interactions.js"), "utf8");
+      vm.runInContext(source, context);
+      get("unsavedDialog").close = () => { get("unsavedDialog").open = false; };
+    },
+    requestDraftContinuation: (resume) => context.confirmChordDraftDiscard(resume),
+    decide: (action, advance) => context.decideChordReview(action, advance),
     submit(options) {
       return vm.runInContext(`submitActiveChord(${JSON.stringify(options || {})})`, context);
     },
@@ -329,6 +336,44 @@ test("changing an inline chord to a repeat advances to the next remaining chord"
   assert.equal(app.key(" "), true);
   assert.equal(app.entries[0].chord, "%");
   assert.equal(app.focused(), app.chips[2]);
+  assert.equal(app.get("chordReviewName").textContent, "Dm");
+});
+
+test("Apply and Continue applies a retained Bars draft while Lyrics is active", async () => {
+  const app = harness();
+  app.state.activeView = "bars";
+  app.open(0, 0, 0);
+  app.get("edName").value = "Cmaj7";
+  app.get("edText").value = "retained lyric";
+  app.state.activeView = "lyrics";
+  app.enableUnsavedDialog();
+  let resumed = 0;
+  assert.equal(app.requestDraftContinuation(() => resumed++), false);
+  assert.equal(app.get("unsavedDialog").open, true);
+  assert.equal(app.submit(), false); // Ordinary hidden-editor shortcuts stay blocked.
+  await app.get("unsavedApply").onclick();
+  assert.equal(app.entries[0].chord, "Cmaj7");
+  assert.equal(app.entries[0].text, "retained lyric");
+  assert.equal(app.entries[0].chord_review.status, "reviewed");
+  assert.equal(app.undoCount(), 1);
+  assert.equal(resumed, 1);
+  assert.equal(app.get("unsavedDialog").open, false);
+  assert.equal(app.state.activeView, "lyrics");
+  assert.notEqual(app.focused(), app.chips[0]);
+});
+
+test("Apply converting a chord to a repeat never defers the next chord", async () => {
+  const app = harness();
+  app.key("e");
+  app.get("edName").value = "%";
+  app.enableUnsavedDialog();
+  app.decide("skip", true);
+  assert.equal(app.get("unsavedDialog").open, true);
+  await app.get("unsavedApply").onclick();
+  assert.equal(app.entries[0].chord, "%");
+  assert.equal(app.entries[2].chord, "Dm");
+  assert.equal(app.entries[2].chord_review, undefined);
+  assert.equal(app.undoCount(), 1);
   assert.equal(app.get("chordReviewName").textContent, "Dm");
 });
 

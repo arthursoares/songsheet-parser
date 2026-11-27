@@ -120,6 +120,7 @@ function undo() {
   syncHistoryButtons();
   syncUndoRedoDirty();
   rerenderAll();
+  if (typeof showToast === "function") showToast("Undo complete");
 }
 
 function redo() {
@@ -129,6 +130,7 @@ function redo() {
   syncHistoryButtons();
   syncUndoRedoDirty();
   rerenderAll();
+  if (typeof showToast === "function") showToast("Redo complete");
 }
 
 async function api(path, opts) {
