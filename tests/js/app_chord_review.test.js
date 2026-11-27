@@ -28,6 +28,7 @@ function harness({ split = false, savedDoc = null, storage = new Map() } = {}) {
     const handlers = {};
     let markup = "";
     let suggestions = [];
+    let blurCount = 0;
     return {
       dataset: {},
       classList: {
@@ -52,7 +53,7 @@ function harness({ split = false, savedDoc = null, storage = new Map() } = {}) {
         return match ? suggestions[Number(match[1])] : null;
       },
       addEventListener: (event, handler) => { handlers[event] = handler; },
-      click: () => handlers.click?.(),
+      click: (ev) => handlers.click?.(ev),
       keyDown(key) {
         let prevented = false;
         handlers.keydown?.({ key, preventDefault: () => { prevented = true; } });
@@ -62,6 +63,8 @@ function harness({ split = false, savedDoc = null, storage = new Map() } = {}) {
       setAttribute: (name, value) => attributes.set(name, value),
       removeAttribute: (name) => attributes.delete(name),
       focus() { focused = this; },
+      blur() { blurCount += 1; if (focused === this) focused = null; },
+      get blurCount() { return blurCount; },
       scrollIntoView() { scrolled = this; },
       showModal() { this.open = true; },
     };
@@ -141,6 +144,7 @@ function harness({ split = false, savedDoc = null, storage = new Map() } = {}) {
     draftVoicing: () => activeFretboard?.get().join(","),
     setScanProposal: (entry, proposal) => scanProposals.set(entry, proposal),
     refreshScanProposal: () => vm.runInContext("syncActiveChordProposal()", context),
+    wireChordReview: () => context.wireChordReview(),
     submit(options) {
       return vm.runInContext(`submitActiveChord(${JSON.stringify(options || {})})`, context);
     },
@@ -237,11 +241,31 @@ test("a reviewed chord needs re-review after its chord name changes", () => {
   const app = harness();
   app.key(" ");
   app.key("h");
-  app.key("2");
+  app.entries[0].chord = "Am/C";
+  app.key("l");
+  app.key("h");
   assert.equal(app.entries[0].chord, "Am/C");
   assert.equal(app.entries[0].chord_review.snapshot.chord, "C");
   assert.match(app.get("chordReviewContext").textContent, /Needs re-review/);
   assert.match(app.get("chordReviewPosition").textContent, /0 reviewed/);
+});
+
+test("1-4 in Chord Review marks the chord reviewed with updated snapshot (matching Bars)", () => {
+  const app = harness();
+  app.key("2");
+  assert.equal(app.entries[0].chord, "Am/C");
+  assert.equal(app.entries[0].chord_review.status, "reviewed");
+  assert.equal(app.entries[0].chord_review.snapshot.chord, "Am/C");
+  assert.match(app.get("chordReviewContext").textContent, /Reviewed/);
+  assert.match(app.get("chordReviewPosition").textContent, /1 reviewed/);
+  assert.match(app.get("chordReviewMessage").textContent, /applied and chord reviewed/i);
+
+  // Applying a numbered suggestion on an already-reviewed chord updates both chord and snapshot.
+  app.key("3");
+  assert.equal(app.entries[0].chord, "C6");
+  assert.equal(app.entries[0].chord_review.status, "reviewed");
+  assert.equal(app.entries[0].chord_review.snapshot.chord, "C6");
+  assert.match(app.get("chordReviewContext").textContent, /Reviewed/);
 });
 
 test("editor Apply marks the resulting chord reviewed in the same undo action", () => {
@@ -565,4 +589,187 @@ test("numbered suggestions apply the matching name and slash opens help", () => 
   app.get("shortcutDialog").open = false;
   assert.equal(app.key("?", { shiftKey: true }), true);
   assert.equal(app.get("shortcutDialog").open, true);
+});
+
+test("Shift+H/L in Chord Review navigates flagged chords without mutating order, and Shift+J/K is ignored", () => {
+  const app = harness({ split: true });
+  const initialBars = app.song().sections[0].bars.map((bar) => bar.slice());
+  app.key("l");
+  assert.equal(app.focused(), app.chips[2]);
+
+  // Shift+L jumps to next flagged chord (index 3), never reordering within bar.
+  assert.equal(app.key("L", { shiftKey: true }), true);
+  assert.equal(app.focused(), app.chips[3]);
+  assert.deepEqual(app.song().sections[0].bars, initialBars);
+
+  // Shift+H jumps back to previous flagged chord (index 0).
+  assert.equal(app.key("H", { shiftKey: true }), true);
+  assert.equal(app.focused(), app.chips[0]);
+  assert.deepEqual(app.song().sections[0].bars, initialBars);
+
+  // Shift+J/K in Chord Review is ignored (returns false) and does not move chords or step bars.
+  assert.equal(app.key("J", { shiftKey: true }), false);
+  assert.equal(app.focused(), app.chips[0]);
+  assert.equal(app.key("K", { shiftKey: true }), false);
+  assert.equal(app.focused(), app.chips[0]);
+  assert.deepEqual(app.song().sections[0].bars, initialBars);
+  assert.equal(app.undoCount(), 0);
+});
+
+test("Caps Lock uppercase A, S, R, H, L work in Chord Review and Bars (including S Defer)", () => {
+  const reviewing = harness();
+  assert.equal(reviewing.key("A", { shiftKey: false }), true);
+  assert.equal(reviewing.entries[0].voicing, reviewing.entries[0].voicing_printed);
+  assert.equal(reviewing.entries[0].chord_review.status, "reviewed");
+  assert.equal(reviewing.focused(), reviewing.chips[2]);
+
+  assert.equal(reviewing.key("S", { shiftKey: false }), true);
+  assert.equal(reviewing.entries[2].chord_review.status, "deferred");
+  assert.equal(reviewing.focused(), reviewing.chips[3]);
+
+  assert.equal(reviewing.key("H", { shiftKey: false }), true);
+  assert.equal(reviewing.focused(), reviewing.chips[2]);
+  assert.equal(reviewing.key("L", { shiftKey: false }), true);
+  assert.equal(reviewing.focused(), reviewing.chips[3]);
+  assert.equal(reviewing.key("R", { shiftKey: false }), true);
+  assert.equal(reviewing.entries[3].chord_review.status, "reviewed");
+
+  // Bars mode: S defers, respects draft guard, and returns false on %.
+  const bars = harness();
+  bars.state.activeView = "bars";
+  bars.key("l");
+  bars.get("edText").value = "pending draft";
+  assert.equal(bars.key("S", { shiftKey: false }), true);
+  assert.equal(bars.entries[0].chord_review, undefined);
+  assert.match(bars.get("edReviewStatus").textContent, /Apply chord edits/);
+
+  bars.get("edText").value = "";
+  assert.equal(bars.key("S", { shiftKey: false }), true);
+  assert.equal(bars.entries[0].chord_review.status, "deferred");
+  assert.equal(bars.get("edReviewStatus").textContent, "Deferred");
+
+  bars.open(0, 0, 1); // "%" continuation entry
+  assert.equal(bars.key("s"), false);
+  assert.equal(bars.entries[1].chord_review, undefined);
+});
+
+test("A refuses to apply/advance in Bars and Chord Review when voicing already equals voicing_printed", () => {
+  const reviewing = harness();
+  reviewing.entries[0].voicing = reviewing.entries[0].voicing_printed;
+  reviewing.key("l");
+  reviewing.key("h");
+  assert.equal(reviewing.get("chordReviewAccept").disabled, true);
+  assert.equal(reviewing.key("a"), true);
+  assert.equal(reviewing.entries[0].chord_review, undefined);
+  assert.equal(reviewing.focused(), reviewing.chips[0]);
+  assert.match(reviewing.get("chordReviewMessage").textContent, /already applied/i);
+
+  const bars = harness();
+  bars.state.activeView = "bars";
+  bars.entries[0].voicing = bars.entries[0].voicing_printed;
+  bars.key("l");
+  assert.equal(bars.key("a"), true);
+  assert.equal(bars.entries[0].chord_review, undefined);
+  assert.equal(bars.get("edName").value, "C");
+  assert.match(bars.get("edErr").textContent, /already applied/i);
+});
+
+test("Space after pointer-clicked buttons blurs and advances, while Tab-focused buttons yield to native activation", () => {
+  const app = harness();
+  app.wireChordReview();
+  app.get("chordReviewSkip").click();
+  assert.equal(app.get("chordReviewSkip").blurCount, 1);
+  assert.equal(app.entries[0].chord_review.status, "deferred");
+  assert.equal(app.focused(), app.chips[2]);
+
+  // Simulate a clicked button still being ev.target when Space is pressed without Tab:
+  let targetBlurCount = 0;
+  const clickedBtn = {
+    tagName: "BUTTON",
+    blur() { targetBlurCount += 1; },
+    matches: () => false,
+  };
+  assert.equal(app.key(" ", { code: "Space", target: clickedBtn }), true);
+  assert.equal(targetBlurCount, 1);
+  assert.equal(app.entries[2].chord_review.status, "reviewed");
+  assert.equal(app.focused(), app.chips[3]);
+
+  // Pressing Tab sets keyboardFocus = true so Space yields (returns false) for button activation.
+  assert.equal(app.key("Tab"), false);
+  assert.equal(app.key(" ", { code: "Space", target: clickedBtn }), false);
+  assert.equal(targetBlurCount, 1);
+  assert.equal(app.entries[3].chord_review, undefined);
+
+  // Moving focus back via a non-button key clears keyboardFocus.
+  assert.equal(app.key("h"), true);
+  assert.equal(app.key(" ", { code: "Space", target: clickedBtn }), true);
+  assert.equal(targetBlurCount, 2);
+  assert.equal(app.entries[2].chord_review.status, "reviewed");
+
+  // Pointer-clicking Bars editor Defer button also blurs the button.
+  const bars = harness();
+  bars.state.activeView = "bars";
+  bars.key("l");
+  bars.get("edDeferReview").click();
+  assert.equal(bars.get("edDeferReview").blurCount, 1);
+  assert.equal(bars.entries[0].chord_review.status, "deferred");
+});
+
+test("Fretboard +/- buttons have type='button' and blur on pointer click even at fret boundaries", () => {
+  const source = readFileSync(join(__dirname, "../../scripts/qa_static/fretboard.js"), "utf8");
+  const makeNode = (tag = "div") => {
+    let html = "";
+    const children = [];
+    const buttons = {};
+    let blurCount = 0;
+    const node = {
+      tagName: tag.toUpperCase(),
+      className: "",
+      title: "",
+      value: "",
+      type: "",
+      textContent: "",
+      children,
+      appendChild(child) { children.push(child); return child; },
+      set innerHTML(v) {
+        html = v;
+        children.length = 0;
+        if (v.includes('data-act="dn"')) {
+          buttons.dn = makeNode("button");
+          buttons.up = makeNode("button");
+        }
+      },
+      get innerHTML() { return html; },
+      querySelector(sel) {
+        if (sel === "[data-act=dn]") return buttons.dn || null;
+        if (sel === "[data-act=up]") return buttons.up || null;
+        return null;
+      },
+      blur() { blurCount += 1; },
+      get blurCount() { return blurCount; },
+      _buttons: buttons,
+    };
+    return node;
+  };
+  const ctx = vm.createContext({
+    document: { createElement: (tag) => makeNode(tag) },
+    window: {},
+  });
+  vm.runInContext(source, ctx, { filename: "fretboard.js" });
+
+  const container = makeNode("div");
+  const fb = ctx.Fretboard(container, () => {});
+  const ctlAtStart = container.children[0];
+  assert.match(ctlAtStart.innerHTML, /<button type="button" data-act="dn">/);
+  assert.match(ctlAtStart.innerHTML, /<button type="button" data-act="up">/);
+  // Click '-' at fret 1 boundary (does not re-render, still blurs).
+  ctlAtStart._buttons.dn.onclick({ detail: 1 });
+  assert.equal(ctlAtStart._buttons.dn.blurCount, 1);
+
+  // Move to fret 20 boundary and click '+' (does not re-render, still blurs).
+  fb.set(["x", 20, 22, 22, 21, 20]);
+  const ctlAtEnd = container.children[0];
+  assert.match(ctlAtEnd.innerHTML, /fret 20/);
+  ctlAtEnd._buttons.up.onclick({ detail: 1 });
+  assert.equal(ctlAtEnd._buttons.up.blurCount, 1);
 });

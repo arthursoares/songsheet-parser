@@ -297,7 +297,10 @@ function renderChordSuggestions(container, voicing, apply) {
     `<button type="button" class="s" data-suggestion="${index}"><b>${esc(name)}</b>${index < 4 ? `<kbd>${index + 1}</kbd>` : ""}</button>`
   ).join("") : '<div class="s muted">No chord-name suggestions</div>';
   container.querySelectorAll("[data-suggestion]").forEach((button, index) => {
-    button.addEventListener("click", () => apply(suggestions[index].name));
+    button.addEventListener("click", (ev) => {
+      if (!ev || ev.detail > 0) button.blur?.();
+      apply(suggestions[index].name);
+    });
   });
 }
 
@@ -347,7 +350,7 @@ function openEditor(si, bi, ei, focus = false) {
     ${e.chord === "%" ? "" : `<div class="ed-review">
       <span id="edReviewStatus" class="chord-review-state" role="status"></span>
       <button type="button" id="edMarkReviewed" class="tab" aria-keyshortcuts="R" title="Mark the current chord reviewed (R)">Mark reviewed</button>
-      <button type="button" id="edDeferReview" class="tab">Defer</button>
+      <button type="button" id="edDeferReview" class="tab" aria-keyshortcuts="S" title="Defer this chord (S)">Defer</button>
     </div>`}
     <div class="ed-actions">
       <button class="apply" id="edApply">Apply</button>
@@ -391,14 +394,27 @@ function openEditor(si, bi, ei, focus = false) {
     }
     splitBar(si, bi, boundary);
   };
-  if (ei > 0) $("edSplitBefore").addEventListener("click", () => splitAt(ei));
-  if (ei < barLength - 1) $("edSplitAfter").addEventListener("click", () => splitAt(ei + 1));
+  const splitBefore = $("edSplitBefore");
+  if (ei > 0 && splitBefore) {
+    splitBefore.addEventListener("click", (ev) => {
+      if (!ev || ev.detail > 0) splitBefore.blur?.();
+      splitAt(ei);
+    });
+  }
+  const splitAfter = $("edSplitAfter");
+  if (ei < barLength - 1 && splitAfter) {
+    splitAfter.addEventListener("click", (ev) => {
+      if (!ev || ev.detail > 0) splitAfter.blur?.();
+      splitAt(ei + 1);
+    });
+  }
   const cropImg = $("edPrintCrop");
   if (cropImg) cropImg.addEventListener("error", () => { cropImg.style.display = "none"; });
   $("edFindShapes")?.addEventListener("click", () => openShapesForEntry(si, bi, ei));
   const usePrint = $("edUsePrint");
   if (usePrint) {
-    usePrint.addEventListener("click", () => {
+    usePrint.addEventListener("click", (ev) => {
+      if (!ev || ev.detail > 0) usePrint.blur?.();
       const entry = currentEntry();
       if (!entry || !entry.voicing_printed) return;
       curVoicing = parseVoicing(entry.voicing_printed);
@@ -408,7 +424,8 @@ function openEditor(si, bi, ei, focus = false) {
   }
   const usePrintNext = $("edUsePrintNext");
   if (usePrintNext) {
-    usePrintNext.addEventListener("click", () => {
+    usePrintNext.addEventListener("click", (ev) => {
+      if (!ev || ev.detail > 0) usePrintNext.blur?.();
       submitActiveChord({ usePrinted: true, advance: true });
     });
   }
@@ -426,7 +443,9 @@ function openEditor(si, bi, ei, focus = false) {
     $("edScanProposalValue").textContent = proposal;
     return Boolean(proposal);
   };
-  $("edUseScanProposal").addEventListener("click", () => {
+  const useScanProposalBtn = $("edUseScanProposal");
+  useScanProposalBtn.addEventListener("click", (ev) => {
+    if (!ev || ev.detail > 0) useScanProposalBtn.blur?.();
     if (!editorStillCurrent()) return;
     const proposal = typeof scanProposal === "function" ? scanProposal(e) : "";
     if (!proposal) return;
@@ -458,7 +477,9 @@ function openEditor(si, bi, ei, focus = false) {
     label.textContent = CHORD_REVIEW_LABELS[status];
   }
   for (const [id, status] of [["edMarkReviewed", "reviewed"], ["edDeferReview", "deferred"]]) {
-    $(id)?.addEventListener("click", () => {
+    const btn = $(id);
+    btn?.addEventListener("click", (ev) => {
+      if (!ev || ev.detail > 0) btn.blur?.();
       const entry = currentEntry();
       if (!entry || entry.chord === "%") return;
       if (chordEditorHasDraft()) {
@@ -509,6 +530,10 @@ function openEditor(si, bi, ei, focus = false) {
       $("edErr").textContent = "No printed voicing is available for this chord.";
       return false;
     }
+    if (usePrinted && (entry.voicing || "") === entry.voicing_printed) {
+      $("edErr").textContent = "Printed voicing is already applied. Press Space to review and advance.";
+      return false;
+    }
     if (!usePrinted) {
       const committed = typeof fb.commit === "function"
         ? fb.commit()
@@ -545,7 +570,11 @@ function openEditor(si, bi, ei, focus = false) {
     }
     return true;
   };
-  $("edApply").addEventListener("click", () => submitActiveChord());
+  const applyBtn = $("edApply");
+  applyBtn.addEventListener("click", (ev) => {
+    if (!ev || ev.detail > 0) applyBtn.blur?.();
+    submitActiveChord();
+  });
   $("edCancel").addEventListener("click", () => {
     if (!confirmChordDraftDiscard()) return;
     ed.classList.remove("open"); state.sel = null; renderBars();

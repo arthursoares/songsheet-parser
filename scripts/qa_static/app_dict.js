@@ -1,9 +1,20 @@
 // ---- Dictionary view ----
 // Per-song chord dictionary UI: grouped voicings (pure logic in
 // chord_dictionary.js), batch edit, and the multi-select merge flow.
+let dictMergeDraft = null;
+
+function pruneDictSelection(entries) {
+  const validKeys = new Set(entries.map((e) => e.key));
+  for (const key of state.dictSel) {
+    if (!validKeys.has(key)) state.dictSel.delete(key);
+  }
+  if (state.dictEdit && !validKeys.has(state.dictEdit)) state.dictEdit = null;
+}
+
 function renderDict() {
   const root = $("dict");
   const entries = window.ChordDictionary.buildDictionary(song()); // count desc by default
+  pruneDictSelection(entries);
   if (state.dictSort === "alpha") {
     entries.sort((a, b) =>
       a.chord.localeCompare(b.chord, undefined, { numeric: true, sensitivity: "base" })
@@ -23,6 +34,7 @@ function renderDict() {
 
   // merge bar (shown when 2+ selected). If dictMergeOpen, render the inline merge form.
   if (state.dictSel.size < 2) state.dictMergeOpen = false;
+  if (!state.dictMergeOpen) dictMergeDraft = null;
   const mergeBar = document.createElement("div");
   mergeBar.className = "dmergebar" + (state.dictSel.size >= 2 ? " show" : "");
   mergeBar.innerHTML = `<b>${state.dictSel.size} selected</b> — merge into one chord:
@@ -33,7 +45,7 @@ function renderDict() {
       <input type="text" id="dMergeVoicing" placeholder="voicing (comma form, blank = none)">
       <button class="apply" id="dMergeApply">Apply</button>
       <button id="dMergeCancel">Cancel</button>
-      <span class="err" id="dMergeErr"></span>
+      <span class="err" id="dMergeErr" role="alert"></span>
     </div>`;
   root.appendChild(mergeBar);
   if (state.dictSel.size >= 2) {
@@ -41,17 +53,52 @@ function renderDict() {
       .filter((e) => state.dictSel.has(e.key))
       .sort((a, b) => b.count - a.count)[0];
     const form = $("dMergeForm");
+    const syncMergeDraft = () => {
+      dictMergeDraft = {
+        name: $("dMergeName").value,
+        voicing: $("dMergeVoicing").value,
+        edited: true,
+      };
+      $("dMergeErr").textContent = "";
+    };
+    $("dMergeName").addEventListener("input", syncMergeDraft);
+    $("dMergeVoicing").addEventListener("input", syncMergeDraft);
     $("dMergeBtn").addEventListener("click", () => {
       state.dictMergeOpen = true;
       form.style.display = "flex";
-      if (largest) { $("dMergeName").value = largest.chord; $("dMergeVoicing").value = largest.voicing || ""; }
+      dictMergeDraft = {
+        name: largest ? largest.chord : "",
+        voicing: largest ? (largest.voicing || "") : "",
+        edited: false,
+      };
+      $("dMergeName").value = dictMergeDraft.name;
+      $("dMergeVoicing").value = dictMergeDraft.voicing;
+      $("dMergeErr").textContent = "";
     });
-    $("dClearSel").addEventListener("click", () => { state.dictSel.clear(); state.dictMergeOpen = false; renderDict(); });
-    $("dMergeCancel").addEventListener("click", () => { state.dictMergeOpen = false; form.style.display = "none"; });
+    $("dClearSel").addEventListener("click", () => {
+      state.dictSel.clear();
+      state.dictMergeOpen = false;
+      dictMergeDraft = null;
+      renderDict();
+    });
+    $("dMergeCancel").addEventListener("click", () => {
+      state.dictMergeOpen = false;
+      dictMergeDraft = null;
+      form.style.display = "none";
+      $("dMergeErr").textContent = "";
+    });
     $("dMergeApply").addEventListener("click", () => applyMerge());
     if (state.dictMergeOpen) {
       form.style.display = "flex";
-      if (largest) { $("dMergeName").value = largest.chord; $("dMergeVoicing").value = largest.voicing || ""; }
+      if (!dictMergeDraft || !dictMergeDraft.edited) {
+        dictMergeDraft = {
+          name: largest ? largest.chord : "",
+          voicing: largest ? (largest.voicing || "") : "",
+          edited: false,
+        };
+      }
+      $("dMergeName").value = dictMergeDraft.name;
+      $("dMergeVoicing").value = dictMergeDraft.voicing;
     }
   }
 
@@ -80,8 +127,10 @@ function renderDict() {
         ev.stopPropagation();
         pushUndo();
         window.ChordDictionary.applyEdit(song(), e.key, { voicing: e.printed });
+        state.dictSel.delete(e.key);
+        if (state.dictEdit === e.key) state.dictEdit = null;
         markDirty();
-        renderBars();
+        if (typeof renderBars === "function") renderBars();
         renderDict();
       });
     }
@@ -100,19 +149,22 @@ function renderDict() {
   });
 }
 
-// Apply the inline merge form: validate name, merge selected groups, re-render.
+// Apply the inline merge form: validate name and voicing, merge selected groups, re-render.
 function applyMerge() {
   const name = $("dMergeName").value.trim();
   const voicing = $("dMergeVoicing").value.trim();
   const v = window.ChordNaming.validateName(name);
   if (!v.valid && name !== "%") { $("dMergeErr").textContent = "Not a valid ChordMark chord: " + name; return; }
+  const vc = window.ChordDictionary.validateVoicing(voicing);
+  if (!vc.valid) { $("dMergeErr").textContent = vc.error; return; }
   pushUndo();
-  window.ChordDictionary.mergeEntries(song(), [...state.dictSel], { chord: name, voicing });
+  window.ChordDictionary.mergeEntries(song(), [...state.dictSel], { chord: name, voicing: vc.normalized });
   state.dictSel.clear();
   state.dictEdit = null;
   state.dictMergeOpen = false;
+  dictMergeDraft = null;
   markDirty();
-  renderBars();
+  if (typeof renderBars === "function") renderBars();
   renderDict();
 }
 
@@ -152,9 +204,10 @@ function buildDictEditor(entry) {
     const voicing = vc.every((f) => f === "x") ? "" : vc.join(",");
     pushUndo();
     window.ChordDictionary.applyEdit(song(), entry.key, { chord: name, voicing });
+    state.dictSel.delete(entry.key);
     state.dictEdit = null;
     markDirty();
-    renderBars();
+    if (typeof renderBars === "function") renderBars();
     renderDict();
   });
   wrap.querySelector(".cancel").addEventListener("click", () => { state.dictEdit = null; renderDict(); });

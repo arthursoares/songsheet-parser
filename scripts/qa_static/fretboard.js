@@ -70,9 +70,11 @@ function Fretboard(container, onChange) {
     // fret window controls
     const ctl = document.createElement("div");
     ctl.className = "fb-ctl";
-    ctl.innerHTML = `<button data-act="dn">−</button><span>fret ${start}</span><button data-act="up">+</button>`;
-    ctl.querySelector('[data-act=dn]').onclick = () => { if (start > 1) { start--; render(); } };
-    ctl.querySelector('[data-act=up]').onclick = () => { if (start < 24 - WINDOW + 1) { start++; render(); } };
+    ctl.innerHTML = `<button type="button" data-act="dn">−</button><span>fret ${start}</span><button type="button" data-act="up">+</button>`;
+    const dnBtn = ctl.querySelector('[data-act=dn]');
+    const upBtn = ctl.querySelector('[data-act=up]');
+    dnBtn.onclick = (ev) => { if (!ev || ev.detail > 0) dnBtn.blur?.(); if (start > 1) { start--; render(); } };
+    upBtn.onclick = (ev) => { if (!ev || ev.detail > 0) upBtn.blur?.(); if (start < 24 - WINDOW + 1) { start++; render(); } };
     container.appendChild(ctl);
 
     // DOM grid
