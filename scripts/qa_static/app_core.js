@@ -22,6 +22,7 @@ const esc = (s) =>
 function markDirty() {
   state.dirty = true;
   state.editVersion = (state.editVersion || 0) + 1;
+  if (typeof ReviewUI === "object") ReviewUI.documentChanged?.();
   const status = $("saveStatus");
   if (status) {
     status.textContent = "Unsaved changes";
@@ -33,6 +34,7 @@ function syncUndoRedoDirty() {
   if (typeof state.savedSnapshot === "string" && JSON.stringify(state.doc) === state.savedSnapshot) {
     state.dirty = false;
     state.editVersion = (state.editVersion || 0) + 1;
+    if (typeof ReviewUI === "object") ReviewUI.documentChanged?.();
     const status = $("saveStatus");
     if (status) {
       status.textContent = "";

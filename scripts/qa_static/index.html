@@ -99,6 +99,18 @@
   .review-state.verified{background:var(--ok-bg);color:var(--ok)}
   .review-state.stale,.review-state.invalid{background:var(--bad-bg);color:var(--bad)}
   .review-flags-title{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:7px}
+  .review-table time{display:block;margin-top:4px;color:var(--muted)}
+  .review-actions button,.rev-row button,.review-source-issues button{background:var(--field);color:var(--text);border:1px solid var(--border);border-radius:5px;padding:5px 7px;cursor:pointer}
+  .review-actions button{margin-bottom:4px}
+  .review-table-wrap{overflow-x:auto}
+  .review-table{min-width:570px}
+  .rev-row{flex-wrap:wrap;box-sizing:border-box;cursor:default}
+  #reviewDetails{margin-bottom:12px}
+  #reviewDetails>summary{cursor:pointer;margin-bottom:8px}
+  #verificationChordProgress{display:block;margin-bottom:12px}
+  #reviewDone{margin-bottom:12px}
+  #reviewBadge{margin-left:4px;color:var(--bad);font-size:11px}
+  #reviewDoneWarning{color:var(--bad);font-size:11px;max-width:280px;white-space:normal}
   /* Focused printed-fingering review */
   .chord-review{max-width:1120px;margin:0 auto;padding:6px 0 32px}
   .chord-workspace{min-width:0}
@@ -505,6 +517,7 @@
       <option value="done">✓ done</option>
     </select>
   </label>
+  <button id="reviewDoneWarning" class="tab" type="button" hidden></button>
   <span id="flagCount" class="muted"></span>
   <button id="songsToggle" class="tab" title="show/hide the song list (focus mode)">☰ songs</button>
   <button id="scanToggle" class="tab" title="show/hide the PDF scan pane (\)">⊞ scan</button>
@@ -594,7 +607,7 @@
     <div class="viewtabs">
       <button id="tabBars" class="tab active">Bars</button>
       <button id="tabLyrics" class="tab">Lyrics</button>
-      <button id="tabReview" class="tab">Verification</button>
+      <button id="tabReview" class="tab">Verification<span id="reviewBadge" hidden></span></button>
       <button id="tabDict" class="tab">Dictionary</button>
       <button id="tabHarmony" class="tab">Harmony</button>
       <button id="tabPreview" class="tab">Preview</button>
@@ -651,8 +664,15 @@
     </div>
     <div id="lyrics" class="hidden"></div>
     <div id="review" class="hidden">
-      <p id="verificationChordProgress" class="muted"></p>
+      <button id="verificationChordProgress" type="button" class="tab"></button>
       <div id="reviewSourceIssues" class="review-source-issues hidden"></div>
+      <div class="review-controls">
+        <label>Reviewer <input id="reviewReviewer" type="text" autocomplete="name"></label>
+        <label>Default evidence note <input id="reviewDefaultEvidence" type="text" placeholder="Checked against book scan"></label>
+      </div>
+      <button id="reviewDone" type="button" class="btn-primary" hidden>All fields verified — Mark song done &amp; Save</button>
+      <details id="reviewDetails">
+      <summary>Custom status and evidence</summary>
       <div class="review-controls">
         <label>Field
           <select id="reviewField">
@@ -671,16 +691,18 @@
             <option value="verified">Verified</option>
           </select>
         </label>
-        <label class="review-wide">Reviewer <input id="reviewReviewer" type="text" autocomplete="name"></label>
         <label class="review-wide">Evidence <textarea id="reviewEvidence" placeholder="What was checked, and against which source?"></textarea></label>
         <button id="reviewRecord" class="btn-primary">Record review</button>
       </div>
+      </details>
       <div id="reviewMsg" class="review-message"></div>
+      <div class="review-table-wrap">
       <table class="review-table">
-        <thead><tr><th>Field</th><th>Status</th><th>Reviewer</th><th>Evidence</th></tr></thead>
+        <thead><tr><th>Field</th><th>Status</th><th>Reviewer &amp; time</th><th>Evidence</th><th>Actions</th></tr></thead>
         <tbody id="reviewStatusBody"></tbody>
       </table>
-      <div class="review-flags-title">Flagged chords</div>
+      </div>
+      <div id="reviewFlagsTitle" class="review-flags-title">Flagged chords (0)</div>
       <div id="reviewFlags"></div>
     </div>
     <div id="dict" class="hidden"></div>
