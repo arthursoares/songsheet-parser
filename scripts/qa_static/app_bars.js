@@ -51,15 +51,21 @@ function renderBars() {
     // commit label on blur or Enter (one undo per logical rename)
     let labStart = sec.label || "";
     labInput.addEventListener("focus", () => { labStart = labInput.value; });
-    const commitLabel = () => {
+    const commitLabel = (opts = {}) => {
       const next = labInput.value;
-      if (next === labStart) return;
+      if (next === labStart) return true;
       pushUndo();
       sec.label = next === "" ? null : next;
       labStart = next;
       markDirty();
-      renderSongList();
+      if (opts?.deferRender) {
+        opts.onCommit?.();
+      } else {
+        renderSongList();
+      }
+      return true;
     };
+    labInput._commitOnSave = commitLabel;
     labInput.addEventListener("blur", commitLabel);
     labInput.addEventListener("keydown", (ev) => {
       if (ev.key === "Enter") { ev.preventDefault(); labInput.blur(); }
@@ -225,6 +231,7 @@ function addBarBefore(si, bi) {
 }
 
 function deleteBar(si, bi) {
+  if (!confirmChordDraftDiscard()) return;
   if (!confirm(`Delete bar ${bi + 1}?`)) return;
   pushUndo();
   window.DocOps.deleteBar(song(), si, bi);
@@ -242,18 +249,21 @@ function splitBar(si, bi, beforeEntry) {
 
 function mergeBarWithNext(si, bi) {
   if (!window.DocOps.canMergeBarWithNext(song(), si, bi)) return;
+  if (!confirmChordDraftDiscard()) return;
   pushUndo();
   window.DocOps.mergeBarWithNext(song(), si, bi);
   afterStructuralEdit();
 }
 
 function addSectionAfter(si) {
+  if (!confirmChordDraftDiscard()) return;
   pushUndo();
   window.DocOps.addSectionAfter(song(), si);
   afterStructuralEdit();
 }
 
 function deleteSection(si) {
+  if (!confirmChordDraftDiscard()) return;
   const sec = song().sections[si];
   const name = (sec && sec.label) || `Section ${si + 1}`;
   if (!confirm(`Delete "${name}" and all its bars?`)) return;
@@ -266,6 +276,7 @@ let chordEditorHasDraft = () => false;
 // Bars keyboard shortcuts call this rather than navigating away from a draft.
 // openEditor replaces it for the currently visible editor instance.
 let submitActiveChord = () => false;
+let syncChordEditorUneditedText = () => {};
 // The scan request may finish after the editor opens. app_scan.js invokes this
 // hook when its guarded lookup receives the current song's locations.
 let syncActiveChordProposal = () => false;
@@ -292,7 +303,9 @@ function renderChordSuggestions(container, voicing, apply) {
 
 function openEditor(si, bi, ei, focus = false) {
   state.sel = { si, bi, ei };
-  const e = song().sections[si].bars[bi][ei];
+  const currentEntry = () => (state.doc && song()?.sections?.[si]?.bars?.[bi]?.[ei]) || null;
+  const e = currentEntry();
+  if (!e) return;
   const ed = $("editor");
   ed.classList.add("open");
   const barLength = song().sections[si].bars[bi].length;
@@ -343,15 +356,33 @@ function openEditor(si, bi, ei, focus = false) {
   let curVoicing = e.voicing ? parseVoicing(e.voicing) : ["x", "x", "x", "x", "x", "x"];
   const fb = window.Fretboard($("edFb"), (v) => {
     curVoicing = v;
+    $("edErr").textContent = "";
     refreshNaming();
   });
   fb.set(curVoicing);
+  let baselineText = e.text || "";
+  syncChordEditorUneditedText = () => {
+    if (!ed.classList.contains("open")) return;
+    const entry = currentEntry();
+    const edTextEl = $("edText");
+    if (!entry || !edTextEl) return;
+    if (edTextEl.value.trim() === baselineText.trim()) {
+      edTextEl.value = entry.text || "";
+      baselineText = entry.text || "";
+    }
+  };
   chordEditorHasDraft = () => {
     if (!ed.classList.contains("open")) return false;
+    const entry = currentEntry();
+    if (!entry) return false;
+    if ((typeof fb.isValid === "function" && !fb.isValid()) ||
+        (typeof fb.hasUncommittedText === "function" && fb.hasUncommittedText())) {
+      return true;
+    }
     const strings = fb.get();
     const voicing = strings.every((f) => f === "x") ? "" : strings.join(",");
-    return $("edName").value.trim() !== e.chord ||
-      $("edText").value.trim() !== (e.text || "") || voicing !== (e.voicing || "");
+    return $("edName").value.trim() !== entry.chord ||
+      $("edText").value.trim() !== (entry.text || "") || voicing !== (entry.voicing || "");
   };
   const splitAt = (boundary) => {
     if (chordEditorHasDraft()) {
@@ -368,7 +399,9 @@ function openEditor(si, bi, ei, focus = false) {
   const usePrint = $("edUsePrint");
   if (usePrint) {
     usePrint.addEventListener("click", () => {
-      curVoicing = parseVoicing(e.voicing_printed);
+      const entry = currentEntry();
+      if (!entry || !entry.voicing_printed) return;
+      curVoicing = parseVoicing(entry.voicing_printed);
       fb.set(curVoicing);
       refreshNaming();
     });
@@ -406,7 +439,11 @@ function openEditor(si, bi, ei, focus = false) {
   // even though the global Esc handler also closes the editor).
   $("edName").addEventListener("keydown", (ev) => {
     if (ev.key === "Enter") { ev.preventDefault(); $("edApply").click(); }
-    else if (ev.key === "Escape") { ev.preventDefault(); $("edCancel").click(); }
+    else if (ev.key === "Escape") {
+      ev.preventDefault();
+      ev.stopPropagation?.();
+      $("edCancel").click();
+    }
   });
   $("edText").addEventListener("keydown", (ev) => {
     if (ev.key === "Enter") { ev.preventDefault(); $("edApply").click(); }
@@ -414,21 +451,23 @@ function openEditor(si, bi, ei, focus = false) {
 
   function updateEditorReviewStatus() {
     const label = $("edReviewStatus");
-    if (!label) return;
-    const status = chordReviewStatus(e);
+    const entry = currentEntry();
+    if (!label || !entry) return;
+    const status = chordReviewStatus(entry);
     label.dataset.reviewStatus = status;
     label.textContent = CHORD_REVIEW_LABELS[status];
   }
   for (const [id, status] of [["edMarkReviewed", "reviewed"], ["edDeferReview", "deferred"]]) {
     $(id)?.addEventListener("click", () => {
-      if (e.chord === "%") return;
+      const entry = currentEntry();
+      if (!entry || entry.chord === "%") return;
       if (chordEditorHasDraft()) {
         $("edReviewStatus").textContent = "Apply chord edits before recording review.";
         return;
       }
-      if (chordReviewStatus(e) === status) return;
+      if (chordReviewStatus(entry) === status) return;
       pushUndo();
-      setChordReviewStatus(e, status);
+      setChordReviewStatus(entry, status);
       markDirty();
       renderBars();
       updateEditorReviewStatus();
@@ -458,28 +497,42 @@ function openEditor(si, bi, ei, focus = false) {
     const selected = state.sel;
     if (!ed.classList.contains("open") || state.activeView !== "bars" ||
         !selected || selected.si !== si || selected.bi !== bi || selected.ei !== ei) return false;
+    const entry = currentEntry();
+    if (!entry) return false;
     const name = $("edName").value.trim();
     const v = window.ChordNaming.validateName(name);
     if (!v.valid && name !== "%") {
       $("edErr").textContent = "Not a valid ChordMark chord: " + name;
       return false;
     }
-    if (usePrinted && !e.voicing_printed) {
+    if (usePrinted && !entry.voicing_printed) {
       $("edErr").textContent = "No printed voicing is available for this chord.";
       return false;
     }
+    if (!usePrinted) {
+      const committed = typeof fb.commit === "function"
+        ? fb.commit()
+        : (typeof fb.isValid !== "function" || fb.isValid());
+      if (!committed || (typeof fb.isValid === "function" && !fb.isValid())) {
+        const fbErr = typeof fb.getError === "function" ? fb.getError() : "";
+        $("edErr").textContent = fbErr ? "Invalid voicing: " + fbErr : "Invalid voicing.";
+        fb.focusText?.();
+        return false;
+      }
+    }
     pushUndo();
-    e.chord = name;
+    entry.chord = name;
     const text = $("edText").value.trim();
-    if (text) e.text = text; else delete e.text;
-    if (usePrinted) e.voicing = e.voicing_printed;
+    if (text) entry.text = text; else delete entry.text;
+    baselineText = entry.text || "";
+    if (usePrinted) entry.voicing = entry.voicing_printed;
     else {
       const vc = fb.get();
-      if (vc.every((f) => f === "x")) delete e.voicing;
-      else e.voicing = vc.join(",");
+      if (vc.every((f) => f === "x")) delete entry.voicing;
+      else entry.voicing = vc.join(",");
     }
-    if (name === "%") delete e.chord_review;
-    else setChordReviewStatus(e, "reviewed");
+    if (name === "%") delete entry.chord_review;
+    else setChordReviewStatus(entry, "reviewed");
     markDirty();
     renderBars();
     $("edErr").textContent = "";
@@ -494,6 +547,7 @@ function openEditor(si, bi, ei, focus = false) {
   };
   $("edApply").addEventListener("click", () => submitActiveChord());
   $("edCancel").addEventListener("click", () => {
+    if (!confirmChordDraftDiscard()) return;
     ed.classList.remove("open"); state.sel = null; renderBars();
   });
   syncChordChip(state.sel, focus);

@@ -116,6 +116,7 @@ function updateProgress() {
 
 // If there are unsaved edits, confirm before switching away. Returns true to proceed.
 function confirmDiscard() {
+  if (typeof confirmChordDraftDiscard === "function" && !confirmChordDraftDiscard()) return false;
   if (!state.dirty) return true;
   return confirm("Discard unsaved changes?");
 }
@@ -138,6 +139,7 @@ function showEmpty() {
   state.sel = null;
   state.flags = [];
   state.dirty = false;
+  state.savedSnapshot = null;
   state.editVersion = 0;
   syncSaveAvailability();
   undoStack = [];
@@ -149,6 +151,7 @@ function showEmpty() {
   renderProvenance();
   syncCurrentSongTitle();
   renderSongList();
+  if (typeof resetReviewInputs === "function") resetReviewInputs();
   showView("bars");
   if (typeof updateChordReviewEntryPoint === "function") updateChordReviewEntryPoint();
 }
@@ -162,6 +165,7 @@ function clearSongForLoad(message, view = "bars") {
   state.sel = null;
   state.flags = [];
   state.dirty = false;
+  state.savedSnapshot = null;
   state.editVersion = 0;
   syncSaveAvailability();
   undoStack = [];
@@ -173,6 +177,7 @@ function clearSongForLoad(message, view = "bars") {
   renderProvenance();
   syncCurrentSongTitle();
   renderSongList();
+  if (typeof resetReviewInputs === "function") resetReviewInputs();
   showView(view);
 }
 
@@ -211,6 +216,7 @@ async function loadSong({ view = "bars" } = {}) {
   state.songRevision = loaded[Symbol.for("songsheetRevision")] || null;
   state.sel = null;
   state.dirty = false;
+  state.savedSnapshot = JSON.stringify(loaded);
   state.editVersion = 0;
   syncSaveAvailability();
   rememberSong(album, file);
@@ -224,6 +230,7 @@ async function loadSong({ view = "bars" } = {}) {
   renderPages();
   renderBars();
   renderSongList();
+  if (typeof resetReviewInputs === "function") resetReviewInputs();
   showView(view);
   $("editor").classList.remove("open");
   if (typeof updateChordReviewEntryPoint === "function") updateChordReviewEntryPoint();
@@ -271,6 +278,10 @@ async function saveOnce() {
       state.songRevision = res.revision;
     }
     const sameDocument = state.doc === submittedDoc;
+    if (submittedGeneration === loadGeneration && state.doc &&
+        state.album === submittedAlbum && state.file === submittedFile) {
+      state.savedSnapshot = submittedJson;
+    }
     const unchanged = sameDocument &&
       (state.editVersion || 0) === submittedEditVersion &&
       JSON.stringify(state.doc) === submittedJson;
@@ -317,8 +328,9 @@ async function saveOnce() {
 function shapeWritesReady(files) {
   const affectsCurrent = !files?.length ||
     files.some(({ album, file }) => album === state.album && file === state.file);
+  const hasDraft = typeof chordEditorHasDraft === "function" && chordEditorHasDraft();
   return !loadingSong && !savePromise &&
-    (!affectsCurrent || (!state.dirty && !chordEditorHasDraft()));
+    (!affectsCurrent || (!state.dirty && !hasDraft));
 }
 
 async function refreshAfterShapeWrite(files) {
@@ -335,7 +347,7 @@ async function openShapeOccurrence(item) {
   const sameSong = item.album === state.album && item.file === state.file;
   const current = sameSong && state.doc && state.songRevision === item.document_sha256;
   if (!current) {
-    if (!confirmChordDraftDiscard() || !confirmDiscard()) return false;
+    if (!confirmDiscard()) return false;
     if (!albums.some((album) => album.album === item.album &&
         album.songs.some((record) => record.file === item.file))) {
       throw new Error("The song is no longer in the library. Refresh Shapes.");
@@ -359,9 +371,96 @@ async function openShapeOccurrence(item) {
   if (localStorage.getItem("qaHidePages") === "1") toggleLayoutPane("pages");
 }
 
+function hasClass(el, name) {
+  if (!el) return false;
+  const cl = el.classList;
+  if (cl && typeof cl.contains === "function") return cl.contains(name);
+  const cls = typeof el.className === "string" ? el.className.split(/\s+/) : [];
+  return cls.includes(name);
+}
+
+function isFretboardTextInput(el) {
+  return hasClass(el, "fb-text");
+}
+
+function isBlurCommittedInput(el) {
+  if (!el) return false;
+  if (el.id === "songNote") return true;
+  return hasClass(el, "seclabel") || hasClass(el, "ly-line-edit") || hasClass(el, "ly-edit");
+}
+
+function flushBlurCommittedInputs() {
+  if (typeof document === "undefined") return true;
+  const active = document.activeElement;
+  const candidates = [];
+  const seen = new Set();
+  const addCandidate = (el) => {
+    if (!el || seen.has(el) || isFretboardTextInput(el)) return;
+    seen.add(el);
+    candidates.push(el);
+  };
+  addCandidate(active);
+  if (typeof document.querySelectorAll === "function") {
+    for (const el of document.querySelectorAll(".ly-line-edit, .ly-edit, .seclabel")) {
+      addCandidate(el);
+    }
+  }
+  for (const el of candidates) {
+    if (typeof el._validateOnSave === "function" && el._validateOnSave() === false) {
+      return false;
+    }
+  }
+  let needsRender = false;
+  const onCommit = () => { needsRender = true; };
+  const flushDeferredRender = () => {
+    if (!needsRender) return;
+    if (typeof syncChordEditorUneditedText === "function") syncChordEditorUneditedText();
+    if (typeof renderSongList === "function") renderSongList();
+    if (typeof renderBars === "function") renderBars();
+    if (typeof renderLyrics === "function") renderLyrics();
+    if (typeof state === "object" && state && state.activeView === "preview" &&
+        typeof renderPreview === "function") {
+      renderPreview();
+    }
+  };
+  for (const el of candidates) {
+    if (typeof el._commitOnSave === "function") {
+      if (el._commitOnSave({ deferRender: true, onCommit, skipChordDraftDiscard: true }) === false) {
+        flushDeferredRender();
+        return false;
+      }
+    } else if (el === active && isBlurCommittedInput(el) &&
+        typeof el._validateOnSave !== "function" && typeof el.blur === "function") {
+      el.blur();
+    }
+  }
+  flushDeferredRender();
+  return true;
+}
+
+function saveBlocked(message) {
+  const status = $("saveStatus");
+  if (status) {
+    status.textContent = message;
+    status.style.color = "var(--bad)";
+  }
+  syncSaveAvailability();
+  return Promise.resolve({ ok: false, blocked: true, error: message });
+}
+
 function save() {
   if (!state.doc) return Promise.resolve();
   if (savePromise) return savePromise;
+  if (!flushBlurCommittedInputs()) {
+    return saveBlocked((state.dirty ? "Unsaved changes · " : "") + "fix invalid input before saving");
+  }
+  if (typeof chordEditorHasDraft === "function" && chordEditorHasDraft()) {
+    if (state.activeView !== "bars" && typeof showView === "function") showView("bars");
+    const applied = typeof submitActiveChord === "function" && submitActiveChord();
+    if (!applied) {
+      return saveBlocked((state.dirty ? "Unsaved changes · " : "") + "fix or apply chord edits before saving");
+    }
+  }
   const button = $("saveBtn");
   if (button) button.disabled = true;
   savePromise = saveOnce().finally(() => {
@@ -372,5 +471,5 @@ function save() {
 }
 
 if (typeof module === "object" && module.exports) {
-  module.exports = { fillSongs, loadSong, renderSongList, save };
+  module.exports = { confirmDiscard, fillSongs, loadSong, renderSongList, save };
 }
