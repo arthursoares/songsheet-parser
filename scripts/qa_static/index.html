@@ -39,7 +39,7 @@
   .layout.no-pages.no-songs{--layout-columns:minmax(0,1fr)}
   .col{overflow:auto;padding:14px;min-width:0}
   .col.right{container-type:inline-size}
-  .col.left{border-right:1px solid var(--border);background:var(--bg-deep)}
+  .col.left{display:flex;flex-direction:column;overflow:hidden;border-right:1px solid var(--border);background:var(--bg-deep)}
   /* Songs sidebar */
   .col.songs{border-right:1px solid var(--border);background:var(--bg-deep);padding:10px}
   .songs-tools{display:flex;flex-direction:column;gap:6px;margin-bottom:8px;position:sticky;top:-10px;background:var(--bg-deep);padding-top:4px;z-index:1}
