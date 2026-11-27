@@ -51,7 +51,7 @@ function renderLyrics() {
   bar.className = "ly-modebar";
   const mode = lyMode();
   bar.innerHTML = [["Flow", "flow"], ["Arrange", "grid"], ["Text", "text"]].map(([label, name]) =>
-    `<button class="tab ${mode === name ? "active" : ""}" aria-pressed="${mode === name}" data-mode="${name}">${label}</button>`
+    `<button type="button" class="tab ${mode === name ? "active" : ""}" aria-pressed="${mode === name}" data-mode="${name}">${label}</button>`
   ).join("");
   bar.querySelectorAll("[data-mode]").forEach((b) =>
     b.addEventListener("click", () => {
@@ -104,6 +104,7 @@ function renderLyricsText(root) {
 
       const input = document.createElement("input");
       input.className = "ly-line-edit";
+      input.setAttribute("aria-label", `Lyrics, section ${si + 1}, starting bar ${b0 + 1}`);
       input.value = window.DocOps.buildLyricLine(entries);
       const key = `${si}:${b0}`;
       input.spellcheck = false;
@@ -134,6 +135,7 @@ function renderLyricsText(root) {
       for (const event of ["input", "click", "keyup", "focus", "scroll"]) input.addEventListener(event, refresh);
       const errEl = document.createElement("div");
       errEl.className = "ly-line-err";
+      errEl.setAttribute("role", "alert");
       const prevRef = prevEntry; // entry preceding this row, frozen at render
       let cancelled = false;
       let committing = false;

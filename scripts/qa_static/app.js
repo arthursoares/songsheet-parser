@@ -8,6 +8,7 @@
 //   app_views.js   tab switching, Review, Preview + exports, JSON (CodeMirror)
 //   app_dict.js    Dictionary view (chord_dictionary.js logic)
 async function init() {
+  if (typeof wireAccessibility === "function") wireAccessibility();
   albums = await api("/api/albums");
   const albumSel = $("albumSel");
   albumSel.innerHTML = albums.map((a) => `<option>${esc(a.album)}</option>`).join("");
@@ -126,6 +127,7 @@ async function init() {
     window.ChordNaming.setSpelling(next);
     spellBtn.textContent = next === "flat" ? "♭/♯" : "♯/♭";
     spellBtn.title = `Note spelling: ${next} (click to switch)`;
+    spellBtn.setAttribute("aria-pressed", String(next === "flat"));
     renderBars();
     if (state.activeView === "dict") renderDict();
     if (state.activeView === "harmony" && typeof renderHarmony === "function") renderHarmony();
@@ -219,6 +221,8 @@ function applyLayoutToggles() {
   layout.classList.toggle("no-songs", noSongs);
   $("scanToggle").classList.toggle("active", !noPages);
   $("songsToggle").classList.toggle("active", !noSongs);
+  $("scanToggle").setAttribute("aria-pressed", String(!noPages));
+  $("songsToggle").setAttribute("aria-pressed", String(!noSongs));
   $("songsToggle").disabled = reviewing;
 }
 
@@ -231,7 +235,11 @@ function toggleLayoutPane(which) {
 
 function showShortcutDialog() {
   const dialog = $("shortcutDialog");
-  if (!dialog.open) dialog.showModal();
+  if (!dialog.open) {
+    const opener = document.activeElement;
+    dialog.addEventListener("close", () => opener?.focus?.(), { once: true });
+    dialog.showModal();
+  }
 }
 
 let keyboardFocus = false;

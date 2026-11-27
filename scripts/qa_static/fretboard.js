@@ -101,6 +101,7 @@ function Fretboard(container, onChange, { showIntervals = true } = {}) {
   textEl.type = "text";
   textEl.setAttribute("aria-label", "Fingering, six comma-separated string values");
   const errEl = element("div", "fb-err", container);
+  errEl.setAttribute("role", "alert");
   const readout = element("div", "fb-readout", container);
   const notesEl = element("div", "fb-notes", readout);
   const play = button(readout, "fb-play", "▶", async () => {

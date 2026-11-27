@@ -11,6 +11,7 @@
 <link rel="stylesheet" href="qa_tokens.css">
 <link rel="stylesheet" href="qa_shapes.css">
 <link rel="stylesheet" href="qa_base.css">
+<link rel="stylesheet" href="qa_accessibility.css">
 </head>
 <body>
 <header>
@@ -55,7 +56,7 @@
   <form method="dialog">
     <div class="shortcut-dialog-head">
       <h2 id="shortcutDialogTitle">Keyboard shortcuts</h2>
-      <button class="shortcut-dialog-close" value="close">Close</button>
+      <button type="submit" class="shortcut-dialog-close" value="close">Close</button>
     </div>
     <div class="shortcut-groups">
       <section class="shortcut-group">
@@ -129,13 +130,13 @@
   <div class="col left" id="pages"></div>
   <div class="col right">
     <div class="viewtabs">
-      <button id="tabBars" class="tab active">Bars</button>
-      <button id="tabLyrics" class="tab">Lyrics</button>
-      <button id="tabReview" class="tab">Verification<span id="reviewBadge" hidden></span></button>
-      <button id="tabDict" class="tab">Dictionary</button>
-      <button id="tabHarmony" class="tab">Harmony</button>
-      <button id="tabPreview" class="tab">Preview</button>
-      <button id="tabJson" class="tab">JSON</button>
+      <button type="button" id="tabBars" class="tab active">Bars</button>
+      <button type="button" id="tabLyrics" class="tab">Lyrics</button>
+      <button type="button" id="tabReview" class="tab">Verification<span id="reviewBadge" hidden></span></button>
+      <button type="button" id="tabDict" class="tab">Dictionary</button>
+      <button type="button" id="tabHarmony" class="tab">Harmony</button>
+      <button type="button" id="tabPreview" class="tab">Preview</button>
+      <button type="button" id="tabJson" class="tab">JSON</button>
     </div>
     <div class="chord-workspace">
       <div id="bars"></div>
@@ -216,7 +217,7 @@
           </select>
         </label>
         <label class="review-wide">Evidence <textarea id="reviewEvidence" placeholder="What was checked, and against which source?"></textarea></label>
-        <button id="reviewRecord" class="btn-primary">Record review</button>
+        <button type="button" id="reviewRecord" class="btn-primary">Record review</button>
       </div>
       </details>
       <div id="reviewMsg" class="review-message"></div>
@@ -290,20 +291,20 @@
         </label>
         <label><input type="checkbox" id="pvSource"> source</label>
         <span class="spacer"></span>
-        <button id="pvExportPdf" class="tab">Print / Save PDF</button>
+        <button type="button" id="pvExportPdf" class="tab">Print / Save PDF</button>
         <details class="pv-exports"><summary>Export ▾</summary><div class="pv-export-menu">
-          <button id="pvExportPng" class="tab">PNG</button>
-          <button id="pvExportHtml" class="tab">HTML</button>
-          <button id="pvExportChordmark" class="tab">.chordmark</button>
-          <button id="pvExportChordpro" class="tab">ChordPro</button>
+          <button type="button" id="pvExportPng" class="tab">PNG</button>
+          <button type="button" id="pvExportHtml" class="tab">HTML</button>
+          <button type="button" id="pvExportChordmark" class="tab">.chordmark</button>
+          <button type="button" id="pvExportChordpro" class="tab">ChordPro</button>
         </div></details>
-        <button id="pvExportAlbum" class="tab" title="Prints saved files as a Lead Sheet songbook; unsaved edits and the selected song style are not included.">Album PDF (saved files)</button>
+        <button type="button" id="pvExportAlbum" class="tab" title="Prints saved files as a Lead Sheet songbook; unsaved edits and the selected song style are not included.">Album PDF (saved files)</button>
         <span id="pvExportMsg" class="muted" role="status"></span>
-        <button id="pvDismissMsg" class="tab" hidden aria-label="Dismiss export message">Dismiss</button>
+        <button type="button" id="pvDismissMsg" class="tab" hidden aria-label="Dismiss export message">Dismiss</button>
         <span id="pvPreviewMsg" class="muted" role="status"></span>
       </div>
       <div id="pvSourceBar" class="cmctl hidden">
-        <button id="cmCopy" class="btn-primary">Copy ChordMark</button>
+        <button type="button" id="cmCopy" class="btn-primary">Copy ChordMark</button>
         <span id="cmCopyMsg" class="muted"></span>
         <span class="muted">generated source of the CURRENT (unsaved) edits</span>
       </div>
@@ -314,9 +315,9 @@
     </div>
     <div id="json" class="hidden">
       <div class="row">
-        <button id="jsonApply" class="btn-primary" title="Apply JSON edits to model (⌘Enter / Ctrl+Enter)">Apply to model</button>
-        <button id="jsonReload" class="tab">Reload from model</button>
-        <button id="jsonFormat" class="tab">Format</button>
+        <button type="button" id="jsonApply" class="btn-primary" title="Apply JSON edits to model (⌘Enter / Ctrl+Enter)">Apply to model</button>
+        <button type="button" id="jsonReload" class="tab">Reload from model</button>
+        <button type="button" id="jsonFormat" class="tab">Format</button>
         <span id="jsonDirtyBadge" class="json-dirty-badge hidden" role="status" aria-live="polite" hidden>Unapplied JSON edits</span>
         <span id="jsonMsg" class="muted"></span>
       </div>
@@ -353,6 +354,7 @@
 <script src="app_review.js"></script>
 <script src="app_dict.js"></script>
 <script src="app_shapes.js"></script>
+<script src="app_accessibility.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

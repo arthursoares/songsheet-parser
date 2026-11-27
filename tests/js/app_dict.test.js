@@ -24,6 +24,7 @@ function createDictHarness({ initialDoc } = {}) {
       dataset: {},
       setAttribute(name, value) { this[name] = value; },
       focus() {},
+      contains(node) { return this === node || children.some((child) => child.contains(node)); },
       children,
       _bySelector: new Map(),
       addEventListener(type, fn) {
@@ -81,7 +82,7 @@ function createDictHarness({ initialDoc } = {}) {
         }
         if (this.className === "dedit") {
           const nameInput = makeElement("input");
-          nameInput.value = val.match(/class="dName" value="([^"]*)"/)?.[1] || "";
+          nameInput.value = val.match(/class="dName"[^>]* value="([^"]*)"/)?.[1] || "";
           const errEl = makeElement("div");
           const applyBtn = makeElement("button");
           const cancelBtn = makeElement("button");
@@ -345,7 +346,7 @@ test("dictionary filters, search and occurrence chips expose the affected entrie
     .children.find((node) => node.textContent === label).click();
   filter("Duplicate names");
   assert.equal(app.rows().length, 2);
-  assert.ok(app.rows().every((row) => row.innerHTML.includes('class="dnm">C</span>')));
+  assert.ok(app.rows().every((row) => /class="dexpand dnm"[^>]*>C<\/button>/.test(row.innerHTML)));
   filter("Mismatches");
   assert.equal(app.rows().length, 1);
   assert.match(app.rows()[0].innerHTML, /G7/);

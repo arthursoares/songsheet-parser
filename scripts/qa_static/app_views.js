@@ -50,7 +50,8 @@ function showView(which) {
   ]) {
     const tab = $(`tab${label}`);
     tab.classList.toggle("active", which === view);
-    tab.setAttribute("aria-pressed", String(which === view));
+    tab.setAttribute("aria-selected", String(which === view || (reviewing && view === "bars")));
+    tab.tabIndex = which === view || (reviewing && view === "bars") ? 0 : -1;
     tab.disabled = !state.doc && view !== "bars";
   }
   if (typeof updateChordReviewEntryPoint === "function") updateChordReviewEntryPoint();
@@ -241,6 +242,11 @@ function wireJsonMsgJump() {
   if (!el || typeof el.addEventListener !== "function") return;
   jsonMsgWired = true;
   el.addEventListener("click", jumpToJsonError);
+  el.addEventListener("keydown", (event) => {
+    if (!jsonLastErrPos || !["Enter", " "].includes(event.key)) return;
+    event.preventDefault();
+    jumpToJsonError();
+  });
 }
 
 // Lazily build the CodeMirror instance over #jsonEditor.
@@ -248,6 +254,7 @@ function ensureJsonCM() {
   if (jsonCM || typeof CodeMirror === "undefined") return jsonCM;
   CodeMirror.registerHelper("lint", "json", jsonLinter);
   jsonCM = CodeMirror($("jsonEditor"), {
+    screenReaderLabel: "Song JSON editor",
     value: "",
     mode: { name: "javascript", json: true },
     theme: "material-darker",
@@ -368,6 +375,8 @@ function jsonMsg(text, cls) {
   el.textContent = text;
   el.className = (cls || "muted") + (jumpable ? " jumpable" : "");
   el.title = jumpable ? "Click to jump to error" : "";
+  el.setAttribute("role", jumpable ? "button" : "status");
+  el.tabIndex = jumpable ? 0 : -1;
 }
 
 // Reload: repopulate from state.doc, confirming if unapplied edits exist.
