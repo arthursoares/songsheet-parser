@@ -15,6 +15,7 @@ function showView(which) {
   }
   const wasChordReview = state.activeView === "chordReview";
   const wasShapes = state.activeView === "shapes";
+  if (which === "shapes" && !wasShapes) state.lastSongView = state.activeView;
   const shapes = which === "shapes";
   const reviewing = which === "chordReview";
   if (state.activeView === "lyrics" && which !== "lyrics" &&
@@ -616,17 +617,67 @@ function copyChordmark() {
 // When the Source toggle is on, also fetch the generated .chordmark source text.
 let previewRequest = 0;
 let previewSnapshot = null;
+let previewLoaded = false;
+let previewExportPending = false;
+let previewSourceRequest = 0;
 const PREVIEW_EXPORTS = {
   pvExportHtml: "html", pvExportChordmark: "chordmark",
-  pvExportChordpro: "chordpro", cmDownload: "chordmark",
+  pvExportChordpro: "chordpro",
 };
 
-function setPreviewSnapshot(snapshot) {
+function setPreviewSnapshot(snapshot, loaded = false) {
   previewSnapshot = snapshot;
+  previewLoaded = loaded;
+  syncPreviewExportControls();
+}
+
+function syncPreviewExportControls() {
   [...Object.keys(PREVIEW_EXPORTS), "pvExportPdf", "pvExportPng"].forEach((id) => {
     const button = $(id);
-    if (button) button.disabled = !snapshot;
+    const needsFrame = id === "pvExportPdf" || id === "pvExportPng";
+    if (button) button.disabled = previewExportPending || !previewSnapshot || (needsFrame && !previewLoaded);
   });
+  if ($("pvExportAlbum")) $("pvExportAlbum").disabled = previewExportPending || !state.album;
+}
+
+function previewMessage(text, error = false) {
+  const message = $("pvPreviewMsg");
+  message.textContent = text;
+  if (message.dataset) message.dataset.kind = error ? "error" : "info";
+  message.setAttribute?.("role", error ? "alert" : "status");
+}
+
+async function togglePreviewSource() {
+  const show = $("pvSource").checked;
+  $("cmSource").classList.toggle("hidden", !show);
+  $("pvSourceBar").classList.toggle("hidden", !show);
+  const request = ++previewSourceRequest;
+  const snapshot = previewSnapshot;
+  if (!show || !snapshot) return;
+  const ta = $("cmSource"), copy = $("cmCopy");
+  if ($("pvPreviewMsg").dataset?.kind === "error") previewMessage("");
+  if (snapshot.source !== undefined) {
+    ta.value = snapshot.source;
+    if (copy) copy.disabled = false;
+    return;
+  }
+  ta.value = "Generating source…";
+  if (copy) copy.disabled = true;
+  try {
+    const response = await fetch(`/api/chordmark-doc?bars=${snapshot.bars}`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: snapshot.docBody,
+    });
+    const source = await response.text();
+    if (request !== previewSourceRequest || snapshot !== previewSnapshot) return;
+    if (!response.ok) throw new Error(source);
+    snapshot.source = source;
+    ta.value = source;
+    if (copy) copy.disabled = false;
+  } catch (error) {
+    if (request !== previewSourceRequest || snapshot !== previewSnapshot) return;
+    ta.value = "";
+    previewMessage(`Could not build ChordMark: ${error.message}`, true);
+  }
 }
 
 async function renderPreview() {
@@ -644,23 +695,19 @@ async function renderPreview() {
     state.album === album && state.file === file && state.doc === doc;
   setPreviewSnapshot(null);
   const frame = $("previewFrame");
-  frame.srcdoc = "";
-  const message = $("pvPreviewMsg");
-  message.textContent = "Rendering…";
+  if (frame.style) frame.style.opacity = "0.55";
+  previewMessage("Rendering…");
   const style = $("pvStyle").value;
   const dictionary = $("pvDict");
   const dict = dictionary.value;
   const diagrams = $("pvDiagrams").value;
   dictionary.disabled = style === "fork" || diagrams === "inline";
+  dictionary.title = style === "fork" ? "Dictionary grouping is available in Lead Sheet style." :
+    diagrams === "inline" ? "Dictionary grouping is unavailable for inline-only diagrams." : "Group diagrams by voicing or chord name.";
   const bars = $("pvBars").value;
-  const showSource = $("pvSource").checked;
-  // Source pane: textarea + control bar visibility tracks the toggle.
-  $("cmSource").classList.toggle("hidden", !showSource);
-  $("pvSourceBar").classList.toggle("hidden", !showSource);
-  if (showSource) {
-    $("cmSource").value = "";
-    $("cmCopy").disabled = true;
-  }
+  togglePreviewSource();
+  $("cmSource").value = "";
+  if ($("cmCopy")) $("cmCopy").disabled = true;
 
   const docBody = JSON.stringify(doc);
   try {
@@ -669,40 +716,38 @@ async function renderPreview() {
       { method: "POST", headers: { "Content-Type": "application/json" }, body: docBody });
     const html = await res.text();
     if (!isCurrent()) return;
-    frame.srcdoc = res.ok
-      ? html.replace(/<head>/i, `$&<meta name="songsheet-preview" content="${request}">`)
-      : html;
+    if (!res.ok) throw new Error(`Could not render preview (HTTP ${res.status}).`);
     const fallback = res.headers.get("X-Songsheet-Preview-Style") === "target";
+    let note = "";
     if (fallback) {
+      $("pvStyle").value = "target";
       dictionary.disabled = diagrams === "inline";
-      message.textContent = res.headers.get("X-Songsheet-Preview-Reason") === "bar-layout"
+      dictionary.title = diagrams === "inline" ? "Dictionary grouping is unavailable for inline-only diagrams." : "Group diagrams by voicing or chord name.";
+      note = res.headers.get("X-Songsheet-Preview-Reason") === "bar-layout"
         ? "Showing Lead Sheet to preserve this chart’s bar layout."
         : "Chord Chart renderer unavailable. Showing Lead Sheet.";
-    } else {
-      message.textContent = "";
     }
-    if (res.ok) setPreviewSnapshot({
+    setPreviewSnapshot({
       album, file, docBody, request, style: fallback ? "target" : style, dict, diagrams, bars,
     });
+    frame.onload = () => {
+      if (!isCurrent() || previewSnapshot?.request !== request) return;
+      const marker = frame.contentDocument?.querySelector('meta[name="songsheet-preview"]');
+      if (marker?.content !== String(request)) return;
+      previewLoaded = true;
+      if (frame.style) frame.style.opacity = "1";
+      if ($("pvPreviewMsg").dataset?.kind !== "error") previewMessage(note);
+      syncPreviewExportControls();
+    };
+    // Real renderer responses contain <head>; support minimal HTML as well.
+    const marker = `<meta name="songsheet-preview" content="${request}">`;
+    frame.srcdoc = /<head(?:\s[^>]*)?>/i.test(html)
+      ? html.replace(/<head(?:\s[^>]*)?>/i, `$&${marker}`) : marker + html;
+    if (note) previewMessage(note);
+    await togglePreviewSource();
   } catch (e) {
     if (!isCurrent()) return;
-    message.textContent = "";
-    frame.srcdoc = "<pre style='color:#b00;padding:20px'>preview failed: " + esc(e) + "</pre>";
-  }
-
-  if (showSource) {
-    const ta = $("cmSource");
-    try {
-      const r = await fetch(`/api/chordmark-doc?bars=${bars}`,
-        { method: "POST", headers: { "Content-Type": "application/json" }, body: docBody });
-      const source = await r.text();
-      if (isCurrent()) {
-        ta.value = r.ok ? source : "/* could not build ChordMark: " + source + " */";
-        $("cmCopy").disabled = !r.ok;
-      }
-    } catch (e) {
-      if (isCurrent()) ta.value = "/* failed to load ChordMark: " + e + " */";
-    }
+    previewMessage(`Preview failed: ${e.message}. Change a preview option to retry.`, true);
   }
 }
 
@@ -711,11 +756,16 @@ async function renderPreview() {
 // "Export failed: …") instead of a fire-and-forget anchor click.
 function wireExport() {
   const a = (id) => encodeURIComponent(id);
-  const flash = (m) => {
+  const flash = (m, kind = "info") => {
     const s = $("pvExportMsg");
     s.textContent = m;
-    if (m) setTimeout(() => { if (s.textContent === m) s.textContent = ""; }, 2500);
+    if (s.dataset) s.dataset.kind = kind;
+    s.setAttribute?.("role", kind === "error" ? "alert" : "status");
+    if ($("pvDismissMsg")) $("pvDismissMsg").hidden = !m;
+    if (m && kind === "success") setTimeout(() => { if (s.textContent === m) flash(""); }, 2500);
   };
+  $("pvDismissMsg")?.addEventListener("click", () => flash(""));
+  const busy = (value) => { previewExportPending = value; syncPreviewExportControls(); };
 
   // Filename from a Content-Disposition header, or a fallback.
   const filenameFrom = (res, fallback) => {
@@ -738,7 +788,7 @@ function wireExport() {
   function currentPreview() {
     const snapshot = previewSnapshot;
     if (!snapshot || snapshot.album !== state.album || snapshot.file !== state.file) {
-      flash("Wait for the current preview before exporting.");
+      flash("Wait for the current preview before exporting.", "error");
       return null;
     }
     return snapshot;
@@ -753,6 +803,8 @@ function wireExport() {
 
   // Fetch a URL, surface progress + completion as a toast, download the blob.
   async function exportBlob(url, pending, fallbackName, docBody) {
+    if (previewExportPending) return;
+    busy(true);
     flash(pending);
     try {
       const options = docBody ? {
@@ -762,15 +814,15 @@ function wireExport() {
       if (!res.ok) {
         let detail = res.status;
         try { const j = await res.json(); if (j && j.error) detail = j.error; } catch (e) { /* not json */ }
-        flash("Export failed: " + detail);
+        flash("Export failed: " + detail, "error");
         return;
       }
       const blob = await res.blob();
       download(blob, filenameFrom(res, fallbackName));
-      flash("Exported ✓");
+      flash("Exported ✓", "success");
     } catch (e) {
-      flash("Export failed: " + e);
-    }
+      flash("Export failed: " + e, "error");
+    } finally { busy(false); }
   }
 
   for (const [id, fmt] of Object.entries(PREVIEW_EXPORTS)) {
@@ -784,29 +836,36 @@ function wireExport() {
     });
   }
   $("pvExportPdf").addEventListener("click", () => {
+    if (previewExportPending) return;
     const snapshot = currentPreview();
     if (!snapshot) return;
     try {
+      flash("");
       PreviewExport.printPreviewFrame(loadedPreviewFrame(snapshot));
     } catch (error) {
-      flash("Print failed: " + error.message);
+      flash("Print failed: " + error.message, "error");
     }
   });
   $("pvExportPng").addEventListener("click", async () => {
+    if (previewExportPending) return;
     const snapshot = currentPreview();
     if (!snapshot) return;
+    busy(true);
     flash("Preparing PNG…");
     try {
       const blob = await PreviewExport.capturePreviewPng(loadedPreviewFrame(snapshot));
       download(blob, `${snapshot.file.replace(/\.json$/i, "")}.png`);
-      flash("Exported ✓");
+      flash("Exported ✓", "success");
     } catch (error) {
-      flash("PNG export failed: " + error.message);
-    }
+      flash("PNG export failed: " + error.message, "error");
+    } finally { busy(false); }
   });
   $("pvExportAlbum").addEventListener("click", async () => {
-    if (!state.album) { flash("no album selected"); return; }
-    flash("Preparing saved album…");
+    if (previewExportPending) return;
+    if (!state.album) { flash("No album selected.", "error"); return; }
+    if (state.dirty && (typeof confirm !== "function" || !confirm("This album PDF uses saved files. Unsaved song edits will be omitted. Continue with the saved album?"))) return;
+    busy(true);
+    flash("Preparing saved album in Lead Sheet style…");
     try {
       const url = `/api/export-album/${a(state.album)}?fmt=html&dict=${$("pvDict").value}` +
         `&diagrams=${$("pvDiagrams").value}&bars=${$("pvBars").value}`;
@@ -815,7 +874,7 @@ function wireExport() {
       await PreviewExport.printChartHtml(await res.text());
       flash("");
     } catch (error) {
-      flash("Print failed: " + error.message);
-    }
+      flash("Print failed: " + error.message, "error");
+    } finally { busy(false); }
   });
 }

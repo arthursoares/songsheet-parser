@@ -157,6 +157,30 @@ test("capturePreviewPng reports image rendering and PNG encoding failures", asyn
   );
 });
 
+test("printChartHtml removes a print frame even if afterprint never fires", async (t) => {
+  const previous = { document: global.document, setTimeout: global.setTimeout, clearTimeout: global.clearTimeout };
+  t.after(() => Object.assign(global, previous));
+  const timers = new Map(), listeners = {};
+  global.setTimeout = (callback, duration) => { timers.set(duration, callback); return duration; };
+  global.clearTimeout = (id) => timers.delete(id);
+  const frame = {
+    style: {}, setAttribute() {},
+    addEventListener(event, handler) { listeners[event] = handler; },
+    contentWindow: { addEventListener() {}, print() {} },
+  };
+  const body = {
+    appendChild(child) { child.parentNode = body; listeners.load(); },
+    removeChild(child) { child.parentNode = null; },
+  };
+  global.document = { body, createElement: () => frame };
+  await PreviewExport.printChartHtml("<html>Fixture</html>");
+  assert.equal(timers.has(30000), false);
+  assert.equal(frame.parentNode, body);
+  timers.get(120000)();
+  assert.equal(frame.parentNode, null);
+  assert.equal(timers.size, 0);
+});
+
 test("printChartHtml prints a dedicated frame and removes it after printing", async (t) => {
   const previousDocument = global.document;
   t.after(() => { global.document = previousDocument; });

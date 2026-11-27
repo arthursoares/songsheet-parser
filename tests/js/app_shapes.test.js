@@ -7,6 +7,100 @@ const vm = require("node:vm");
 
 const Shapes = require("../../scripts/qa_static/app_shapes.js");
 
+test("single-album crops backfill from distinct songs without duplicate occurrences", () => {
+  const rows = [
+    { id: "a1", album: "A", file: "one.json" },
+    { id: "a2", album: "A", file: "one.json" },
+    { id: "a3", album: "A", file: "two.json" },
+    { id: "a4", album: "A", file: "three.json" },
+  ];
+  assert.deepEqual(Shapes.representativeShapeOccurrences(rows).map((row) => row.id), ["a1", "a3", "a4"]);
+});
+
+test("batch undo describes its target and cancellation never sends a write", async (t) => {
+  const previous = { ...Shapes.shapesUI };
+  const prompts = [], requests = [];
+  t.after(() => {
+    Object.assign(Shapes.shapesUI, previous);
+    delete global.confirm; delete global.api; delete global.shapeWritesReady;
+  });
+  global.confirm = (text) => { prompts.push(text); return false; };
+  global.api = async (path) => { requests.push(path); };
+  global.shapeWritesReady = () => true;
+  Object.assign(Shapes.shapesUI, {
+    container: null, writePending: false, restoredBatch: false,
+    latestBatch: { id: "batch", voicing: "x,3,2,0,1,0", entries: 5, songs: 2, appliedAt: "2026-11-27T10:00:00Z", files: [] },
+  });
+  await Shapes.undoLatestShapeBatch();
+  assert.match(prompts[0], /x,3,2,0,1,0 \(5 entries in 2 songs\)/);
+  assert.match(prompts[0], /Applied/);
+  Shapes.shapesUI.latestBatch.songs = 1;
+  Shapes.shapesUI.restoredBatch = true;
+  await Shapes.undoLatestShapeBatch();
+  assert.equal(prompts.length, 2);
+  assert.deepEqual(requests, []);
+});
+
+test("shape cards expose the inspected group and crop dialog uses occurrence evidence", (t) => {
+  const previous = { ...Shapes.shapesUI };
+  let shown = false;
+  const elements = {
+    shapeResults: {}, shapeCropTitle: {}, shapeCropImage: {},
+    shapeCropDialog: { showModal() { shown = true; } },
+  };
+  global.$ = (id) => elements[id];
+  t.after(() => { Object.assign(Shapes.shapesUI, previous); delete global.$; });
+  Object.assign(Shapes.shapesUI, {
+    page: 1, groups: [{ id: "one", voicing: "x,3,2,0,1,0" }, { id: "two" }],
+    detail: { id: "one", occurrences: [{ id: "crop/1", title: "Fixture", file: "one.json" }] },
+  });
+  Shapes.renderShapeResults();
+  assert.match(elements.shapeResults.innerHTML, /shape-result-card active/);
+  assert.match(elements.shapeResults.innerHTML, /data-shape-open="one" aria-current="true"/);
+  assert.doesNotMatch(elements.shapeResults.innerHTML, /data-shape-open="two" aria-current/);
+  Shapes.openShapeCrop("crop/1");
+  assert.equal(shown, true);
+  assert.equal(elements.shapeCropImage.src, "/api/shapes/crop/crop%2F1");
+  assert.match(elements.shapeCropTitle.textContent, /Fixture/);
+});
+
+test("shape status filters are sent to the server", () => {
+  Shapes.shapesUI.filter = "unresolved";
+  assert.match(Shapes.shapeListUrl(), /filter=unresolved/);
+  Shapes.shapesUI.filter = "";
+});
+
+test("dirty song warning names the song and disables batch changes; similar groups remain inspectable", (t) => {
+  const previous = { ...Shapes.shapesUI };
+  const undo = {}, elements = {
+    shapeDetail: {}, shapeDirtyWarning: {}, shapeDirtyText: {}, shapeApply: {},
+  };
+  global.$ = (id) => elements[id];
+  global.state = { dirty: true, doc: { songs: [{ title: "Fixture song" }] } };
+  t.after(() => { Object.assign(Shapes.shapesUI, previous); delete global.$; delete global.state; });
+  const item = { id: "one", editable: true, album: "A", file: "one.json", editorial: "x,3,2,0,3,0" };
+  Object.assign(Shapes.shapesUI, {
+    listPending: false, detailPending: false, writePending: false,
+    container: { querySelector: () => null, querySelectorAll: (query) => query === "[data-shape-undo]" ? [undo] : [] },
+    detail: { voicing: "x,3,2,0,1,0", occurrences: [item], similar: [{ id: "similar", voicing: "x,3,2,0,3,0" }] },
+    targetVoicing: "x,3,2,0,1,0", targetName: "", selected: new Set(["one"]),
+    latestBatch: { id: "batch", voicing: "x,3,2,0,1,0", entries: 1, songs: 1 },
+  });
+  Shapes.renderShapeDetail();
+  Shapes.syncShapeControls();
+  assert.match(elements.shapeDetail.innerHTML, /data-shape-open="similar"/);
+  assert.equal(elements.shapeDirtyWarning.hidden, false);
+  assert.match(elements.shapeDirtyText.textContent, /Unsaved edits in Fixture song/);
+  assert.equal(elements.shapeApply.disabled, true);
+  assert.equal(undo.disabled, true);
+  global.state.dirty = false;
+  Shapes.syncShapeControls();
+  assert.equal(elements.shapeDirtyWarning.hidden, true);
+  assert.equal(elements.shapeApply.disabled, false);
+  assert.equal(elements.shapeApply.textContent, "Apply to 1 occurrences (1 songs)");
+  assert.equal(undo.disabled, false);
+});
+
 test("shape heading uses printed identity instead of an arbitrary chart name", () => {
   assert.equal(Shapes.shapeTitle({
     name: "A13-9", labels: ["Bm7/F#"], pattern: "MFFFFM", voicing: "x,2,4,2,3,x",
@@ -96,6 +190,11 @@ test("apply posts the explicit occurrence IDs and effective manual voicing", asy
   assert.deepEqual(JSON.parse(calls[0].options.body), {
     selected: ["occ-apply"], voicing: "x,3,2,0,3,0", chord: "Cmaj7",
   });
+  assert.equal(Shapes.shapesUI.latestBatch.entries, 1);
+  assert.equal(Shapes.shapesUI.latestBatch.songs, 1);
+  assert.equal(Shapes.shapesUI.latestBatch.voicing, "x,3,2,0,3,0");
+  assert.equal(Shapes.shapesUI.latestBatch.chord, "Cmaj7");
+  assert.ok(Date.parse(Shapes.shapesUI.latestBatch.appliedAt));
   delete global.api;
   delete global.shapeWritesReady;
   delete global.window;
@@ -228,7 +327,7 @@ test("an explicit zero count does not fall back to another quantity", () => {
   assert.equal(Shapes.shapeDisagreementCount({ disagreements: 0, matches: 12 }), 0);
 });
 
-test("representative evidence uses at most one crop per album", () => {
+test("representative evidence favors different albums", () => {
   const rows = [
     { id: "a1", album: "A" }, { id: "a2", album: "A" },
     { id: "b1", album: "B" }, { id: "c1", album: "C" }, { id: "d1", album: "D" },

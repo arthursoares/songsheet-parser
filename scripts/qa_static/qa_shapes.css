@@ -1,5 +1,5 @@
 .qa-workspaces{display:flex;gap:4px}
-header.shapes-mode > :not(.qa-workspaces,.spacer,#saveStatus,#saveBtn,#kbdHint){display:none}
+header.shapes-mode > :not(.qa-workspaces,.spacer){display:none}
 .layout.shapes-mode{grid-template-columns:minmax(0,1fr)}
 .layout.shapes-mode > :not(#shapes){display:none}
 #shapes{padding:20px clamp(14px,4vw,42px);min-height:0}
@@ -20,7 +20,18 @@ header.shapes-mode > :not(.qa-workspaces,.spacer,#saveStatus,#saveBtn,#kbdHint){
 }
 .shapes-workspace input[type=checkbox]{accent-color:var(--accent)}
 .shape-status{min-height:22px;margin-bottom:10px;color:var(--muted);font-size:12px}
-.shape-status-row{display:flex;align-items:baseline;gap:10px}
+.shape-status-row{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.shape-dirty-warning{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:9px;margin:8px 0;border:1px solid var(--warn);border-radius:7px;color:var(--warn);font-size:12px}
+.shape-dirty-warning[hidden]{display:none}
+.shape-filter-chips{display:flex;gap:5px;flex-wrap:wrap}
+.shape-filter-chips button[aria-pressed=true],.shape-result-card.active{border-color:var(--accent);background:var(--sel)}
+.shape-readonly{opacity:.65}
+.shape-occurrence-actions{display:grid;gap:4px}
+.shape-crop-dialog{max-width:min(90vw,1000px);max-height:90vh;background:var(--panel);color:var(--text);border:1px solid var(--border);border-radius:10px}
+.shape-crop-dialog::backdrop{background:#0009}
+.shape-crop-dialog form{display:flex;gap:16px;justify-content:space-between;align-items:center;margin-bottom:10px}
+.shape-crop-dialog h2{font-size:16px;margin:0}
+.shape-crop-dialog img{display:block;max-width:100%;max-height:72vh;object-fit:contain;margin:auto;background:var(--paper)}
 .shape-status-row .shape-status{flex:1}
 .shape-status[data-kind=success]{color:var(--ok)}
 .shape-status[data-kind=error],.shape-error{color:var(--bad)}
@@ -97,7 +108,7 @@ header.shapes-mode > :not(.qa-workspaces,.spacer,#saveStatus,#saveBtn,#kbdHint){
 .shape-evidence-card figcaption{font-size:11px;color:var(--muted);margin-top:4px}
 .shape-evidence-card small{display:inline-block;color:var(--accent)}
 .shape-evidence-open{display:inline-block;color:var(--accent);font-size:11px;margin-top:2px}
-.shape-occurrence-list{display:grid;gap:4px;max-height:264px;overflow:auto;margin:7px 0}
+.shape-occurrence-list{display:grid;gap:4px;margin:7px 0}
 .shape-occurrence{
   display:grid;grid-template-columns:18px minmax(0,1fr) auto;align-items:center;gap:6px;
   padding:6px;border:1px solid var(--border);border-radius:5px;background:var(--field);font-size:12px
@@ -106,7 +117,6 @@ header.shapes-mode > :not(.qa-workspaces,.spacer,#saveStatus,#saveBtn,#kbdHint){
 .shape-occurrence-main>span,.shape-occurrence-main>small{color:var(--muted);font-size:11px}
 .shape-occurrence-main code{color:var(--accent)}
 .shape-occurrence-main mark{background:var(--sel);color:var(--accent);border-radius:2px}
-.shape-occurrence-label{color:var(--accent)}
 .shape-occurrence-names,.shape-occurrence-voicings{display:grid;grid-template-columns:100px minmax(0,1fr);align-items:baseline;gap:2px 4px}
 .shape-occurrence-names code{overflow-wrap:anywhere}
 .shape-occurrence-voicings code{display:inline-flex;flex-wrap:wrap;gap:4px;align-items:center}
@@ -115,7 +125,7 @@ header.shapes-mode > :not(.qa-workspaces,.spacer,#saveStatus,#saveBtn,#kbdHint){
 .shape-occurrence-string.shape-changed{background:var(--sel);border-color:var(--accent);color:var(--text);font-weight:700}
 .shape-occurrence-warning{color:var(--bad)}
 .shape-selection{display:grid;gap:4px;color:var(--muted);font-size:12px}
-.shape-selection ul{margin:0;padding-left:18px;max-height:75px;overflow:auto}
+.shape-selection ul{margin:0;padding-left:18px}
 .shape-selection b{color:var(--text)}
 .shape-select-actions,.shape-write-actions{display:flex;gap:6px;flex-wrap:wrap}
 .shape-write-actions{position:sticky;bottom:-12px;z-index:1;background:var(--panel);padding:8px 0 2px;margin-top:12px;border-top:1px solid var(--border)}
@@ -133,5 +143,5 @@ header.shapes-mode > :not(.qa-workspaces,.spacer,#saveStatus,#saveBtn,#kbdHint){
 @media(max-width:420px){
   .shape-evidence-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
   .shape-occurrence{grid-template-columns:18px minmax(0,1fr)}
-  .shape-occurrence .shape-jump{grid-column:2;justify-self:start}
+  .shape-occurrence-actions{grid-column:2;justify-self:start;display:flex;flex-wrap:wrap}
 }

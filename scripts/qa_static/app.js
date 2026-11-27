@@ -14,7 +14,7 @@ async function init() {
   const songSel = $("songSel");
 
   $("workspaceSongs").addEventListener("click", () => {
-    if (state.activeView === "shapes") showView("bars");
+    if (state.activeView === "shapes") showView(state.lastSongView || "bars");
   });
   $("workspaceShapes").addEventListener("click", () => showView("shapes"));
 
@@ -106,7 +106,7 @@ async function init() {
     }));
   // Source toggle: show/hide the generated .chordmark source beside the render.
   $("pvSource").addEventListener("change", () => {
-    if (state.activeView === "preview") renderPreview();
+    if (state.activeView === "preview") togglePreviewSource();
   });
   wireExport();
 

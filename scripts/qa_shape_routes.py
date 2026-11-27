@@ -187,7 +187,12 @@ def _list(index, params, corrections):
     summaries = []
     for group in index.groups.values():
         if _matching_rows(group, params, corrections):
-            summaries.append(_summary(group, _scope_rows(group, params.get("album")), corrections))
+            summary = _summary(group, _scope_rows(group, params.get("album")), corrections)
+            if params.get("filter") == "disagreements" and not summary["disagreements"]:
+                continue
+            if params.get("filter") == "unresolved" and summary["voicing"]:
+                continue
+            summaries.append(summary)
     summaries.sort(key=_rank)
     pages = max(1, (len(summaries) + PAGE_SIZE - 1) // PAGE_SIZE)
     try:

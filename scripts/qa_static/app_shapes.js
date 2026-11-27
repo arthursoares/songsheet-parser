@@ -3,10 +3,10 @@
 const SHAPE_UNDO_KEY = "qaShapesLastBatch";
 const SHAPE_STRINGS = ["low E", "A", "D", "G", "B", "high E"];
 const shapesUI = {
-  container: null, query: "", album: "", page: 1, pages: 1,
+  container: null, query: "", album: "", filter: "", page: 1, pages: 1,
   groups: [], counts: {}, albums: [], detail: null, selected: new Set(),
   targetVoicing: "", targetName: "", fretboard: null,
-  latestBatch: null, loaded: false, stale: false, listGeneration: 0, detailGeneration: 0,
+  latestBatch: null, restoredBatch: false, loaded: false, stale: false, listGeneration: 0, detailGeneration: 0,
   listPending: false, detailPending: false, writePending: false, searchTimer: null, listTimer: null,
 };
 
@@ -149,11 +149,18 @@ function isSelectableShapeOccurrence(item, target = item?.printed, name = shapeT
 }
 
 function representativeShapeOccurrences(occurrences, limit = 3) {
-  const result = [], albums = new Set();
+  const result = [], albums = new Set(), songs = new Set();
+  if (limit <= 0) return result;
   for (const item of occurrences || []) {
     const album = String(item?.album ?? "");
     if (item?.id === undefined || item?.id === null || albums.has(album)) continue;
-    albums.add(album); result.push(item);
+    albums.add(album); songs.add(`${album}/${item.file}/${item.song_index ?? 0}`); result.push(item);
+    if (result.length === limit) return result;
+  }
+  for (const item of occurrences || []) {
+    const key = `${item?.album}/${item?.file}/${item?.song_index ?? 0}`;
+    if (item?.id == null || songs.has(key) || result.includes(item)) continue;
+    songs.add(key); result.push(item);
     if (result.length === limit) break;
   }
   return result;
@@ -205,16 +212,47 @@ function restoreShapeUndo() {
   if (shapesUI.latestBatch) return;
   try {
     const saved = JSON.parse(localStorage.getItem(SHAPE_UNDO_KEY) || "null");
-    if (saved && typeof saved.id === "string") shapesUI.latestBatch = saved;
+    if (saved && typeof saved.id === "string") {
+      shapesUI.latestBatch = saved;
+      shapesUI.restoredBatch = true;
+    }
   } catch (_error) { /* Storage can be unavailable; session undo still works. */ }
 }
 
 function rememberShapeUndo(batch) {
   shapesUI.latestBatch = batch;
+  shapesUI.restoredBatch = false;
   try {
     if (batch) localStorage.setItem(SHAPE_UNDO_KEY, JSON.stringify(batch));
     else localStorage.removeItem(SHAPE_UNDO_KEY);
   } catch (_error) { /* Undo remains available until this page is closed. */ }
+}
+
+function shapeUndoLabel(batch = shapesUI.latestBatch) {
+  if (!batch) return "No batch to undo";
+  const scope = Number.isFinite(batch.entries) && Number.isFinite(batch.songs)
+    ? `${batch.entries} entries in ${batch.songs} songs` : "saved batch; details unavailable";
+  return `Undo last batch: ${batch.voicing || batch.shapeTitle || batch.id} (${scope})`;
+}
+
+function syncShapeDirtyWarning() {
+  const warning = $("shapeDirtyWarning");
+  if (!warning) return;
+  const dirty = typeof state !== "undefined" && state.dirty;
+  warning.hidden = !dirty;
+  if (dirty) $("shapeDirtyText").textContent =
+    `Unsaved edits in ${state.doc?.songs?.[0]?.title || state.file || "current song"} — Save or Return to enable batch edits`;
+}
+
+function openShapeCrop(id) {
+  const item = (shapesUI.detail?.occurrences || []).find((row) => String(row.id) === String(id));
+  const dialog = $("shapeCropDialog");
+  if (!item || !dialog) return;
+  $("shapeCropTitle").textContent = `${item.title || item.file} · ${item.label || "Printed diagram"}`;
+  const image = $("shapeCropImage");
+  image.src = shapeCropUrl(item.id);
+  image.alt = `Printed diagram for ${item.title || item.file}`;
+  dialog.showModal();
 }
 
 function ensureShapesWorkspace() {
@@ -230,12 +268,19 @@ function ensureShapesWorkspace() {
       <div class="shapes-filters" aria-label="Shape filters">
         <label for="shapeSearch">Search<input id="shapeSearch" type="search" autocomplete="off" placeholder="Name, voicing, or song"></label>
         <label for="shapeAlbum">Album<select id="shapeAlbum"><option value="">All albums</option></select></label>
-        <p class="shape-filter-help">Search finds an exact shape group; Album limits its counts and member rows.</p>
+        <p class="shape-filter-help">Search matches names, fingerings and songs; Album limits counts and occurrences.</p>
+        <div class="shape-filter-chips" aria-label="Shape status filter">
+          <button type="button" data-shape-filter="" aria-pressed="true">All shapes</button>
+          <button type="button" data-shape-filter="disagreements" aria-pressed="false">Disagreements only</button>
+          <button type="button" data-shape-filter="unresolved" aria-pressed="false">Unresolved</button>
+        </div>
       </div>
     </div>
+    <div id="shapeDirtyWarning" class="shape-dirty-warning" hidden><span id="shapeDirtyText"></span>
+      <button type="button" data-shape-save>Save song</button><button type="button" data-shape-return>Return to song</button></div>
     <div class="shape-status-row"><div id="shapeStatus" class="shape-status" role="status" aria-live="polite"></div>
       <button type="button" id="shapeRefresh" data-shape-refresh>Refresh index</button>
-      <button type="button" id="shapeGlobalUndo" data-shape-undo ${shapesUI.latestBatch ? "" : "disabled"}>Undo most recent batch</button></div>
+      <button type="button" id="shapeGlobalUndo" data-shape-undo ${shapesUI.latestBatch ? "" : "disabled"}>${shapeEsc(shapeUndoLabel())}</button></div>
     <div class="shapes-layout">
       <section class="shapes-results-pane" aria-labelledby="shapeResultsTitle">
         <h2 id="shapeResultsTitle">Ranked disagreements</h2>
@@ -246,6 +291,10 @@ function ensureShapesWorkspace() {
         <div class="shape-empty">Choose a shape to compare its evidence.</div>
       </section>
     </div>
+    <dialog id="shapeCropDialog" class="shape-crop-dialog" aria-labelledby="shapeCropTitle">
+      <form method="dialog"><h2 id="shapeCropTitle"></h2><button type="submit">Close</button></form>
+      <img id="shapeCropImage" alt="">
+    </dialog>
   </div>`;
   $("shapeSearch").value = shapesUI.query;
   wireShapesWorkspace(container);
@@ -307,6 +356,7 @@ function shapeListUrl() {
   const params = new URLSearchParams();
   if (shapesUI.query) params.set("q", shapesUI.query);
   if (shapesUI.album) params.set("album", shapesUI.album);
+  if (shapesUI.filter) params.set("filter", shapesUI.filter);
   params.set("page", String(shapesUI.page));
   return `/api/shapes?${params}`;
 }
@@ -413,9 +463,10 @@ function renderShapeResults() {
   $("shapeResults").innerHTML = shapesUI.groups.map((group, index) => {
     const labels = shapeLabels(group), songs = shapeCount(group.songs);
     const matches = shapeCount(group.matches), disagreements = shapeDisagreementCount(group);
-    return `<article class="shape-result-card"><span class="shape-rank" aria-label="Rank ${offset + index + 1}">#${offset + index + 1}</span>
+    const active = String(group.id) === String(shapesUI.detail?.id);
+    return `<article class="shape-result-card${active ? " active" : ""}"><span class="shape-rank" aria-label="Rank ${offset + index + 1}">#${offset + index + 1}</span>
       ${group.sample_id !== undefined && group.sample_id !== null ? `<div class="shape-result-thumb"><img class="shape-crop" loading="lazy" src="${shapeEsc(shapeCropUrl(group.sample_id))}" alt="Representative diagram for ${shapeEsc(shapeTitle(group))}"><span class="shape-crop-unavailable" hidden>Crop unavailable</span></div>` : '<div class="shape-result-thumb shape-no-crop">No crop</div>'}
-      <button type="button" class="shape-result-open" data-shape-open="${shapeEsc(group.id)}">
+      <button type="button" class="shape-result-open" data-shape-open="${shapeEsc(group.id)}"${active ? ' aria-current="true"' : ""}>
         <span class="shape-result-title">${shapeEsc(shapeTitle(group))}</span>
         <span class="shape-result-labels">Chart labels: ${labels.length ? labels.map(shapeEsc).join(" · ") : "none recognized"}</span>
         <code class="shape-result-pair">Detected: ${shapeEsc(group.voicing || group.pattern || "unresolved")}</code>
@@ -453,6 +504,7 @@ async function openShapeGroup(id, { quiet = false, library = false } = {}) {
     if (generation !== shapesUI.detailGeneration) return false;
     if (!Array.isArray(detail.occurrences)) throw new Error("The shape detail response is incomplete.");
     shapesUI.detail = detail; shapesUI.targetVoicing = shapeEffectiveVoicing(detail); shapesUI.targetName = "";
+    renderShapeResults();
     renderShapeDetail();
     if (!quiet) setShapeStatus(`Loaded ${shapeTitle(detail)} evidence.`);
     return true;
@@ -726,14 +778,15 @@ function renderShapeDetail() {
       ${group.base !== undefined && group.base !== null ? `<div><dt>Base fret</dt><dd>${shapeEsc(group.base)}</dd></div>` : ""}
       <div><dt>Detected scan fingering</dt><dd>${shapeEsc(group.voicing || "Unresolved")}</dd></div>
     </dl>
-    ${shapeNameControl(group)}
     ${shapeCorrectionControl(group)}
+    ${shapeNameControl(group)}
+    ${(group.similar || []).length ? `<section class="shape-similar"><h3>Similar shapes</h3>${group.similar.map((similar) => `<button type="button" data-shape-open="${shapeEsc(similar.id)}">${shapeEsc(shapeTitle(similar))}</button>`).join(" ")}</section>` : ""}
     <details class="shape-comparison">
       <summary>Decoded scan preview</summary>${renderShapeVoicing(group)}
     </details>
     <section class="shape-evidence" aria-labelledby="shapeEvidenceTitle">
       <h3 id="shapeEvidenceTitle">Representative evidence</h3>
-      <p class="shape-help">Up to three examples from separate albums. Inspect the scan before applying a printed reading.</p>
+      <p class="shape-help">Up to three examples from distinct songs, favoring different albums. Inspect the scan before applying a printed reading.</p>
       ${samples.length ? `<div class="shape-evidence-grid">${samples.map(renderShapeEvidence).join("")}</div>` : '<p class="shape-empty">No representative crop is available.</p>'}
     </section>
     <section class="shape-occurrences" aria-labelledby="shapeOccurrencesTitle">
@@ -746,7 +799,6 @@ function renderShapeDetail() {
     </section>
     <section class="shape-write-actions" aria-label="Apply shape changes">
       <button type="button" id="shapeApply" class="btn-primary" data-shape-apply disabled>Apply selected changes</button>
-      <button type="button" id="shapeUndo" data-shape-undo ${shapesUI.latestBatch ? "" : "disabled"}>Undo most recent batch</button>
     </section>`;
   mountShapeFretboard();
   renderShapeSelection();
@@ -760,7 +812,7 @@ function renderShapeEvidence(item) {
     <figcaption><b>${shapeEsc(item.title || item.file)}</b><br><span>${shapeEsc(item.album)}${item.page ? ` · page ${shapeEsc(item.page)}` : ""}</span><br>
     <span>${shapeEsc(item.label || "")}${shapeLocation(item) ? ` · ${shapeEsc(shapeLocation(item))}` : ""}</span>
     ${item.basis ? `<small>${shapeEsc(shapeBasisLabel(item.basis))}</small>` : ""}
-    <a class="shape-evidence-open" href="${shapeEsc(crop)}" target="_blank" rel="noopener">Inspect full crop</a></figcaption></figure>`;
+    <button type="button" class="shape-evidence-open" data-shape-crop="${shapeEsc(item.id)}">Inspect full crop</button></figcaption></figure>`;
 }
 
 function shapeBasisLabel(basis) {
@@ -808,13 +860,13 @@ function renderShapeOccurrence(item) {
       : '<span class="shape-lock" aria-label="Not editable" title="This occurrence cannot be changed">—</span>'}</div>
     <div class="shape-occurrence-main"><b>${shapeEsc(item.title || item.file)}</b>
       <span>${shapeEsc(item.album)} / ${shapeEsc(item.file)}${shapeLocation(item) ? ` · ${shapeEsc(shapeLocation(item))}` : ""}</span>
-      <span class="shape-occurrence-label">${shapeEsc(item.label || "")}</span>
       <div class="shape-occurrence-names"><span>Current name</span><code>${shapeEsc(item.label || "(blank)")}</code>
         <span>Target name</span><code>${shapeEsc(targetLabel || "(blank)")}</code></div>
       <div class="shape-occurrence-voicings"><span>Current fingering</span><code>${renderOccurrenceFingering(item.editorial, target)}</code>
         <span>Target fingering</span><code>${renderOccurrenceFingering(target, item.editorial)}</code></div>
       ${!selectable && explanation ? `<small class="shape-occurrence-warning">${explanation}</small>` : ""}</div>
-    <button type="button" class="shape-jump" data-shape-jump="${shapeEsc(item.id)}">Jump to song</button>
+    <div class="shape-occurrence-actions"><button type="button" data-shape-crop="${shapeEsc(item.id)}">Inspect crop</button>
+    <button type="button" class="shape-jump" data-shape-jump="${shapeEsc(item.id)}">Jump to song</button></div>
   </article>`;
 }
 
@@ -843,6 +895,8 @@ function renderShapeSelection() {
 function syncShapeControls() {
   if (!shapesUI.container || typeof $ !== "function") return;
   const disabled = shapesUI.listPending || shapesUI.detailPending || shapesUI.writePending;
+  const blocked = Boolean(shapeWriteBlockReason());
+  syncShapeDirtyWarning();
   if ($("shapeSearch")) $("shapeSearch").disabled = shapesUI.writePending;
   if ($("shapeAlbum")) $("shapeAlbum").disabled = shapesUI.writePending;
   shapesUI.container?.querySelectorAll("[data-shape-open],[data-shape-jump],[data-shape-refresh]")
@@ -861,13 +915,33 @@ function syncShapeControls() {
   const name = shapeTargetName(), validation = shapeNameValidation(name);
   const nameConflict = Boolean(name && validation.valid &&
     shapeNameCompatibility({ label: name }, shapeTargetVoicing(), name) === false);
-  if (apply) apply.disabled = disabled || !shapeTargetVoicing() || !validation.valid || nameConflict || selectedShapeOccurrences().length === 0;
+  const selected = selectedShapeOccurrences();
+  if (apply) {
+    apply.disabled = disabled || blocked || !shapeTargetVoicing() || !validation.valid || nameConflict || selected.length === 0;
+    const songs = new Set(selected.map((item) => `${item.album}/${item.file}/${item.song_index ?? 0}`)).size;
+    apply.textContent = `Apply to ${selected.length} occurrences (${songs} songs)`;
+  }
   shapesUI.container?.querySelectorAll("[data-shape-undo]").forEach((undo) => {
-    undo.disabled = disabled || !shapesUI.latestBatch;
+    undo.disabled = disabled || blocked || !shapesUI.latestBatch;
+    undo.textContent = shapeUndoLabel();
+    undo.title = shapesUI.latestBatch?.appliedAt ? `Applied ${new Date(shapesUI.latestBatch.appliedAt).toLocaleString()}${shapesUI.latestBatch.chord ? ` · ${shapesUI.latestBatch.chord}` : ""}` : "";
   });
 }
 
 function handleShapesClick(event) {
+  const crop = event.target.closest?.("[data-shape-crop]");
+  if (crop) { openShapeCrop(crop.dataset.shapeCrop); return; }
+  if (event.target.closest?.("[data-shape-return]")) { showView(state.lastSongView || "bars"); return; }
+  if (event.target.closest?.("[data-shape-save]")) {
+    Promise.resolve(save()).finally(syncShapeControls); return;
+  }
+  const filter = event.target.closest?.("[data-shape-filter]");
+  if (filter && !shapesUI.writePending) {
+    shapesUI.filter = filter.dataset.shapeFilter; shapesUI.page = 1;
+    shapesUI.container.querySelectorAll("[data-shape-filter]").forEach((button) =>
+      button.setAttribute("aria-pressed", String(button === filter)));
+    loadShapeGroups({ resetDetail: true }); return;
+  }
   const refresh = event.target.closest?.("[data-shape-refresh]");
   if (refresh && !refresh.disabled) { refreshShapesWorkspace({ preserveDetail: Boolean(shapesUI.detail) }); return; }
   const open = event.target.closest?.("[data-shape-open]");
@@ -1002,7 +1076,11 @@ async function applySelectedShapeOccurrences() {
       body: JSON.stringify(shapeApplyPayload(items, target, name)),
     }), "Could not apply the selected readings.");
     if (!payload.ok) throw new Error("The server did not confirm the shape update.");
-    rememberShapeUndo(payload.batch_id ? { id: String(payload.batch_id), files: payload.files || [] } : null);
+    rememberShapeUndo(payload.batch_id ? {
+      id: String(payload.batch_id), files: payload.files || [],
+      entries: shapeCount(payload.entries), songs: shapeCount(payload.songs),
+      shapeTitle: shapeTitle(shapesUI.detail), voicing: target, chord: name, appliedAt: new Date().toISOString(),
+    } : null);
     shapesUI.selected.clear();
     const warning = await refreshAfterShapesWrite(payload.files);
     await reloadShapesAfterWrite(groupId);
@@ -1015,6 +1093,10 @@ async function applySelectedShapeOccurrences() {
 async function undoLatestShapeBatch() {
   if (shapesUI.writePending || !shapesUI.latestBatch) return;
   const batch = shapesUI.latestBatch;
+  if (shapesUI.restoredBatch || batch.songs > 1 || !Number.isFinite(batch.songs)) {
+    const when = batch.appliedAt ? `\nApplied ${new Date(batch.appliedAt).toLocaleString()}.` : "";
+    if (typeof confirm !== "function" || !confirm(`${shapeUndoLabel(batch)}?${when}\nThis restores the saved files changed by that batch.`)) return;
+  }
   if (!shapeWritesAvailable(batch.files)) {
     setShapeStatus(shapeWriteBlockReason() || "Wait for the current song operation to finish before changing library files.", "error"); return;
   }
@@ -1038,6 +1120,7 @@ async function undoLatestShapeBatch() {
 
 function renderShapes() {
   if (!ensureShapesWorkspace()) return;
+  syncShapeControls();
   if (!shapesUI.loaded && !shapesUI.listPending) {
     refreshShapesWorkspace({ preserveDetail: Boolean(shapesUI.detail) });
   }
@@ -1056,6 +1139,6 @@ if (typeof module === "object" && module.exports) {
     shapeBasisLabel, shapeNameCompatibility, shapeNameValidation,
     shapeOccurrenceNeedsChange, shapeTargetLabel, shapeTargetName, shapeTargetVoicing,
     shapeTitle, shapeListUrl, shapeWritesAvailable, shapeWriteBlockReason, shapesUI,
-    syncShapeControls, undoLatestShapeBatch, wireShapesWorkspace,
+    syncShapeControls, undoLatestShapeBatch, wireShapesWorkspace, shapeUndoLabel, openShapeCrop, renderShapeResults,
   };
 }

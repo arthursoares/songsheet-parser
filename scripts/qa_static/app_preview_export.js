@@ -145,7 +145,9 @@
     frame.style.width = "1px";
     frame.style.height = "1px";
     frame.style.border = "0";
+    let cleanupTimer;
     const remove = () => {
+      clearTimeout(cleanupTimer);
       if (frame.parentNode) frame.parentNode.removeChild(frame);
     };
 
@@ -155,6 +157,7 @@
         reject(new Error("The printable chart could not be loaded."));
       }, { once: true });
       frame.addEventListener("load", () => {
+        clearTimeout(cleanupTimer);
         const chartWindow = frame.contentWindow;
         if (!chartWindow || typeof chartWindow.print !== "function") {
           remove();
@@ -163,6 +166,9 @@
         }
         chartWindow.addEventListener("afterprint", remove, { once: true });
         try {
+          // Some browsers never emit afterprint (including a cancelled dialog).
+          cleanupTimer = setTimeout(remove, 120000);
+          cleanupTimer?.unref?.();
           chartWindow.print.call(chartWindow);
           resolve();
         } catch (error) {
@@ -170,6 +176,11 @@
           reject(new Error(`The printable chart could not be printed: ${error}`));
         }
       }, { once: true });
+      cleanupTimer = setTimeout(() => {
+        remove();
+        reject(new Error("The printable chart took too long to load."));
+      }, 30000);
+      cleanupTimer?.unref?.();
       frame.srcdoc = String(html);
       hostDocument.body.appendChild(frame);
     });
