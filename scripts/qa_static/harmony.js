@@ -666,8 +666,6 @@ function hmEnsureAudio() {
   return Promise.resolve();
 }
 
-function hmMidiToFreq(m) { return 440 * Math.pow(2, (m - 69) / 12); }
-
 function hmRetireVoices() {
   hmActiveVoices.forEach((voice) => {
     voice.released = true;
@@ -675,33 +673,12 @@ function hmRetireVoices() {
 }
 
 function hmPlayChord(midis, dur, onsetToken = hmOnsetToken) {
-  if (!midis || !midis.length || !(dur > 0)) return;
-  const now = hmActx.currentTime;
-  const peak = 0.9 / Math.sqrt(Math.max(1, midis.length));
-  midis.forEach((m) => {
-    const o = hmActx.createOscillator();
-    o.type = "triangle";
-    o.frequency.value = hmMidiToFreq(m);
-    const g = hmActx.createGain();
-    g.gain.value = 0;
-    o.connect(g);
-    g.connect(hmMaster);
-    const atk = Math.min(0.015, dur * 0.25);
-    const rel = Math.min(0.25, dur * 0.5);
-    g.gain.setValueAtTime(0, now);
-    g.gain.linearRampToValueAtTime(peak, now + atk);
-    g.gain.setValueAtTime(peak, now + Math.max(atk, dur - rel));
-    g.gain.linearRampToValueAtTime(0.0001, now + dur);
-    o.start(now);
-    o.stop(now + dur + 0.05);
-    const voice = { o, g, stopped: false, released: false, onset: onsetToken };
-    hmActiveVoices.push(voice);
-    o.onended = () => {
-      voice.stopped = true;
-      const k = hmActiveVoices.indexOf(voice);
-      if (k >= 0) hmActiveVoices.splice(k, 1);
-    };
+  const voices = window.VoicingAudio.playMidis(hmActx, hmMaster, midis, dur, (voice) => {
+    const k = hmActiveVoices.indexOf(voice);
+    if (k >= 0) hmActiveVoices.splice(k, 1);
   });
+  voices.forEach((voice) => { voice.onset = onsetToken; });
+  hmActiveVoices.push(...voices);
 }
 
 function hmSilenceVoices() {

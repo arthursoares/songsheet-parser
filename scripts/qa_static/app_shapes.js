@@ -657,7 +657,7 @@ function mountShapeFretboard() {
   shapesUI.fretboard = window.Fretboard(holder, (voicing) => {
     setShapeProposal(voicing.join(","), { syncFretboard: false });
     queueMicrotask(() => decorateShapeFretboard(holder));
-  });
+  }, { showIntervals: false });
   shapesUI.fretboard.set(shapeVoicingArray(target));
   decorateShapeFretboard(holder);
 }

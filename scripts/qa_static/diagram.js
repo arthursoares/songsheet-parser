@@ -29,6 +29,8 @@
     const v = parse(voicing);
     if (v.length !== STR) return "";
     const start = windowStart(v);
+    const overflow = v.some((f) => f > 0 && f >= start + ROWS);
+    const height = H + (overflow ? 10 : 0);
     const x = (i) => LPAD + i * SX;
     const y = (row) => TPAD + row * SY;
     const parts = [];
@@ -54,10 +56,12 @@
         const row = f - start;
         if (row >= 0 && row < ROWS)
           parts.push(`<circle cx="${x(i)}" cy="${y(row) + SY / 2}" r="3" fill="${DOT}"/>`);
+        else if (row >= ROWS)
+          parts.push(`<text class="cdia-overflow" x="${x(i)}" y="${H + 7}" fill="${DOT}" font-size="8" text-anchor="middle" font-family="ui-monospace,monospace"><title>Fret ${f} (below visible window)</title>+</text>`);
       }
     });
 
-    return `<svg class="cdia" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">${parts.join("")}</svg>`;
+    return `<svg class="cdia" width="${W}" height="${height}" viewBox="0 0 ${W} ${height}" xmlns="http://www.w3.org/2000/svg">${parts.join("")}</svg>`;
   }
 
   const api = { svg };

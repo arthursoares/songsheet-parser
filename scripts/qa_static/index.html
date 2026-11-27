@@ -264,8 +264,13 @@
   .fb-ctl button{background:var(--panel);border:1px solid var(--border);color:var(--text);border-radius:5px;width:24px;height:24px;cursor:pointer}
   .fb-grid{display:flex;gap:0;justify-content:center;background:var(--field);border:1px solid var(--border);border-radius:8px;padding:10px}
   .fb-col{display:flex;flex-direction:column;align-items:center;width:30px}
-  .fb-mark{height:18px;font:13px ui-monospace,monospace;cursor:pointer}
-  .fb-cell{width:28px;height:30px;border-top:1px solid var(--border-2);border-left:1px solid var(--border-2);cursor:pointer;position:relative}
+  .fb-mark{height:18px;min-width:26px;padding:0;border:0;background:none;color:var(--text);font:13px ui-monospace,monospace;cursor:pointer}
+  .fb-mark.fb-fretted{color:transparent}
+  .fb-mark.fb-fretted:hover,.fb-mark.fb-fretted:focus-visible{color:var(--muted)}
+  .fb-mark.fb-overflow{background:var(--panel);border-radius:5px;color:var(--accent);font-size:11px}
+  .fb-cell{box-sizing:border-box;width:30px;height:30px;padding:0;background:none;border:0;border-radius:0;border-top:1px solid var(--border-2);border-left:1px solid var(--border-2);cursor:pointer;position:relative;touch-action:none}
+  .fb-cell.fb-nut{border-top:3px solid var(--text)}
+  .fb-cell:focus-visible,.fb-mark:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
   .fb-col:last-child .fb-cell{border-right:1px solid var(--border-2)}
   .fb-cell.on::after{content:"";position:absolute;inset:5px;border-radius:50%;background:var(--accent)}
   .fb-lbl{font:10px ui-monospace,monospace;color:var(--muted);margin-top:4px}
@@ -274,6 +279,9 @@
   .fb-text{margin-top:10px}
   .fb-err{color:var(--bad);font-size:12px;min-height:16px;margin-top:4px}
   .fb-notes{color:var(--muted);font:12px ui-monospace,monospace;margin-top:6px}
+  .fb-readout{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .fb-play{margin-top:6px;padding:2px 7px;cursor:pointer;border:1px solid var(--border);border-radius:5px;background:var(--panel);color:var(--text)}
+  .fb-help{display:block;color:var(--muted);font-size:11px;margin-top:6px;line-height:1.4}
   .printhint{color:var(--muted);font:12px ui-monospace,monospace;margin-top:6px}
   .printhint button{font-size:11px;margin-left:6px;cursor:pointer}
   .printcrop{display:block;max-width:230px;margin-top:8px;border:1px solid var(--border);border-radius:5px;background:#fff}
@@ -760,6 +768,7 @@
 <script src="vendor/codemirror/closebrackets.min.js"></script>
 <script src="doc_ops.js"></script>
 <script src="chord_naming.js"></script>
+<script src="voicing_audio.js"></script>
 <script src="fretboard.js"></script>
 <script src="diagram.js"></script>
 <script src="chord_dictionary.js"></script>
