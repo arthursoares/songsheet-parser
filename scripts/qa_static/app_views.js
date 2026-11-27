@@ -1,16 +1,17 @@
 // Tab switching + the Review, Preview (render/source/exports), and JSON
 // (CodeMirror) views.
-function showView(which) {
+function showView(which, resume) {
+  const retry = resume || (() => showView(which));
   if (!state.doc && which !== "shapes") which = "bars";
   if (state.activeView === "lyrics" && which !== "lyrics" &&
-      typeof confirmLyricDraftDiscard === "function" && !confirmLyricDraftDiscard()) return false;
+      typeof confirmLyricDraftDiscard === "function" && !confirmLyricDraftDiscard(retry)) return false;
   if (state.activeView === "chordReview" && which !== "chordReview" &&
       $("editor").classList.contains("editor-inline")) {
-    if (state.doc && !confirmChordDraftDiscard()) return false;
+    if (state.doc && !confirmChordDraftDiscard(retry)) return false;
     closeChordEditor();
   }
   if (state.activeView === "json" && which !== "json" && hasUnappliedJsonEdits()) {
-    if (typeof confirm === "function" && !confirm("Discard unapplied JSON edits?")) return false;
+    if (!confirmJsonDraftDiscard(retry)) return false;
     resetJsonEditorState();
   }
   const wasChordReview = state.activeView === "chordReview";
@@ -25,6 +26,7 @@ function showView(which) {
   if (state.activeView === "preview" && which !== "preview") setPreviewSnapshot(null);
   state.activeView = which;
   if (typeof hmSyncBackLink === "function") hmSyncBackLink();
+  if ($("barsDisplay")) $("barsDisplay").hidden = which !== "bars";
   $("shapes")?.classList.toggle("hidden", !shapes);
   for (const [id, active] of [["workspaceSongs", !shapes], ["workspaceShapes", shapes]]) {
     const button = $(id);
@@ -75,7 +77,7 @@ async function openShapesForEntry(si, bi, ei) {
   const params = new URLSearchParams({
     album, file, song_index: "0", si, bi, ei, revision: songRevision || "",
   });
-  showView("shapes");
+  if (showView("shapes", () => openShapesForEntry(si, bi, ei)) === false) return;
   const hasShapesUI = typeof shapesUI === "object" && shapesUI !== null;
   if (hasShapesUI) {
     shapesUI.detailGeneration += 1;
@@ -287,6 +289,8 @@ function ensureJsonCM() {
       // ⌘Enter / Ctrl+Enter → Apply JSON edits to model.
       "Cmd-Enter"() { jsonApply(); },
       "Ctrl-Enter"() { jsonApply(); },
+      "Cmd-F": "findPersistent",
+      "Ctrl-F": "findPersistent",
     },
   });
   // Live validity feedback as the user types (debounced ~250ms), in addition to
@@ -380,9 +384,19 @@ function jsonMsg(text, cls) {
 }
 
 // Reload: repopulate from state.doc, confirming if unapplied edits exist.
+function confirmJsonDraftDiscard(resume) {
+  if (!hasUnappliedJsonEdits()) return true;
+  if (typeof guardUnsavedChanges === "function") return guardUnsavedChanges({
+    message: "Apply your JSON edits before continuing?",
+    apply: jsonApply,
+    discard: resetJsonEditorState,
+    resume,
+  });
+  return typeof confirm !== "function" || confirm("Discard unapplied JSON edits?");
+}
+
 function jsonReload() {
-  if (hasUnappliedJsonEdits() && typeof confirm === "function" &&
-      !confirm("Discard unapplied JSON edits?")) {
+  if (!confirmJsonDraftDiscard(jsonReload)) {
     return;
   }
   if (!state.doc) { resetJsonEditorState(); return; }
@@ -557,11 +571,12 @@ function activeChordSelection() {
 
 function jumpToEntry(c, { discardDraft = false, reopen = false } = {}) {
   const same = state.sel && compareChordCoords(c, state.sel) === 0;
-  if (state.activeView !== "chordReview" && !discardDraft && !same && !confirmChordDraftDiscard()) {
+  const retry = () => jumpToEntry(c, { discardDraft, reopen });
+  if (state.activeView !== "chordReview" && !discardDraft && !same && !confirmChordDraftDiscard(retry)) {
     syncChordChip(state.sel, true);
     return;
   }
-  if (showView("bars") === false) return;
+  if (showView("bars", retry) === false) return;
   if (same && !reopen && $("editor").classList.contains("open")) syncChordChip(c, true);
   else openEditor(c.si, c.bi, c.ei, true);
 }
@@ -773,6 +788,7 @@ function wireExport() {
     s.setAttribute?.("role", kind === "error" ? "alert" : "status");
     if ($("pvDismissMsg")) $("pvDismissMsg").hidden = !m;
     if (m && kind === "success") setTimeout(() => { if (s.textContent === m) flash(""); }, 2500);
+    if (m && kind === "success" && typeof showToast === "function") showToast(m);
   };
   $("pvDismissMsg")?.addEventListener("click", () => flash(""));
   const busy = (value) => { previewExportPending = value; syncPreviewExportControls(); };

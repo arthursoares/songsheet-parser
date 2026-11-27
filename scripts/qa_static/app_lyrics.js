@@ -12,13 +12,29 @@ function lyricDrafts() {
   return lyDrafts.get(state.doc);
 }
 
-function confirmLyricDraftDiscard() {
-  if (!state.doc) return true;
+function hasLyricDrafts() {
+  if (!state.doc) return false;
   const inputs = [...($("lyrics")?.querySelectorAll(".ly-line-edit, .ly-edit") || [])];
-  if (!lyricDrafts().size && !inputs.some((input) => input._hasLyricDraft?.())) return true;
-  if (!confirm("Discard unapplied lyric edits? Invalid marker counts cannot be applied.")) return false;
+  return Boolean(lyricDrafts().size || inputs.some((input) => input._hasLyricDraft?.()));
+}
+
+function discardLyricDrafts() {
+  if (!state.doc) return;
+  const inputs = [...($("lyrics")?.querySelectorAll(".ly-line-edit, .ly-edit") || [])];
   lyricDrafts().clear();
   inputs.forEach((input) => input._discardDraft?.());
+}
+
+function confirmLyricDraftDiscard(resume) {
+  if (!hasLyricDrafts()) return true;
+  if (typeof guardUnsavedChanges === "function") return guardUnsavedChanges({
+    message: "Apply your lyric edits before continuing? Invalid marker counts must be fixed first.",
+    apply: () => flushBlurCommittedInputs() && !hasLyricDrafts(),
+    discard: discardLyricDrafts,
+    resume,
+  });
+  if (!confirm("Discard unapplied lyric edits? Invalid marker counts cannot be applied.")) return false;
+  discardLyricDrafts();
   return true;
 }
 
@@ -55,7 +71,7 @@ function renderLyrics() {
   ).join("");
   bar.querySelectorAll("[data-mode]").forEach((b) =>
     b.addEventListener("click", () => {
-      if (!confirmLyricDraftDiscard()) return;
+      if (!confirmLyricDraftDiscard(() => { localStorage.setItem("qaLyMode", b.dataset.mode); renderLyrics(); })) return;
       localStorage.setItem("qaLyMode", b.dataset.mode); renderLyrics();
     }));
   root.appendChild(bar);
@@ -162,7 +178,7 @@ function renderLyricsText(root) {
         if (parsed === false) return false;
         if (parsed === null) return true;
         committing = true;
-        if (!opts?.skipChordDraftDiscard && !prepareLyricEdit()) { committing = false; return false; }
+        if (!opts?.skipChordDraftDiscard && !prepareLyricEdit(() => commit(opts))) { committing = false; return false; }
         original = input.value;
         pushUndo();
         if (parsed.leading) {
@@ -264,8 +280,8 @@ function selectLyricChord(coords, { pick = false, focus = false } = {}) {
   } else lyArrangeStatus("");
 }
 
-function prepareLyricEdit() {
-  if (typeof confirmChordDraftDiscard === "function" && !confirmChordDraftDiscard()) return false;
+function prepareLyricEdit(resume) {
+  if (typeof confirmChordDraftDiscard === "function" && !confirmChordDraftDiscard(resume)) return false;
   state.sel = null;
   $("editor")?.classList.remove("open");
   return true;
@@ -277,7 +293,7 @@ function lyAnchorMove(source, target) {
   const plan = window.DocOps.planLyricAnchorMove(song(), source.coords, target);
   if (!plan) { lyArrangeStatus("The chord is already at that anchor."); return; }
   if (plan.error) { lyArrangeStatus(plan.error); return; }
-  if (!prepareLyricEdit()) return;
+  if (!prepareLyricEdit(() => lyAnchorMove(source, target))) return;
   pushUndo();
   for (const { si, bi, bar } of plan.changes) song().sections[si].bars[bi] = bar;
   markDirty();
@@ -704,7 +720,7 @@ function editLyricToken(column, text, entry, word, wordIndex) {
       : window.DocOps.replaceTextToken(entry.text, wordIndex, input.value);
     if (next !== null && next !== entry.text) {
       committing = true;
-      if (!opts?.skipChordDraftDiscard && !prepareLyricEdit()) { committing = false; return false; }
+      if (!opts?.skipChordDraftDiscard && !prepareLyricEdit(() => commit(opts))) { committing = false; return false; }
       done = true;
       pushUndo();
       if (next) entry.text = next; else delete entry.text;

@@ -8,9 +8,11 @@
 <link rel="stylesheet" href="vendor/codemirror/codemirror.min.css">
 <link rel="stylesheet" href="vendor/codemirror/material-darker.min.css">
 <link rel="stylesheet" href="vendor/codemirror/lint.min.css">
+<link rel="stylesheet" href="vendor/codemirror/dialog.css">
 <link rel="stylesheet" href="qa_tokens.css">
 <link rel="stylesheet" href="qa_shapes.css">
 <link rel="stylesheet" href="qa_base.css">
+<link rel="stylesheet" href="qa_interactions.css">
 <link rel="stylesheet" href="qa_accessibility.css">
 </head>
 <body>
@@ -139,7 +141,13 @@
       <button type="button" id="tabJson" class="tab">JSON</button>
     </div>
     <div class="chord-workspace">
-      <div id="bars"></div>
+      <div id="barsDisplay" class="bars-display" aria-label="Bars display">
+        <label><input type="checkbox" data-display="diagrams" checked> Diagrams</label>
+        <label><input type="checkbox" data-display="notes" checked> Notes</label>
+        <label><input type="checkbox" data-display="intervals" checked> Intervals</label>
+        <label><input type="checkbox" data-display="compact"> Compact</label>
+      </div>
+      <div id="bars" class="bars-diagrams bars-notes bars-intervals"></div>
       <section id="chordReview" class="chord-review hidden" aria-labelledby="chordReviewName">
         <div class="chord-review-head">
           <div class="chord-review-title">
@@ -328,6 +336,17 @@
   <aside class="editor" id="editor"></aside>
   <section id="shapes" class="col shapes hidden" aria-label="Library shapes"></section>
 </div>
+<div id="toastStatus" class="qa-toast" role="status" aria-live="polite" hidden></div>
+<dialog id="unsavedDialog" class="unsaved-dialog" aria-labelledby="unsavedTitle" aria-describedby="unsavedMessage">
+  <h2 id="unsavedTitle">Unsaved changes</h2>
+  <p id="unsavedMessage"></p>
+  <p id="unsavedError" class="err" role="alert"></p>
+  <div class="dialog-actions">
+    <button id="unsavedApply" type="button">Apply &amp; Continue</button>
+    <button id="unsavedDiscard" type="button">Discard</button>
+    <button id="unsavedCancel" type="button" autofocus>Cancel</button>
+  </div>
+</dialog>
 <script src="vendor/tonal.bundle.js"></script>
 <script src="vendor/chord-symbol.bundle.js"></script>
 <script src="vendor/codemirror/codemirror.min.js"></script>
@@ -335,6 +354,9 @@
 <script src="vendor/codemirror/lint.min.js"></script>
 <script src="vendor/codemirror/matchbrackets.min.js"></script>
 <script src="vendor/codemirror/closebrackets.min.js"></script>
+<script src="vendor/codemirror/searchcursor.js"></script>
+<script src="vendor/codemirror/dialog.js"></script>
+<script src="vendor/codemirror/search.js"></script>
 <script src="doc_ops.js"></script>
 <script src="chord_naming.js"></script>
 <script src="voicing_audio.js"></script>
@@ -344,6 +366,7 @@
 <script src="harmony.js"></script>
 <!-- app_* split: core first (state/undo globals), entry (app.js) last -->
 <script src="app_core.js"></script>
+<script src="app_interactions.js"></script>
 <script src="app_songs.js"></script>
 <script src="app_bars.js"></script>
 <script src="app_lyrics.js"></script>

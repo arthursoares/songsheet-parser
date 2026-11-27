@@ -130,8 +130,8 @@ function renderBars() {
            ${ivals ? `<div class="iv">${esc(ivals)}</div>` : ""}
            <div class="tx">${e.text ? "_" + esc(e.text) : "—"}</div>
            <div class="mv">
-             <button type="button" class="mvl" title="move to previous bar" ${canLeft ? "" : "disabled"}>←</button>
-             <button type="button" class="mvr" title="move to next bar" ${canRight ? "" : "disabled"}>→</button>
+             <button type="button" class="mvl" title="move to previous bar" ${canLeft ? "" : "disabled"}>← bar</button>
+             <button type="button" class="mvr" title="move to next bar" ${canRight ? "" : "disabled"}>bar →</button>
            </div>`;
         chip.addEventListener("click", () => {
           if (state.activeView === "chordReview") selectChordReviewEntry({ si, bi, ei });
@@ -141,6 +141,14 @@ function renderBars() {
         chip.querySelector(".mvr").addEventListener("click", (ev) => { ev.stopPropagation(); moveChord(si, bi, ei, +1); });
         chips.appendChild(chip);
       });
+      if (!bar.length) {
+        const add = document.createElement("button");
+        add.type = "button";
+        add.className = "tab";
+        add.textContent = "+ chord";
+        add.addEventListener("click", () => addChordToEmptyBar(si, bi));
+        chips.appendChild(add);
+      }
       bd.appendChild(chips);
       root.appendChild(bd);
     });
@@ -165,7 +173,7 @@ function moveChordSelection({ si, bi, ei }, dir, withinBar) {
   const { DocOps } = window;
   const canMove = withinBar ? DocOps.canReorderChord(currentSong, si, bi, ei, dir)
     : DocOps.canMoveChord(currentSong, si, bi, dir);
-  if (!canMove || !confirmChordDraftDiscard()) return;
+  if (!canMove || !confirmChordDraftDiscard(() => moveChordSelection({ si, bi, ei }, dir, withinBar))) return;
   const next = withinBar ? { si, bi, ei: ei + dir }
     : { si, bi: bi + dir, ei: dir < 0 ? currentSong.sections[si].bars[bi + dir].length : 0 };
   pushUndo();
@@ -215,16 +223,24 @@ function coordsForEntryIdentity(entry) {
 
 function addBarAfter(si, bi) {
   if (!window.DocOps.canAddBarAfter(song(), si, bi)) return;
-  if (!confirmChordDraftDiscard()) return;
+  if (!confirmChordDraftDiscard(() => addBarAfter(si, bi))) return;
   const selectedEntry = selectedEntryForStructuralEdit();
   pushUndo();
   window.DocOps.addBarAfter(song(), si, bi);
   afterStructuralEdit(coordsForEntryIdentity(selectedEntry));
 }
 
+function addChordToEmptyBar(si, bi) {
+  if (song().sections?.[si]?.bars?.[bi]?.length !== 0) return;
+  if (!confirmChordDraftDiscard(() => addChordToEmptyBar(si, bi))) return;
+  pushUndo();
+  song().sections[si].bars[bi].push({ chord: "C" });
+  afterStructuralEdit({ si, bi, ei: 0 });
+}
+
 function addBarBefore(si, bi) {
   if (!window.DocOps.canAddBarBefore(song(), si, bi)) return;
-  if (!confirmChordDraftDiscard()) return;
+  if (!confirmChordDraftDiscard(() => addBarBefore(si, bi))) return;
   const selectedEntry = selectedEntryForStructuralEdit();
   pushUndo();
   window.DocOps.addBarBefore(song(), si, bi);
@@ -232,16 +248,16 @@ function addBarBefore(si, bi) {
 }
 
 function deleteBar(si, bi) {
-  if (!confirmChordDraftDiscard()) return;
-  if (!confirm(`Delete bar ${bi + 1}?`)) return;
+  if (!confirmChordDraftDiscard(() => deleteBar(si, bi))) return;
   pushUndo();
   window.DocOps.deleteBar(song(), si, bi);
   afterStructuralEdit();
+  if (typeof showUndoToast === "function") showUndoToast(`Deleted bar ${bi + 1}`);
 }
 
 function splitBar(si, bi, beforeEntry) {
   if (!window.DocOps.canSplitBar(song(), si, bi, beforeEntry)) return;
-  if (beforeEntry === undefined && !confirmChordDraftDiscard()) return;
+  if (beforeEntry === undefined && !confirmChordDraftDiscard(() => splitBar(si, bi, beforeEntry))) return;
   const selectedEntry = selectedEntryForStructuralEdit();
   pushUndo();
   window.DocOps.splitBar(song(), si, bi, beforeEntry);
@@ -250,27 +266,27 @@ function splitBar(si, bi, beforeEntry) {
 
 function mergeBarWithNext(si, bi) {
   if (!window.DocOps.canMergeBarWithNext(song(), si, bi)) return;
-  if (!confirmChordDraftDiscard()) return;
+  if (!confirmChordDraftDiscard(() => mergeBarWithNext(si, bi))) return;
   pushUndo();
   window.DocOps.mergeBarWithNext(song(), si, bi);
   afterStructuralEdit();
 }
 
 function addSectionAfter(si) {
-  if (!confirmChordDraftDiscard()) return;
+  if (!confirmChordDraftDiscard(() => addSectionAfter(si))) return;
   pushUndo();
   window.DocOps.addSectionAfter(song(), si);
   afterStructuralEdit();
 }
 
 function deleteSection(si) {
-  if (!confirmChordDraftDiscard()) return;
+  if (!confirmChordDraftDiscard(() => deleteSection(si))) return;
   const sec = song().sections[si];
   const name = (sec && sec.label) || `Section ${si + 1}`;
-  if (!confirm(`Delete "${name}" and all its bars?`)) return;
   pushUndo();
   window.DocOps.deleteSection(song(), si);
   afterStructuralEdit();
+  if (typeof showUndoToast === "function") showUndoToast(`Deleted ${name}`);
 }
 
 let chordEditorHasDraft = () => false;
@@ -282,8 +298,18 @@ let syncChordEditorUneditedText = () => {};
 // hook when its guarded lookup receives the current song's locations.
 let syncActiveChordProposal = () => false;
 
-function confirmChordDraftDiscard() {
-  return !chordEditorHasDraft() || confirm("Discard the unapplied chord edits?");
+function confirmChordDraftDiscard(resume) {
+  if (typeof unsavedDialogPending !== "undefined" && unsavedDialogPending) return false;
+  if (!chordEditorHasDraft()) return true;
+  if (typeof guardUnsavedChanges === "function") return guardUnsavedChanges({
+    message: "Apply the current chord edits before continuing?",
+    apply: () => submitActiveChord({ allowHidden: true }),
+    discard: () => {
+      if (state.sel) openEditor(state.sel.si, state.sel.bi, state.sel.ei);
+    },
+    resume,
+  });
+  return confirm("Discard the unapplied chord edits?");
 }
 
 function diagramCropUrl({ si, bi, ei }, entry) {
@@ -354,8 +380,8 @@ function openEditor(si, bi, ei, focus = false) {
     <div class="ed-voicing">
       <div><label id="edVoicingLabel">Voicing</label><div id="edFb" role="group" aria-labelledby="edVoicingLabel"></div></div>
       <div id="edCrop"${cropUrl ? "" : " hidden"}>
-        <img class="printcrop" id="edPrintCrop" alt="Magnified printed chord diagram"${cropUrl ? ` src="${esc(cropUrl)}"` : ""}>
-        <small id="edCropError" class="muted" hidden>Scan crop unavailable</small>
+        <img class="printcrop" id="edPrintCrop" loading="lazy" alt="Magnified printed chord diagram"${cropUrl ? ` src="${esc(cropUrl)}"` : ""}>
+        <small id="edCropError" class="muted" hidden>Scan crop unavailable <button type="button" id="edCropRetry">Retry</button></small>
       </div>
     </div>
     <div id="edScanProposal" class="scan-fingering-proposal" hidden>
@@ -437,6 +463,12 @@ function openEditor(si, bi, ei, focus = false) {
   cropImg.addEventListener("error", () => {
     cropImg.hidden = true;
     $("edCropError").hidden = false;
+  });
+  cropImg.addEventListener("load", () => { $("edCropError").hidden = true; });
+  $("edCropRetry")?.addEventListener("click", () => {
+    $("edCropError").hidden = true;
+    cropImg.hidden = false;
+    cropImg.src = cropUrl;
   });
   $("edFindShapes")?.addEventListener("click", () => openShapesForEntry(si, bi, ei));
   const usePrint = $("edUsePrint");
@@ -550,9 +582,10 @@ function openEditor(si, bi, ei, focus = false) {
   refreshNaming();
   syncActiveChordProposal();
 
-  submitActiveChord = ({ usePrinted = false, advance = false, review = true } = {}) => {
+  submitActiveChord = ({ usePrinted = false, advance = false, review = true, allowHidden = false } = {}) => {
     const selected = state.sel;
-    if (!ed.classList.contains("open") || state.activeView !== (inline ? "chordReview" : "bars") ||
+    const inEditorView = state.activeView === (inline ? "chordReview" : "bars");
+    if (!ed.classList.contains("open") || (!inEditorView && (inline || !allowHidden)) ||
         !selected || selected.si !== si || selected.bi !== bi || selected.ei !== ei) return false;
     const entry = currentEntry();
     if (!entry) return false;
@@ -610,7 +643,7 @@ function openEditor(si, bi, ei, focus = false) {
     $("edErr").textContent = "";
     $("edSplitStatus").textContent = "";
     refreshNaming();
-    syncChordChip(state.sel, true);
+    syncChordChip(state.sel, inEditorView);
     if (advance) {
       const next = entryCoords().find((coords) => compareChordCoords(coords, selected) > 0);
       if (next) jumpToEntry(next, { discardDraft: true });
@@ -624,7 +657,7 @@ function openEditor(si, bi, ei, focus = false) {
   });
   $("edApplyOnly")?.addEventListener("click", () => submitActiveChord({ review: false }));
   const cancel = () => {
-    if (!confirmChordDraftDiscard()) return;
+    if (!confirmChordDraftDiscard(cancel)) return;
     closeChordEditor();
     renderBars();
     if (inline) $("chordReviewEdit").focus();

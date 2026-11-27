@@ -230,7 +230,8 @@ function renderPages(savedSourceKey) {
     style="--scan-zoom:${scanZoom}%" tabindex="0" role="region" aria-label="Scan pages">` + pages.map((n) => `
     <figure class="scan-page" id="scan-page-${n}">
       <div class="scan-image">
-        <img draggable="false" src="/api/page/${encodeURIComponent(state.album)}/${encodeURIComponent(state.file)}/${encodeURIComponent(n)}" alt="page ${esc(n)}">
+        <img draggable="false" loading="lazy" src="/api/page/${encodeURIComponent(state.album)}/${encodeURIComponent(state.file)}/${encodeURIComponent(n)}" alt="page ${esc(n)}">
+        <div class="scan-image-error" role="alert" hidden>Scan page unavailable. <button type="button" class="tab">Retry</button></div>
         <div class="scan-review-marks"></div>
       </div>
       <figcaption class="pagecap">page ${esc(n)}</figcaption>
@@ -256,7 +257,20 @@ function renderPages(savedSourceKey) {
   });
   if (scanShowEdits) renderScanReviewMarks();
   root.querySelectorAll(".scan-image img").forEach((image) => {
+    const error = image.parentElement?.querySelector(".scan-image-error");
+    image.addEventListener("error", () => {
+      if (!error) return;
+      image.hidden = true;
+      error.hidden = false;
+    });
+    error?.querySelector("button")?.addEventListener("click", () => {
+      error.hidden = true;
+      image.hidden = false;
+      image.src = image.getAttribute("src");
+    });
     image.addEventListener("load", () => {
+      image.classList?.add("scan-loaded");
+      if (error) error.hidden = true;
       if (isCurrentScan(request) && scanReview.follow) updateScanSelection(true);
     });
   });

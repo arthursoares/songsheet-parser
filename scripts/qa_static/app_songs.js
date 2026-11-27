@@ -114,7 +114,7 @@ function syncCurrentSongTitle() {
 // Load a song by file, going through the dirty-guard.
 function selectSong(file) {
   if (file === state.file && (state.doc || loadingSong)) return;
-  if (!confirmDiscard()) return;
+  if (!confirmDiscard(() => selectSong(file))) return;
   $("songSel").value = file;
   loadSong();
 }
@@ -128,7 +128,35 @@ function updateProgress() {
 }
 
 // If there are unsaved edits, confirm before switching away. Returns true to proceed.
-function confirmDiscard() {
+function confirmDiscard(resume) {
+  if (typeof guardUnsavedChanges === "function") {
+    if (unsavedDialogPending) return false;
+    const chordDraft = typeof chordEditorHasDraft === "function" && chordEditorHasDraft();
+    const lyricDraft = typeof hasLyricDrafts === "function" && hasLyricDrafts();
+    const jsonDraft = typeof hasUnappliedJsonEdits === "function" && hasUnappliedJsonEdits();
+    if (!state.dirty && !chordDraft && !lyricDraft && !jsonDraft) return true;
+    return guardUnsavedChanges({
+      message: "Save your song and unapplied edits before continuing?",
+      applyLabel: "Save & Continue",
+      apply: async () => {
+        const result = await save();
+        if (!result?.ok) return result || false;
+        if (state.dirty || (typeof chordEditorHasDraft === "function" && chordEditorHasDraft()) ||
+            (typeof hasLyricDrafts === "function" && hasLyricDrafts()) ||
+            (typeof hasUnappliedJsonEdits === "function" && hasUnappliedJsonEdits())) {
+          return { ok: false, error: "New edits remain unsaved. Save again before continuing." };
+        }
+        return true;
+      },
+      discard: () => {
+        if (typeof closeChordEditor === "function") closeChordEditor();
+        if (typeof discardLyricDrafts === "function") discardLyricDrafts();
+        if (typeof resetJsonEditorState === "function") resetJsonEditorState();
+        state.dirty = false;
+      },
+      resume,
+    });
+  }
   if (typeof confirmChordDraftDiscard === "function" && !confirmChordDraftDiscard()) return false;
   if (typeof confirmLyricDraftDiscard === "function" && !confirmLyricDraftDiscard()) return false;
   const jsonEdits = typeof hasUnappliedJsonEdits === "function" && hasUnappliedJsonEdits();
@@ -221,10 +249,11 @@ async function loadSong({ view = "bars" } = {}) {
   let loaded;
   try {
     loaded = await api(`/api/song/${album}/${file}`);
-  } catch (_error) {
+  } catch (error) {
     if (generation !== loadGeneration) return;
     loadingSong = false;
     clearSongForLoad("Could not load this song.", view);
+    showSongLoadError(error.message || String(error), view);
     if (typeof updateChordReviewEntryPoint === "function") updateChordReviewEntryPoint();
     return;
   }
@@ -232,6 +261,7 @@ async function loadSong({ view = "bars" } = {}) {
   loadingSong = false;
   if (!loaded || loaded.error || !loaded.songs || !loaded.songs.length) {
     clearSongForLoad("Could not load this song.", view);
+    showSongLoadError(loaded?.error || "The response did not contain a song.", view);
     if (typeof updateChordReviewEntryPoint === "function") updateChordReviewEntryPoint();
     return;
   }
@@ -260,6 +290,12 @@ async function loadSong({ view = "bars" } = {}) {
 }
 
 let savePromise = null;
+
+function showSongLoadError(detail, view) {
+  const root = $("bars");
+  root.innerHTML = `<div class="load-error" role="alert">Could not load this song: ${esc(detail)} <button type="button" id="retrySong" class="tab">Retry</button></div>`;
+  $("retrySong")?.addEventListener("click", () => loadSong({ view }));
+}
 
 function syncSaveAvailability() {
   const button = $("saveBtn");
@@ -314,6 +350,7 @@ async function saveOnce() {
     if (unchanged) {
       status.textContent = "✓ saved";
       state.dirty = false;
+      if (typeof showToast === "function") showToast("Song saved");
     } else if (sameDocument) {
       status.textContent = "Unsaved changes";
     }
@@ -373,7 +410,9 @@ async function openShapeOccurrence(item) {
   const sameSong = item.album === state.album && item.file === state.file;
   const current = sameSong && state.doc && state.songRevision === item.document_sha256;
   if (!current) {
-    if (!confirmDiscard()) return false;
+    if (!confirmDiscard(() => openShapeOccurrence(item).catch((error) => {
+      if (typeof showToast === "function") showToast(error.message || String(error));
+    }))) return false;
     if (!albums.some((album) => album.album === item.album &&
         album.songs.some((record) => record.file === item.file))) {
       throw new Error("The song is no longer in the library. Refresh Shapes.");
