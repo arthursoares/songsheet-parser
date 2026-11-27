@@ -382,7 +382,7 @@ function renderScanReviewMarks() {
     if (edit?.joined) captions.push("Bar joined");
     const badge = edit ? `<span class="scan-edit-badge${top < 0.06 ? " below" : ""}" data-edit-status="${edit.unsaved ? "unsaved" : "saved"}"><span>${esc(captions.join(" · ") || "Edited")}</span></span>` : "";
     const proposalAttr = proposed ? ' data-scan-proposal="true"' : "";
-    const mark = `<button type="button" tabindex="-1" class="scan-review-mark" data-scan-chord="${coords.si}:${coords.bi}:${coords.ei}"${proposalAttr}
+    const mark = `<button type="button" class="scan-review-mark" data-scan-chord="${coords.si}:${coords.bi}:${coords.ei}"${proposalAttr}
       data-review-status="${status}" aria-label="${esc(label)}" title="${esc(label)}"
       style="left:${left * 100}%;top:${top * 100}%;width:${(right - left) * 100}%;height:${(bottom - top) * 100}%">${badge}</button>`;
     if (!pages.has(location.page)) pages.set(location.page, []);

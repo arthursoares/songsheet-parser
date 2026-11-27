@@ -41,10 +41,10 @@ function renderBars() {
     // inline-editable section label + section structural controls
     lab.innerHTML =
       `<input class="seclabel" type="text" value="${esc(sec.label || "")}"
-              placeholder="Section ${si + 1}" title="section label">
+              placeholder="Section ${si + 1}" title="section label" aria-label="Section ${si + 1} label">
        <span class="secmv">
-         <button class="secAdd" title="add section after">+ section</button>
-         <button class="secDel" title="delete section">delete</button>
+         <button type="button" class="secAdd" title="add section after">+ section</button>
+         <button type="button" class="secDel" title="delete section">delete</button>
        </span>
        <span class="chord-review-section-label">${esc(sec.label || `Section ${si + 1}`)}</span>`;
     const labInput = lab.querySelector(".seclabel");
@@ -77,7 +77,7 @@ function renderBars() {
       const empty = document.createElement("div");
       empty.className = "sec-empty";
       empty.innerHTML = `<span class="muted">empty section</span>
-        <button class="barAddFirst" title="add first bar">+ bar</button>`;
+        <button type="button" class="barAddFirst" title="add first bar">+ bar</button>`;
       empty.querySelector(".barAddFirst").addEventListener("click", () => addBarAfter(si, -1));
       root.appendChild(empty);
       return;
@@ -89,11 +89,11 @@ function renderBars() {
         `<div class="barhead">
            <span class="barnum">bar ${bi + 1}${bar.length > 1 ? " · " + bar.length + " chords" : ""}</span>
            <span class="barmv">
-             <button class="barAddBefore" title="insert an empty bar before this bar">+ before</button>
-             <button class="barAddAfter" title="insert an empty bar after this bar">+ after</button>
-             <button class="barSplit" ${bar.length >= 2 ? "" : "disabled"}>Split in half</button>
-             <button class="barMerge" title="merge with next bar" ${bi < sec.bars.length - 1 ? "" : "disabled"}>merge ↓</button>
-             <button class="barDel" title="delete bar">✕</button>
+             <button type="button" class="barAddBefore" title="insert an empty bar before this bar">+ before</button>
+             <button type="button" class="barAddAfter" title="insert an empty bar after this bar">+ after</button>
+             <button type="button" class="barSplit" ${bar.length >= 2 ? "" : "disabled"}>Split in half</button>
+             <button type="button" class="barMerge" title="merge with next bar" ${bi < sec.bars.length - 1 ? "" : "disabled"}>merge ↓</button>
+             <button type="button" class="barDel" title="delete bar">✕</button>
            </span>
          </div>`;
       bd.querySelector(".barAddBefore").addEventListener("click", () => addBarBefore(si, bi));
@@ -121,7 +121,7 @@ function renderBars() {
         const dia = (e.chord !== "%" && e.voicing) ? window.ChordDiagram.svg(e.voicing) : "";
         const review = e.chord === "%" ? "pending" : chordReviewStatus(e);
         chip.innerHTML =
-          `<div class="nm">${esc(e.chord)}${mismatch ? '<span class="warn"></span>' : ""}</div>
+          `<button type="button" class="nm" aria-label="Edit ${esc(e.chord)}, section ${si + 1}, bar ${bi + 1}, chord ${ei + 1}">${esc(e.chord)}${mismatch ? `<span class="warn" title="${esc(reason)}" aria-label="Flagged: ${esc(reason)}">!</span>` : ""}</button>
            ${review === "pending" ? "" : `<span class="chord-review-state" data-review-status="${review}">${CHORD_REVIEW_LABELS[review]}</span>`}
            <div class="vc">${esc(e.voicing || "—")}</div>
            ${dia}
@@ -130,8 +130,8 @@ function renderBars() {
            ${ivals ? `<div class="iv">${esc(ivals)}</div>` : ""}
            <div class="tx">${e.text ? "_" + esc(e.text) : "—"}</div>
            <div class="mv">
-             <button class="mvl" title="move to previous bar" ${canLeft ? "" : "disabled"}>←</button>
-             <button class="mvr" title="move to next bar" ${canRight ? "" : "disabled"}>→</button>
+             <button type="button" class="mvl" title="move to previous bar" ${canLeft ? "" : "disabled"}>←</button>
+             <button type="button" class="mvr" title="move to next bar" ${canRight ? "" : "disabled"}>→</button>
            </div>`;
         chip.addEventListener("click", () => {
           if (state.activeView === "chordReview") selectChordReviewEntry({ si, bi, ei });
@@ -347,7 +347,7 @@ function openEditor(si, bi, ei, focus = false) {
     <label for="edName">Chord name</label>
     <input type="text" id="edName" value="${esc(e.chord)}">
     <div id="edBadge"></div>
-    <div id="edErr" class="err"></div>
+    <div id="edErr" class="err" role="alert"></div>
     <div id="edIvals" class="fb-notes"></div>
     <label for="edText">Anchored lyric</label>
     <input type="text" id="edText" value="${esc(e.text || "")}">

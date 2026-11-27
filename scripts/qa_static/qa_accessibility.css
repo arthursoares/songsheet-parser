@@ -1,0 +1,45 @@
+/* Accessible foregrounds retain their contrast on the darkest and selected surfaces. */
+:root {
+  --sel:#222e48; --muted:#a8b1c0; --civ:#b3a6f7; --ok:#4dd062;
+  --warn:#e3b341; --bad:#ff817a; --control-border:#8491a7;
+  --fn-tonic:#4dd062; --fn-secondary:#b3a6f7; --fn-chromatic:#a8b1c0;
+}
+:is(button,a,input,select,textarea,summary,[tabindex]):focus-visible {
+  outline:2px solid var(--accent); outline-offset:2px;
+}
+.section-label .seclabel:focus-visible,.ly-line-edit:focus-visible {
+  outline:2px solid var(--accent); outline-offset:2px;
+}
+body :is(input,select,textarea,button):not(:disabled) { border-color:var(--control-border); }
+.chip .nm,.dexpand {
+  background:transparent; color:inherit; border:0; padding:0; font:inherit;
+  font-weight:600; cursor:pointer; text-align:left;
+}
+.chip .warn,.dhead .warn {
+  display:inline-flex; align-items:center; justify-content:center; width:14px; height:14px;
+  border:1px solid currentColor; border-radius:3px; background:transparent;
+  color:var(--bad); font:bold 12px/1 sans-serif;
+}
+.dsuggest .s { font:inherit; }
+.ly-chord.pct,.ly-chord .pct,.hm-cell.lowconf,.hm-cell.medconf,.hm-cell.held,
+.hm-dim,.chord-review-key,.shape-readonly { opacity:1; }
+.hm-cell.hm-dim { background:var(--bg-deep); border-style:dashed; }
+.scan-review-mark[data-review-status="pending"] { box-shadow:0 0 0 1px #34577a; }
+.scan-review-mark[data-review-status="changed"] { --scan-mark-color:#9a6700; --scan-mark-fill:#d9872438; }
+.scan-review-mark[data-review-status="deferred"] { outline:2px dashed #a05304; outline-offset:1px; box-shadow:none; }
+.scan-review-mark[data-review-status="changed"] { outline:4px double #9a6700; outline-offset:1px; box-shadow:none; }
+.scan-review-mark[data-review-status="reviewed"]::before,
+.scan-review-mark[data-review-status="changed"]::before {
+  position:absolute; top:-8px; right:-8px; background:white; color:var(--scan-mark-color);
+  border:1px solid currentColor; border-radius:2px; padding:0 2px; font:bold 11px/1.1 sans-serif;
+}
+.scan-review-mark[data-review-status="reviewed"]::before { content:"✓"; }
+.scan-review-mark[data-review-status="changed"]::before { content:"!"; }
+.scan-review-mark[data-scan-proposal="true"]::after { border-color:#9a6700; }
+.scan-review-mark:focus-visible { outline:3px solid #172336; outline-offset:5px; z-index:3; }
+.scan-proposal-legend::before { border-color:#9a6700!important; }
+.chord-review-state[data-review-status="changed"],.dprint,.dprint-conflict,
+.shortcut-list .flagged,.song-row .sdiff:not(.ok) { color:var(--warn); }
+@media (prefers-reduced-motion:reduce) {
+  *,*::before,*::after { animation:none!important; transition:none!important; scroll-behavior:auto!important; }
+}

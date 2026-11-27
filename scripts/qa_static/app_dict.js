@@ -27,8 +27,8 @@ function renderDict() {
   const sortBar = document.createElement("div");
   sortBar.className = "dsort";
   sortBar.innerHTML = `sort:
-    <button class="tab ${state.dictSort === "count" ? "active" : ""}" data-sort="count">count</button>
-    <button class="tab ${state.dictSort === "alpha" ? "active" : ""}" data-sort="alpha">A–Z</button>`;
+    <button type="button" class="tab ${state.dictSort === "count" ? "active" : ""}" aria-pressed="${state.dictSort === "count"}" data-sort="count">count</button>
+    <button type="button" class="tab ${state.dictSort === "alpha" ? "active" : ""}" aria-pressed="${state.dictSort === "alpha"}" data-sort="alpha">A–Z</button>`;
   sortBar.querySelectorAll("[data-sort]").forEach((b) =>
     b.addEventListener("click", () => { state.dictSort = b.dataset.sort; renderDict(); }));
   root.appendChild(sortBar);
@@ -37,6 +37,7 @@ function renderDict() {
   filters.className = "dict-filters";
   for (const [value, label] of [["all", "All"], ["mismatch", "Mismatches"], ["print", "Print diffs"], ["duplicates", "Duplicate names"]]) {
     const button = document.createElement("button");
+    button.type = "button";
     button.className = "tab" + ((state.dictFilter || "all") === value ? " active" : "");
     button.textContent = label;
     button.setAttribute("aria-pressed", String((state.dictFilter || "all") === value));
@@ -77,10 +78,10 @@ function renderDict() {
     <button id="dMergeBtn" class="tab btn-sm" type="button">Merge…</button>
     <button id="dClearSel" class="tab btn-sm" type="button">Clear</button>
     <div class="dmergeform" id="dMergeForm" style="display:none">
-      <input type="text" id="dMergeName" placeholder="chord name">
-      <input type="text" id="dMergeVoicing" placeholder="voicing (comma form, blank = none)">
-      <button class="apply" id="dMergeApply">Apply merge</button>
-      <button id="dMergeCancel">Cancel</button>
+      <input type="text" id="dMergeName" aria-label="Merged chord name" placeholder="chord name">
+      <input type="text" id="dMergeVoicing" aria-label="Merged voicing" placeholder="voicing (comma form, blank = none)">
+      <button type="button" class="apply" id="dMergeApply">Apply merge</button>
+      <button type="button" id="dMergeCancel">Cancel</button>
       <span class="err" id="dMergeErr" role="alert"></span>
     </div>`;
   root.appendChild(mergeBar);
@@ -149,12 +150,12 @@ function renderDict() {
   shown.forEach((e) => {
     const row = document.createElement("div");
     row.className = "drow" + (state.dictSel.has(e.key) ? " sel" : "");
-    const mism = e.nameMatchesVoicing === false ? '<span class="warn"></span>' : "";
+    const mism = e.nameMatchesVoicing === false ? '<span class="warn" title="Name does not match voicing" aria-label="Flagged: name does not match voicing">!</span>' : "";
     const ivals = intervalsFor(e.voicing);
     const civals = chordIvalsFor(e.voicing, e.chord);
-    row.innerHTML = `<div class="dhead" tabindex="0" role="button" aria-expanded="${state.dictEdit === e.key}" aria-label="Edit ${esc(e.chord)} group">
-      <input type="checkbox" ${state.dictSel.has(e.key) ? "checked" : ""} data-sel="${esc(e.key)}">
-      <span class="dnm">${esc(e.chord)}</span>${mism}
+    row.innerHTML = `<div class="dhead">
+      <input type="checkbox" aria-label="Select ${esc(e.chord)} ${esc(e.voicing || "no voicing")} group" ${state.dictSel.has(e.key) ? "checked" : ""} data-sel="${esc(e.key)}">
+      <button type="button" class="dexpand dnm" aria-expanded="${state.dictEdit === e.key}" aria-label="Edit ${esc(e.chord)} group">${esc(e.chord)}</button>${mism}
       <span class="dvc">${esc(e.voicing || "—")}</span>
       ${e.voicing ? window.ChordDiagram.svg(e.voicing) : ""}
       <span class="dnt">${esc(notesFor(e.voicing))}</span>
@@ -163,7 +164,7 @@ function renderDict() {
       <span class="dct">${e.count}×</span>
       ${e.printedVariants > 1 ? `<span class="dprint-conflict">⚠ ${e.printedVariants} conflicting prints</span>` : ""}
       ${e.printed && e.printed !== (e.voicing || "")
-        ? `<button class="dprint" title="Apply to ${e.printedCount} printed occurrences; leave ${e.unprintedCount} without printed evidence unchanged">print ${esc(e.printed)} → ${e.printedCount}× · ${e.unprintedCount} unprinted unchanged</button>`
+        ? `<button type="button" class="dprint" title="Apply to ${e.printedCount} printed occurrences; leave ${e.unprintedCount} without printed evidence unchanged">print ${esc(e.printed)} → ${e.printedCount}× · ${e.unprintedCount} unprinted unchanged</button>`
         : ""}
     </div>`;
     const pb = row.querySelector(".dprint");
@@ -187,14 +188,13 @@ function renderDict() {
       renderDict();
     });
     row.querySelector(".dhead").addEventListener("click", () => {
+      const restoreFocus = row.contains(document.activeElement);
       state.dictEdit = state.dictEdit === e.key ? null : e.key;
       renderDict();
-    });
-    row.querySelector(".dhead").addEventListener("keydown", (event) => {
-      if (event.target !== event.currentTarget || !["Enter", " "].includes(event.key)) return;
-      event.preventDefault();
-      state.dictEdit = state.dictEdit === e.key ? null : e.key;
-      renderDict();
+      if (restoreFocus) {
+        const selected = [...$("dict").querySelectorAll("[data-sel]")].find((input) => input.dataset.sel === e.key);
+        selected?.closest(".dhead")?.querySelector(".dexpand")?.focus();
+      }
     });
     const occurrences = document.createElement("details");
     occurrences.className = "dict-occurrences";
@@ -243,13 +243,13 @@ function buildDictEditor(entry) {
   wrap.className = "dedit";
   wrap.addEventListener("click", (e) => e.stopPropagation());
   wrap.innerHTML = `
-    <input type="text" class="dName" value="${esc(entry.chord)}">
+    <input type="text" class="dName" aria-label="Chord group name" value="${esc(entry.chord)}">
     <div class="dFb"></div>
-    <div class="derr err"></div>
+    <div class="derr err" role="alert"></div>
     <div class="dsuggest"></div>
     <div class="dactions">
-      <button class="apply">Apply to ${entry.count}×</button>
-      <button class="cancel">Cancel</button>
+      <button type="button" class="apply">Apply to ${entry.count}×</button>
+      <button type="button" class="cancel">Cancel</button>
     </div>`;
   let curVoicing = entry.voicing
     ? parseVoicing(entry.voicing)
@@ -260,7 +260,7 @@ function buildDictEditor(entry) {
   function refreshSug() {
     const sug = window.ChordNaming.suggestNames(curVoicing);
     wrap.querySelector(".dsuggest").innerHTML =
-      sug.map((s) => `<span class="s" data-n="${esc(s.name)}">${esc(s.name)}</span>`).join("");
+      sug.map((s) => `<button type="button" class="s" data-n="${esc(s.name)}">${esc(s.name)}</button>`).join("");
     wrap.querySelectorAll(".dsuggest .s").forEach((el) =>
       el.addEventListener("click", () => { wrap.querySelector(".dName").value = el.dataset.n; }));
   }
