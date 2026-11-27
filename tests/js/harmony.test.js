@@ -65,6 +65,7 @@ function makeElement(tag = "div", id = "") {
         el.children.push(ln);
       }
     },
+    prepend(child) { child.parentNode = el; el.children.unshift(child); },
     appendChild(child) {
       child.parentNode = el;
       el.children.push(child);
@@ -135,7 +136,7 @@ function createHarmonyHarness(options = {}) {
     "hmRibbonSvg", "hmCursorSvg", "hmScoreWrap", "hmBrackets", "hmScore",
     "hmPanel", "hmTip", "hmPlayBtn", "hmTempo", "hmTempoVal",
     "hmAudioState", "hmExportJson", "hmExportCsv", "hmExportHtml",
-    "hmExportPdf", "hmExportMsg",
+    "hmExportPdf", "hmExportMsg", "hmStopBtn", "hmVolume", "hmMuteBtn", "hmFollow", "harmony", "bars",
   ];
   for (const id of ids) {
     const el = makeElement("div", id);
@@ -360,6 +361,8 @@ function createHarmonyHarness(options = {}) {
     ResizeObserver: options.omitResizeObserver ? undefined : MockResizeObserver,
     fetch: options.fetch || (async () => ({ ok: true, json: async () => ({ events: [], devices: [], summary: {} }) })),
     setTimeout: () => 1,
+    undo() {},
+    redo() {},
     pushUndo() {},
     markDirty() {},
     renderBars() {},
@@ -561,7 +564,8 @@ test("ResizeObserver on #hmScoreWrap debounces via rAF and guards view/analysis"
 
   await h.context.renderHarmony();
   assert.equal(h.resizeObservers.length, 1);
-  assert.deepEqual(h.resizeObservers[0].observed, [h.elements.get("hmScoreWrap")]);
+  assert.equal(h.resizeObservers[0].observed[0], h.elements.get("hmScoreWrap"));
+  assert.equal(h.resizeObservers[0].observed[1].className, "hm-lanes");
 
   // Initial render scheduled 1 rAF; flush it to create brackets at initial cell rects
   const cell0 = vm.runInContext("hmCellEls[0]", h.context);
@@ -641,6 +645,8 @@ test("app.js #keySel change and #spellToggle click call renderHarmony only when 
     nextFlagged() {},
     moveChordReview() {},
     confirmDiscard: () => true,
+    undo() {},
+    redo() {},
     pushUndo() {},
     markDirty() {},
     renderBars() {},
@@ -1103,4 +1109,124 @@ test("hmHeader and hmKeybar format sharp-stored and cadence tonic_name via hmFor
   const sharpBarText = h.elements.get("hmKeybar").children.map((c) => c.textContent).join(" | ");
   assert.match(sharpBarText, /it suggests D# major/);
   assert.match(sharpBarText, /Use D# major instead/);
+});
+
+function interactiveAnalysis() {
+  return {
+    key: { tonic_name: "C", mode: "major", how: "stored" }, summary: { events: 3 },
+    events: [1, 3, 2].map((beats, idx) => ({ idx, section: 0, bar: idx, bar_in_section: idx, pos: 0,
+      beats, symbol: ["Dm7", "G7", "C"][idx], function: ["subdominant", "dominant", "tonic"][idx],
+      confidence: "high", midis: [48 + idx, 55, 60], devices: ["ii-V-I"] })),
+    devices: [{ type: "ii-V-I", event_idxs: [0, 1, 2], target: "C" }],
+  };
+}
+
+test("beat-weighted lanes retain pixel dimensions and click-to-seek keeps the requested event", async () => {
+  const analysis = interactiveAnalysis();
+  const h = createHarmonyHarness({ fetch: async () => ({ ok: true, json: async () => analysis }) });
+  await h.context.renderHarmony();
+  const xs = h.context.hmXs(analysis.events, 644);
+  assert.deepEqual(Array.from(xs), [32, 132, 432]);
+  assert.equal(h.elements.get("hmTensionSvg").getAttribute("viewBox"), "0 0 1000 90");
+  const svg = h.elements.get("hmTensionSvg");
+  const seekXs = h.context.hmXs(analysis.events);
+  svg.onclick({ clientX: seekXs[1] + 5 });
+  assert.equal(vm.runInContext("hmCurIdx", h.context), 1);
+  assert.equal(vm.runInContext("hmSelected", h.context), 1);
+  await h.context.hmPlay();
+  assert.equal(vm.runInContext("hmCurIdx", h.context), 1, "play resumes at the sought event, without advancing");
+  assert.equal(h.audioCreated.oscillators[0].frequency.value, 440 * 2 ** ((49 - 69) / 12));
+  assert.match(h.elements.get("hmAudioState").textContent, /bar 2 \/ 3 · event 2 \/ 3/);
+  h.elements.get("hmStopBtn").click();
+  assert.equal(vm.runInContext("hmCurIdx", h.context), -1);
+  assert.equal(vm.runInContext("hmActiveVoices.length", h.context), 0);
+});
+
+test("manual selection disables panel follow until explicitly enabled, and volume/mute control master gain", async () => {
+  const analysis = interactiveAnalysis();
+  const h = createHarmonyHarness({ fetch: async () => ({ ok: true, json: async () => analysis }) });
+  await h.context.renderHarmony();
+  await h.context.hmPlay();
+  h.context.hmSelect(2);
+  h.setAudioTime(.6); h.flushRaf();
+  assert.equal(vm.runInContext("hmCurIdx", h.context), 1);
+  assert.equal(vm.runInContext("hmSelected", h.context), 2);
+  assert.match(h.elements.get("hmPanel").innerHTML, /hm-bigsym">C</);
+  const follow = h.elements.get("hmFollow"); follow.checked = true; follow.onchange();
+  assert.equal(vm.runInContext("hmSelected", h.context), 1);
+  const volume = h.elements.get("hmVolume"); volume.value = "25"; volume.oninput();
+  assert.equal(h.audioCreated.gains[0].gain.value, .075);
+  h.elements.get("hmMuteBtn").click();
+  assert.equal(h.audioCreated.gains[0].gain.value, 0);
+  h.elements.get("hmMuteBtn").click();
+  assert.equal(h.audioCreated.gains[0].gain.value, .075);
+});
+
+test("wrapped devices render both continuation segments and reserve row-specific bracket space", async () => {
+  const analysis = interactiveAnalysis();
+  const h = createHarmonyHarness({ fetch: async () => ({ ok: true, json: async () => analysis }) });
+  await h.context.renderHarmony();
+  const cells = vm.runInContext("hmCellEls", h.context);
+  cells[0]._rect = { left: 0, right: 60, top: 30 };
+  cells[1]._rect = { left: 70, right: 130, top: 30 };
+  cells[2]._rect = { left: 0, right: 60, top: 120 };
+  h.flushRaf();
+  const brackets = h.elements.get("hmBrackets").children;
+  assert.equal(brackets.length, 2);
+  assert.ok(brackets[0].classList.contains("continued-after"));
+  assert.ok(brackets[1].classList.contains("continued-before"));
+  assert.match(brackets[0].innerHTML, /┈/);
+  assert.equal(cells[0].parentNode.style.marginTop, "30px");
+  assert.equal(cells[2].parentNode.style.marginTop, "30px");
+});
+
+test("Harmony edit return restores selection and scroller only for the same song", async () => {
+  const analysis = interactiveAnalysis();
+  const h = createHarmonyHarness({ fetch: async () => ({ ok: true, json: async () => analysis }) });
+  await h.context.renderHarmony();
+  h.elements.get("harmony").scrollTop = 240;
+  h.context.hmEditChord(analysis.events[2]);
+  h.elements.get("harmony").scrollTop = 0;
+  await h.context.renderHarmony(); h.flushRaf(); h.flushRaf();
+  assert.equal(vm.runInContext("hmSelected", h.context), 2);
+  assert.equal(h.elements.get("harmony").scrollTop, 240);
+  h.context.hmEditChord(analysis.events[1]); h.state.file = "other.json";
+  await h.context.renderHarmony(); h.flushRaf(); h.flushRaf();
+  assert.equal(vm.runInContext("hmSelected", h.context), null);
+});
+
+test("Stop cancels playback pending an asynchronous audio resume", async () => {
+  const analysis = interactiveAnalysis();
+  const h = createHarmonyHarness({ fetch: async () => ({ ok: true, json: async () => analysis }) });
+  await h.context.renderHarmony();
+  const pending = deferred();
+  h.context.hmEnsureAudio = () => pending.promise;
+  const play = h.context.hmPlay();
+  h.context.hmStopPlayback();
+  pending.resolve(); await play;
+  assert.equal(vm.runInContext("hmPlaying", h.context), false);
+  assert.equal(vm.runInContext("hmCurIdx", h.context), -1);
+});
+
+test("lane keyboard navigation seeks and preserves a manually chosen detail panel", async () => {
+  const analysis = interactiveAnalysis();
+  const h = createHarmonyHarness({ fetch: async () => ({ ok: true, json: async () => analysis }) });
+  await h.context.renderHarmony();
+  const svg = h.elements.get("hmBassSvg");
+  let prevented = false;
+  svg.onkeydown({ key: "End", preventDefault() { prevented = true; }, stopPropagation() {} });
+  assert.equal(prevented, true);
+  assert.equal(vm.runInContext("hmSelected", h.context), 2);
+  assert.equal(vm.runInContext("hmCurIdx", h.context), 2);
+  assert.equal(vm.runInContext("hmFollow", h.context), false);
+});
+
+test("playback completion clears the last event highlight", async () => {
+  const analysis = interactiveAnalysis();
+  const h = createHarmonyHarness({ fetch: async () => ({ ok: true, json: async () => analysis }) });
+  await h.context.renderHarmony();
+  await h.context.hmSeek(2, true);
+  h.setAudioTime(2); h.flushRaf();
+  assert.equal(vm.runInContext("hmPlaying", h.context), false);
+  assert.equal(vm.runInContext("hmCellEls[2].classList.contains('cur')", h.context), false);
 });

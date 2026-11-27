@@ -368,6 +368,12 @@ function onKeydown(ev) {
     return;
   }
   if (typing || ev.isComposing || ev.metaKey || ev.ctrlKey || ev.altKey) return;
+  if (state.activeView === "harmony" && ev.key === " " &&
+      !el?.closest?.("button, summary, [role=button]") && typeof hmTogglePlayback === "function") {
+    ev.preventDefault();
+    hmTogglePlayback();
+    return;
+  }
   if (ev.key === "?" || ev.key === "/") {
     ev.preventDefault();
     showShortcutDialog();

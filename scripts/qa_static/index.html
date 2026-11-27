@@ -234,28 +234,32 @@
       <div id="hmHead" class="hm-head"></div>
       <div id="hmKeybar" class="hm-keybar"></div>
       <div class="hm-toolbar">
-        <button id="hmPlayBtn" class="hm-play" title="play the real voicings, beat-accurate">▶</button>
+        <button type="button" id="hmPlayBtn" class="hm-play" title="Play / pause (Space)" aria-label="Play or pause" aria-pressed="false" aria-keyshortcuts="Space">▶</button>
+        <button type="button" id="hmStopBtn" class="tab" title="Stop and return to start" aria-label="Stop">⏹</button>
+        <label class="hm-tempo">Volume <input id="hmVolume" type="range" min="0" max="100" value="50"></label>
+        <button type="button" id="hmMuteBtn" class="tab" aria-pressed="false">Mute</button>
+        <label class="hm-follow"><input id="hmFollow" type="checkbox" checked> Follow playhead</label>
         <div class="hm-tempo">tempo
-          <input type="range" id="hmTempo" min="50" max="200" value="110">
+          <input aria-label="Tempo" type="range" id="hmTempo" min="50" max="200" value="110">
           <span id="hmTempoVal">110</span> bpm
         </div>
         <span id="hmAudioState" class="muted"></span>
         <span class="spacer"></span>
-        <button id="hmExportJson" class="tab" title="analysis of the CURRENT (unsaved) edits">Export JSON</button>
-        <button id="hmExportCsv" class="tab" title="one row per chord event — for spreadsheets">Export CSV</button>
-        <button id="hmExportHtml" class="tab" title="standalone snapshot of this view">Export HTML</button>
-        <button id="hmExportPdf" class="tab">Print / Save PDF</button>
+        <button type="button" id="hmExportJson" class="tab" title="analysis of the CURRENT (unsaved) edits">Export JSON</button>
+        <button type="button" id="hmExportCsv" class="tab" title="one row per chord event — for spreadsheets">Export CSV</button>
+        <button type="button" id="hmExportHtml" class="tab" title="standalone snapshot of this view">Export HTML</button>
+        <button type="button" id="hmExportPdf" class="tab">Print / Save PDF</button>
         <span id="hmExportMsg" class="muted"></span>
       </div>
       <div id="hmLegend"></div>
       <div class="hm-lanes">
         <div class="hm-lane-title">Tension contour (tonic → altered)</div>
-        <svg id="hmTensionSvg" viewBox="0 0 1000 90" preserveAspectRatio="none" height="90"></svg>
+        <svg id="hmTensionSvg" viewBox="0 0 1000 90" height="90"></svg>
         <div class="hm-lane-title">Bass line (chromatic descents read as staircases)</div>
-        <svg id="hmBassSvg" viewBox="0 0 1000 70" preserveAspectRatio="none" height="70"></svg>
+        <svg id="hmBassSvg" viewBox="0 0 1000 70" height="70"></svg>
         <div class="hm-lane-title">Tonicization ribbon (local key region)</div>
-        <svg id="hmRibbonSvg" viewBox="0 0 1000 26" preserveAspectRatio="none" height="26"></svg>
-        <svg id="hmCursorSvg" viewBox="0 0 1000 100" preserveAspectRatio="none"></svg>
+        <svg id="hmRibbonSvg" viewBox="0 0 1000 26" height="26"></svg>
+        <svg id="hmCursorSvg" viewBox="0 0 1000 100"></svg>
       </div>
       <div class="hm-main">
         <div id="hmScoreWrap">
