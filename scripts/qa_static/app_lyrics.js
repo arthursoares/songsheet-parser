@@ -4,6 +4,23 @@ let lyDrag = null;
 let lyPicked = null;
 let lySelection = null;
 let lyFlowObserver = null;
+const lyDrafts = new WeakMap();
+let lyDropTimer = null;
+
+function lyricDrafts() {
+  if (!lyDrafts.has(state.doc)) lyDrafts.set(state.doc, new Map());
+  return lyDrafts.get(state.doc);
+}
+
+function confirmLyricDraftDiscard() {
+  if (!state.doc) return true;
+  const inputs = [...($("lyrics")?.querySelectorAll(".ly-line-edit, .ly-edit") || [])];
+  if (!lyricDrafts().size && !inputs.some((input) => input._hasLyricDraft?.())) return true;
+  if (!confirm("Discard unapplied lyric edits? Invalid marker counts cannot be applied.")) return false;
+  lyricDrafts().clear();
+  inputs.forEach((input) => input._discardDraft?.());
+  return true;
+}
 
 // "grid" is the saved name of the visual mode in existing browser preferences.
 function lyMode() {
@@ -24,6 +41,9 @@ function renderLyrics() {
   const scrollTop = root.scrollTop;
   if (lySelection?.doc !== state.doc) lySelection = null;
   lyDrag = lyPicked = null;
+  root.classList.remove("ly-moving");
+  if (lyDropTimer !== null) clearTimeout(lyDropTimer);
+  lyDropTimer = null;
   root.onkeydown = null;
   root.innerHTML = "";
 
@@ -34,7 +54,10 @@ function renderLyrics() {
     `<button class="tab ${mode === name ? "active" : ""}" aria-pressed="${mode === name}" data-mode="${name}">${label}</button>`
   ).join("");
   bar.querySelectorAll("[data-mode]").forEach((b) =>
-    b.addEventListener("click", () => { localStorage.setItem("qaLyMode", b.dataset.mode); renderLyrics(); }));
+    b.addEventListener("click", () => {
+      if (!confirmLyricDraftDiscard()) return;
+      localStorage.setItem("qaLyMode", b.dataset.mode); renderLyrics();
+    }));
   root.appendChild(bar);
 
   if (mode === "text") renderLyricsText(root);
@@ -77,19 +100,43 @@ function renderLyricsText(root) {
       rowEl.className = "ly-row";
       const chordLine = document.createElement("div");
       chordLine.className = "ly-chordline";
-      chordLine.textContent =
-        "| " + rowBars.map((bar) => bar.map((e) => e.chord).join("  ")).join("  |  ") + " |";
       rowEl.appendChild(chordLine);
 
       const input = document.createElement("input");
       input.className = "ly-line-edit";
       input.value = window.DocOps.buildLyricLine(entries);
+      const key = `${si}:${b0}`;
       input.spellcheck = false;
       let original = input.value;
+      input.value = lyricDrafts().get(key) ?? original;
+      const counter = document.createElement("span");
+      counter.className = "ly-marker-count";
+      counter.setAttribute("aria-live", "polite");
+      rowEl.appendChild(counter);
+      const refresh = () => {
+        const markers = [...input.value.matchAll(/_/g)].map((match) => match.index);
+        counter.textContent = `${markers.length}/${entries.length} _`;
+        counter.className = "ly-marker-count " + (markers.length === entries.length ? "ok" : "bad");
+        chordLine.innerHTML = "";
+        const caret = input.selectionStart ?? 0;
+        const active = Math.max(0, markers.filter((index) => index <= caret).length - 1);
+        entries.forEach((entry, index) => {
+          const chord = document.createElement("span");
+          chord.className = "ly-text-chord" + (index === active ? " active" : "");
+          chord.textContent = entry.chord;
+          chord.style.insetInlineStart = `${markers[index] ?? input.value.length}ch`;
+          chord.style.transform = `translateX(-${input.scrollLeft || 0}px)`;
+          chordLine.appendChild(chord);
+        });
+        if (input.value === original) lyricDrafts().delete(key);
+        else lyricDrafts().set(key, input.value);
+      };
+      for (const event of ["input", "click", "keyup", "focus", "scroll"]) input.addEventListener(event, refresh);
       const errEl = document.createElement("div");
       errEl.className = "ly-line-err";
       const prevRef = prevEntry; // entry preceding this row, frozen at render
       let cancelled = false;
+      let committing = false;
       const parseDraft = () => {
         if (cancelled) return null;
         if (input.value === original) {
@@ -108,10 +155,12 @@ function renderLyricsText(root) {
       };
       const validate = () => parseDraft() !== false;
       const commit = (opts = {}) => {
+        if (committing) return false;
         const parsed = parseDraft();
         if (parsed === false) return false;
         if (parsed === null) return true;
-        if (!opts?.skipChordDraftDiscard && !prepareLyricEdit()) return false;
+        committing = true;
+        if (!opts?.skipChordDraftDiscard && !prepareLyricEdit()) { committing = false; return false; }
         original = input.value;
         pushUndo();
         if (parsed.leading) {
@@ -123,23 +172,42 @@ function renderLyricsText(root) {
           if (frag) e.text = frag; else delete e.text;
         });
         markDirty();
+        // Leading text may have changed the preceding row too. Refresh clean
+        // inputs in place and retain dirty drafts; canonicalizing this row
+        // also prevents its leading text from being appended twice later.
+        root.querySelectorAll(".ly-line-edit").forEach((field) => field._syncLyricInput?.());
         if (opts?.deferRender) {
           opts.onCommit?.();
         } else {
           renderBars();
-          renderLyrics();
         }
+        committing = false;
         return true;
+      };
+      input._hasLyricDraft = () => input.value !== original;
+      input._discardDraft = () => { input.value = original; refresh(); };
+      input._syncLyricInput = () => {
+        const clean = input.value === original;
+        original = window.DocOps.buildLyricLine(entries);
+        if (clean) input.value = original;
+        refresh();
       };
       input._validateOnSave = validate;
       input._commitOnSave = commit;
       input.addEventListener("keydown", (ev) => {
-        if (ev.key === "Enter") { ev.preventDefault(); commit(); }
-        else if (ev.key === "Escape") { cancelled = true; input.value = original; errEl.textContent = ""; input.blur(); cancelled = false; }
+        if (ev.key === "Enter") {
+          ev.preventDefault();
+          if (commit()) {
+            const rows = [...root.querySelectorAll(".ly-line-edit")];
+            (rows[rows.indexOf(input) + 1] || input).focus();
+          }
+        }
+        else if (ev.key === "Escape") { cancelled = true; input.value = original; errEl.textContent = ""; refresh(); input.blur(); cancelled = false; }
       });
       input.addEventListener("blur", commit);
       rowEl.appendChild(input);
       rowEl.appendChild(errEl);
+      refresh();
       secEl.appendChild(rowEl);
       prevEntry = entries[entries.length - 1];
     }
@@ -155,6 +223,13 @@ function lyArrangeStatus(message) {
   if (status && status.textContent !== message) status.textContent = message;
 }
 
+function cancelLyricMove() {
+  if (lyDropTimer !== null) clearTimeout(lyDropTimer);
+  lyDropTimer = null;
+  if (lyPicked) selectLyricChord(lyPicked.coords);
+  lyArrangeStatus("Move cancelled.");
+}
+
 function selectLyricChord(coords, { pick = false, focus = false } = {}) {
   if (!state.doc) return;
   const entry = song().sections[coords.si]?.bars[coords.bi]?.[coords.ei];
@@ -162,14 +237,18 @@ function selectLyricChord(coords, { pick = false, focus = false } = {}) {
   const root = $("lyrics");
   const previous = root.querySelector(".ly-chord.selected");
   if (previous) {
-    previous.classList.remove("selected");
+    previous.classList.remove("selected", "armed");
     previous.setAttribute("aria-pressed", "false");
   }
   lySelection = { doc: state.doc, coords };
   lyPicked = pick ? lySelection : null;
+  root.classList.toggle("ly-moving", pick);
+  const cancel = $("lyMoveCancel");
+  if (cancel) cancel.hidden = !pick;
   const token = root.querySelector(`[data-ly-chord="${lyChordKey(coords)}"]`);
   if (token) {
     token.classList.add("selected");
+    token.classList.toggle("armed", pick);
     token.setAttribute("aria-pressed", String(pick));
     if (focus) {
       token.focus({ preventScroll: true });
@@ -179,8 +258,8 @@ function selectLyricChord(coords, { pick = false, focus = false } = {}) {
   syncScanSelection(coords, true);
   if (pick) {
     const destination = lyMode() === "flow" ? "lyric" : "lyric or bar start";
-    lyArrangeStatus(`Moving ${entry.chord}. Choose its new ${destination}.`);
-  }
+    lyArrangeStatus(`Moving ${entry.chord} — click destination ${destination} or Esc`);
+  } else lyArrangeStatus("");
 }
 
 function prepareLyricEdit() {
@@ -227,8 +306,16 @@ function wireLyricDrop(element, target, clickTarget = element) {
     element.classList.remove("drop-ok", "drop-blocked");
     lyAnchorMove(lyDrag, target);
   });
-  clickTarget.addEventListener("click", () => {
-    if (lyPicked) lyAnchorMove(lyPicked, target);
+  clickTarget.addEventListener("click", (event) => {
+    if (!lyPicked) return;
+    if (lyDropTimer !== null) clearTimeout(lyDropTimer);
+    // Give a double-click its normal text-edit meaning before mutating anchors.
+    if (event.detail > 1) return;
+    const picked = lyPicked;
+    lyDropTimer = setTimeout(() => {
+      lyDropTimer = null;
+      if (lyPicked === picked) lyAnchorMove(picked, target);
+    }, 500);
   });
 }
 
@@ -241,13 +328,24 @@ function addLyricControls(root, message) {
   status.id = "lyArrangeStatus";
   status.className = "ly-arrange-message";
   status.setAttribute("role", "status");
-  root.appendChild(status);
+  const banner = document.createElement("div");
+  banner.className = "ly-move-banner";
+  banner.appendChild(status);
+  const cancel = document.createElement("button");
+  cancel.id = "lyMoveCancel";
+  cancel.type = "button";
+  cancel.textContent = "Cancel";
+  cancel.hidden = true;
+  cancel.addEventListener("click", cancelLyricMove);
+  banner.appendChild(cancel);
+  root.appendChild(banner);
   root.onkeydown = (ev) => {
     if (ev.key !== "Escape" || !lyPicked) return;
     ev.preventDefault();
     ev.stopPropagation();
-    selectLyricChord(lyPicked.coords, { focus: true });
-    lyArrangeStatus("Move cancelled.");
+    const coords = lyPicked.coords;
+    cancelLyricMove();
+    root.querySelector(`[data-ly-chord="${lyChordKey(coords)}"]`)?.focus();
   };
 }
 
@@ -256,6 +354,7 @@ function restoreLyricSelection(root) {
   const token = root.querySelector(`[data-ly-chord="${lyChordKey(lySelection.coords)}"]`);
   if (token) {
     token.classList.add("selected");
+    token.classList.toggle("armed", Boolean(lyPicked));
     token.setAttribute("aria-pressed", String(Boolean(lyPicked)));
     syncScanSelection(lySelection.coords);
   }
@@ -314,6 +413,16 @@ function flowChord(group, anchor) {
   const token = makeLyChord({ ...group.barCoords[anchor.bi], ei: anchor.ei }, entry);
   if (!anchor.hasLyric) {
     token.title = entry.voicing ? `${entry.voicing} · No lyric anchor` : "No lyric anchor";
+    token.addEventListener("dblclick", () => {
+      cancelLyricMove();
+      editLyricToken(token.parentElement || token.parentNode, token, entry, "", 0);
+    });
+    token.addEventListener("keydown", (event) => {
+      if (event.key !== "F2") return;
+      event.preventDefault();
+      cancelLyricMove();
+      editLyricToken(token.parentElement || token.parentNode, token, entry, "", 0);
+    });
   }
   return token;
 }
@@ -337,6 +446,8 @@ function renderFlowSystem(section, group, row, layout) {
     text.textContent = span.text;
     const entry = group.bars[span.bi][span.ei];
     const raw = window.DocOps.lySyllables(entry.text)[span.k];
+    text.dataset.lyText = `${lyChordKey({ ...group.barCoords[span.bi], ei: span.ei })}:${span.k}`;
+    if (span.syllable === 0) text.classList.add("ly-flow-bar-start");
     wireLyricEdit(lyric, text, entry, raw, span.k);
     wireLyricDrop(text, { ...group.barCoords[span.bi], syllable: span.syllable });
     lyric.appendChild(text);
@@ -392,6 +503,7 @@ function renderFlowSystem(section, group, row, layout) {
     element.style.setProperty("--ly-lane", lane);
   }
   system.style.setProperty("--ly-lanes", ends.length);
+  system.style.minWidth = `${Math.max(layout.measure(row.text), ...ends, 0) + layout.unit}${layout.cssUnit}`;
 }
 
 function renderLyricsFlow(root) {
@@ -503,7 +615,10 @@ function makeLyChord(coords, entry) {
   token.draggable = true;
   token.dataset.lyChord = lyChordKey(coords);
   token.setAttribute("aria-pressed", "false");
-  token.addEventListener("click", () => selectLyricChord(coords, { pick: true }));
+  token.addEventListener("click", () => {
+    if (lyPicked && lyChordKey(lyPicked.coords) === lyChordKey(coords)) cancelLyricMove();
+    else selectLyricChord(coords, { pick: true });
+  });
   token.addEventListener("dragstart", (ev) => {
     selectLyricChord(coords);
     lyDrag = lySelection;
@@ -538,11 +653,9 @@ function makeLySyllable(coords, entry, word, wordIndex, syllable) {
   text.type = "button";
   text.className = word ? "ly-text" : "ly-text ly-inst";
   text.textContent = word || "—";
-  if (word) {
-    wireLyricEdit(column, text, entry, word, wordIndex);
-  } else {
-    text.setAttribute("aria-label", "Place chord at this position without lyrics");
-  }
+  text.dataset.lyText = `${lyChordKey(coords)}:${wordIndex}`;
+  wireLyricEdit(column, text, entry, word, wordIndex);
+  if (!word) text.setAttribute("aria-label", "Add lyrics or place chord at this position");
   column.appendChild(text);
   wireLyricDrop(column, { si: coords.si, bi: coords.bi, syllable }, text);
   return column;
@@ -551,17 +664,15 @@ function makeLySyllable(coords, entry, word, wordIndex, syllable) {
 function wireLyricEdit(container, text, entry, word, wordIndex) {
   text.title = "Double-click or press F2 to edit";
   text.setAttribute("aria-keyshortcuts", "F2");
-  const edit = () => editLyricToken(container, text, entry, word, wordIndex);
+  const edit = () => {
+    cancelLyricMove();
+    editLyricToken(container, text, entry, word, wordIndex);
+  };
   text.addEventListener("dblclick", edit);
   text.addEventListener("keydown", (ev) => {
     if (ev.key !== "F2") return;
     ev.preventDefault();
     ev.stopPropagation();
-    if (lyPicked) {
-      lyPicked = null;
-      restoreLyricSelection($("lyrics"));
-      lyArrangeStatus("");
-    }
     edit();
   });
 }
@@ -577,11 +688,21 @@ function editLyricToken(column, text, entry, word, wordIndex) {
   input.focus();
   input.select();
   let done = false;
+  let committing = false;
+  const restoreFocus = () => {
+    const targets = $("lyrics").querySelectorAll(".ly-text, .ly-flow-fragment, .ly-chord");
+    [...targets].find((target) => text.dataset.lyText
+      ? target.dataset.lyText === text.dataset.lyText
+      : target.dataset.lyChord === text.dataset.lyChord)?.focus({ preventScroll: true });
+  };
   const commit = (opts = {}) => {
     if (done) return true;
-    const next = window.DocOps.replaceTextToken(entry.text, wordIndex, input.value);
+    if (committing) return false;
+    const next = !entry.text && wordIndex === 0 ? input.value.trim().replace(/\s+/g, " ")
+      : window.DocOps.replaceTextToken(entry.text, wordIndex, input.value);
     if (next !== null && next !== entry.text) {
-      if (!opts?.skipChordDraftDiscard && !prepareLyricEdit()) return false;
+      committing = true;
+      if (!opts?.skipChordDraftDiscard && !prepareLyricEdit()) { committing = false; return false; }
       done = true;
       pushUndo();
       if (next) entry.text = next; else delete entry.text;
@@ -591,6 +712,7 @@ function editLyricToken(column, text, entry, word, wordIndex) {
       } else {
         renderBars();
         renderLyrics();
+        restoreFocus();
       }
     } else {
       done = true;
@@ -598,17 +720,21 @@ function editLyricToken(column, text, entry, word, wordIndex) {
         opts.onCommit?.();
       } else {
         renderLyrics();
+        restoreFocus();
       }
     }
     return true;
   };
   input._commitOnSave = commit;
+  input._hasLyricDraft = () => !done && input.value !== word;
+  input._discardDraft = () => { input.value = word; };
   input.addEventListener("keydown", (ev) => {
     if (ev.key === "Enter") { ev.preventDefault(); commit(); }
     else if (ev.key === "Escape") {
       ev.stopPropagation();
       done = true;
       renderLyrics();
+      restoreFocus();
     }
   });
   input.addEventListener("blur", commit);

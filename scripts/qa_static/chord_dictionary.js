@@ -22,11 +22,15 @@
       const key = entryKey(e.chord, e.voicing);
       if (!map.has(key)) {
         map.set(key, { key, chord: e.chord, voicing: e.voicing || null, occurrences: [],
-                       _printed: new Set() });
+                       _printed: new Set(), printedCount: 0, printDiffCount: 0 });
       }
       const g = map.get(key);
       g.occurrences.push({ si, bi, ei });
-      if (e.voicing_printed) g._printed.add(e.voicing_printed);
+      if (e.voicing_printed) {
+        g._printed.add(e.voicing_printed);
+        g.printedCount++;
+        if (e.voicing_printed !== (e.voicing || "")) g.printDiffCount++;
+      }
     });
 
     const CN = (typeof window !== "undefined") && window.ChordNaming;
@@ -39,6 +43,8 @@
         count: g.occurrences.length,
         // the page's reading, when every occurrence in the group prints the same
         printed: _printed.size === 1 ? [..._printed][0] : null,
+        printedVariants: _printed.size,
+        unprintedCount: g.occurrences.length - g.printedCount,
         notes: (CN && parsed) ? CN.pcNotes(parsed) : [],
         suggestions: (CN && parsed) ? CN.suggestNames(parsed).slice(0, 4) : [],
         nameMatchesVoicing: (CN && parsed) ? CN.nameMatchesVoicing(g.chord, parsed) : null,
@@ -64,6 +70,19 @@
       n++;
     });
     return n;
+  }
+
+  // Restore only occurrences with their own printed evidence; never infer it
+  // for unaudited occurrences sharing the same editorial name and voicing.
+  function applyPrinted(song, key) {
+    let count = 0;
+    eachOccurrence(song, (entry) => {
+      if (entryKey(entry.chord, entry.voicing) !== key || !entry.voicing_printed ||
+          entry.voicing === entry.voicing_printed) return;
+      entry.voicing = entry.voicing_printed;
+      count++;
+    });
+    return count;
   }
 
   // Validate a comma-separated 6-string voicing string ("x" or fret 0-24).
@@ -117,7 +136,7 @@
     return n;
   }
 
-  const api = { buildDictionary, entryKey, eachOccurrence, applyEdit, mergeEntries, validateVoicing };
+  const api = { buildDictionary, entryKey, eachOccurrence, applyEdit, applyPrinted, mergeEntries, validateVoicing };
   if (typeof window !== "undefined") window.ChordDictionary = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

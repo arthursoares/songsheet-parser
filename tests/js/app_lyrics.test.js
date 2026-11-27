@@ -7,12 +7,14 @@ const DocOps = require("../../scripts/qa_static/doc_ops.js");
 
 const source = readFileSync(join(__dirname, "../../scripts/qa_static/app_lyrics.js"), "utf8");
 
-function arrange(bars, { mode = "grid", sections, flowWidth = 0, measureText = null } = {}) {
+function arrange(bars, { mode = "grid", sections, flowWidth = 0, measureText = null, discard = true } = {}) {
   let focused;
   let scan;
   let undo = 0;
   let redraw = 0;
   let resize;
+  let timer;
+  let confirmations = 0;
   const book = { sections: sections || [{ bars }] };
   const state = { doc: { songs: [book] }, sel: null };
 
@@ -47,6 +49,8 @@ function arrange(bars, { mode = "grid", sections, flowWidth = 0, measureText = n
         return prevented;
       },
       focus() { focused = this; },
+      blur() { this.fire("blur"); },
+      get parentElement() { return this.parent; },
       select() {},
       get clientWidth() { return flowWidth; },
       getBoundingClientRect() {
@@ -93,7 +97,10 @@ function arrange(bars, { mode = "grid", sections, flowWidth = 0, measureText = n
       observe() {}
       disconnect() { resize = null; }
     },
-    localStorage: { getItem: () => mode },
+    localStorage: { getItem: () => mode, setItem: (_, value) => { mode = value; } },
+    confirm: () => { confirmations++; return discard; },
+    setTimeout: (callback) => { timer = callback; return 1; },
+    clearTimeout: () => { timer = null; },
     pushUndo: () => { undo += 1; }, markDirty: () => { state.dirty = true; },
     renderBars: () => { redraw += 1; }, confirmChordDraftDiscard: () => true,
     syncScanSelection: (coords) => { scan = coords; },
@@ -111,6 +118,10 @@ function arrange(bars, { mode = "grid", sections, flowWidth = 0, measureText = n
     status: () => all(root).find((node) => node.id === "lyArrangeStatus").textContent,
     undo: () => undo, redraw: () => redraw, focused: () => focused, scan: () => scan,
     resizeFlow: (width) => { flowWidth = width; resize(); },
+    flushClick: () => { const pending = timer; timer = null; pending?.(); },
+    confirmDiscard: () => context.confirmLyricDraftDiscard(),
+    confirmations: () => confirmations,
+    render: () => context.renderLyrics(),
   };
 }
 
@@ -143,6 +154,7 @@ test("click-to-place explains a move that would strand lyrics, with no mutation"
   const app = arrange(bars);
   app.chord("0:0:0").fire("click");
   app.word("then").fire("click");
+  app.flushClick();
   assert.match(app.status(), /orphan lyrics/i);
   assert.deepEqual(app.book.sections[0].bars, bars);
   assert.equal(app.undo(), 0);
@@ -199,6 +211,7 @@ test("Flow can move a chord across bars while the full lyric text stays in order
   assert.equal(app.flowText(), "a b c e f");
   app.chord("0:0:1").fire("click");
   app.word("f").fire("click");
+  app.flushClick();
   assert.equal(app.flowText(), "a b c e f");
   assert.deepEqual({ ...app.book.sections[0].bars[1][1] }, { ...moved, text: "f" });
   assert.equal(app.chord("0:1:1").parent.style.insetInlineStart, "8ch");
@@ -226,4 +239,91 @@ test("Flow places a chord at the rendered syllable even after a wide glyph", () 
     { mode: "flow", flowWidth: 300, measureText: width });
   assert.equal(app.flowText(), "😀 oi");
   assert.equal(app.chord("0:0:1").parent.style.insetInlineStart, "30px");
+});
+
+test("clicking an armed chord again disarms it, and double-click edits without moving", () => {
+  for (const mode of ["grid", "flow"]) {
+    const app = arrange([[{ chord: "C", text: "a" }, { chord: "G", text: "b c" }]], { mode });
+    const chord = app.chord("0:0:1");
+    chord.fire("click");
+    assert.equal(chord.classList.contains("armed"), true);
+    assert.equal(app.root.classList.contains("ly-moving"), true);
+    assert.match(app.status(), /Moving G.*Esc/);
+    chord.fire("click");
+    assert.equal(chord.classList.contains("armed"), false);
+    assert.equal(app.root.classList.contains("ly-moving"), false);
+    chord.fire("click");
+    const target = app.word("c");
+    target.fire("click", { detail: 1 });
+    target.fire("click", { detail: 2 });
+    target.fire("dblclick");
+    app.flushClick();
+    assert.equal(app.undo(), 0);
+    assert.ok(app.root.querySelector(".ly-edit"));
+    assert.equal(app.book.sections[0].bars[0][1].text, "b c");
+  }
+});
+
+test("textless lyric entries can be edited with F2 and restore focus after commit", () => {
+  const app = arrange([[{ chord: "C" }]]);
+  app.word("—").fire("keydown", { key: "F2" });
+  const input = app.root.querySelector(".ly-edit");
+  input.value = "hello";
+  input.fire("keydown", { key: "Enter" });
+  input.fire("blur");
+  assert.equal(app.book.sections[0].bars[0][0].text, "hello");
+  assert.equal(app.undo(), 1);
+  assert.equal(app.focused(), app.word("hello"));
+});
+
+test("Text mode counts and aligns markers, retains invalid neighbors, and Enter advances focus", () => {
+  const bars = Array.from({ length: 9 }, (_, index) => [{ chord: "C", text: `word${index}` }]);
+  const app = arrange(bars, { mode: "text", discard: false });
+  const rows = app.root.querySelectorAll(".ly-line-edit");
+  rows[0].value = "broken";
+  rows[0].fire("input");
+  assert.equal(app.root.querySelectorAll(".ly-marker-count")[0].textContent, "0/4 _");
+  rows[1].value = "_new _line _of _lyrics";
+  rows[1].selectionStart = 6;
+  rows[1].fire("input");
+  const chords = app.root.querySelectorAll(".ly-chordline")[1].children;
+  assert.equal(chords[1].style.insetInlineStart, "5ch");
+  assert.equal(chords[1].classList.contains("active"), true);
+  rows[1].fire("keydown", { key: "Enter" });
+  rows[1].fire("blur");
+  assert.equal(app.focused(), rows[2]);
+  assert.equal(app.undo(), 1);
+  assert.equal(bars[4][0].text, "new");
+  assert.equal(rows[0].value, "broken");
+  app.render();
+  assert.equal(app.root.querySelectorAll(".ly-line-edit")[0].value, "broken");
+  assert.equal(app.confirmDiscard(), false);
+  assert.equal(app.confirmations(), 1);
+});
+
+test("confirmed draft discard clears persisted invalid rows", () => {
+  const app = arrange([[{ chord: "C", text: "word" }]], { mode: "text" });
+  const input = app.root.querySelector(".ly-line-edit");
+  input.value = "invalid";
+  input.fire("input");
+  assert.equal(app.confirmDiscard(), true);
+  app.render();
+  assert.equal(app.root.querySelector(".ly-line-edit").value, "_word");
+});
+
+test("Text commits update preceding clean rows and do not append leading text twice", () => {
+  const bars = Array.from({ length: 5 }, () => [{ chord: "C", text: "word" }]);
+  const app = arrange(bars, { mode: "text" });
+  const rows = app.root.querySelectorAll(".ly-line-edit");
+  rows[1].value = "leading _last";
+  rows[1].fire("input");
+  rows[1].fire("keydown", { key: "Enter" });
+  assert.equal(bars[3][0].text, "word leading");
+  assert.match(rows[0].value, /_word leading$/);
+  assert.equal(rows[1].value, "_last");
+  rows[1].value = "_ending";
+  rows[1].fire("input");
+  rows[1].fire("keydown", { key: "Enter" });
+  assert.equal(bars[3][0].text, "word leading");
+  assert.equal(bars[4][0].text, "ending");
 });
