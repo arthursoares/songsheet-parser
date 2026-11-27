@@ -151,6 +151,7 @@ function showEmpty() {
   renderProvenance();
   syncCurrentSongTitle();
   renderSongList();
+  if (typeof resetReviewInputs === "function") resetReviewInputs();
   showView("bars");
   if (typeof updateChordReviewEntryPoint === "function") updateChordReviewEntryPoint();
 }
@@ -176,6 +177,7 @@ function clearSongForLoad(message, view = "bars") {
   renderProvenance();
   syncCurrentSongTitle();
   renderSongList();
+  if (typeof resetReviewInputs === "function") resetReviewInputs();
   showView(view);
 }
 
@@ -228,6 +230,7 @@ async function loadSong({ view = "bars" } = {}) {
   renderPages();
   renderBars();
   renderSongList();
+  if (typeof resetReviewInputs === "function") resetReviewInputs();
   showView(view);
   $("editor").classList.remove("open");
   if (typeof updateChordReviewEntryPoint === "function") updateChordReviewEntryPoint();

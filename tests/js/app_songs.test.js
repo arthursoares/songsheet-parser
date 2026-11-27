@@ -289,6 +289,122 @@ test("completion of a save leaves a new empty state clean", async () => {
   for (const name of ["state", "albums", "$", "api"]) delete global[name];
 });
 
+test("loadSong and showEmpty call resetReviewInputs around clearing and loading songs", async () => {
+  const { elements } = installLoadHarness();
+  const observedDocs = [];
+  global.resetReviewInputs = () => { observedDocs.push(global.state.doc); };
+  const loadedDoc = { document: { status: "pending" }, songs: [{ title: "First" }] };
+  try {
+    global.api = async () => loadedDoc;
+    await SongsUI.loadSong();
+    assert.equal(observedDocs.length, 2);
+    assert.equal(observedDocs[0], null);
+    assert.equal(observedDocs[1], loadedDoc);
+
+    observedDocs.length = 0;
+    global.api = async () => { throw new Error("offline"); };
+    await SongsUI.loadSong();
+    assert.deepEqual(observedDocs, [null, null]);
+
+    observedDocs.length = 0;
+    elements.songSel.value = "";
+    await SongsUI.loadSong();
+    assert.deepEqual(observedDocs, [null]);
+  } finally {
+    delete global.resetReviewInputs;
+    removeLoadHarness();
+  }
+});
+
+test("SongsUI.loadSong integrated with ReviewUI clears stale review evidence and loading table across switches", async () => {
+  const ReviewUI = require("../../scripts/qa_static/app_review.js");
+  const { elements } = installLoadHarness();
+  elements.reviewField = { value: "chords", disabled: false };
+  elements.reviewStatus = { value: "pending", disabled: false };
+  elements.reviewReviewer = { value: "AS", disabled: false };
+  elements.reviewEvidence = { value: "", disabled: false };
+  elements.reviewRecord = { disabled: false };
+  elements.reviewMsg = { textContent: "" };
+  elements.reviewStatusBody = { innerHTML: "" };
+  elements.verificationChordProgress = { textContent: "" };
+  elements.reviewSourceIssues = { innerHTML: "", classList: { toggle() {}, add() {} } };
+  elements.reviewFlags = { innerHTML: "" };
+
+  const songA = {
+    document: { status: "in_progress" },
+    songs: [{ title: "First", sections: [] }],
+    _meta: {
+      review: {
+        version: 1,
+        fields: {
+          chords: { status: "verified", reviewer: "AS", evidence: "Song A chords ok" },
+        },
+      },
+    },
+  };
+  const songB = {
+    document: { status: "pending" },
+    songs: [{ title: "Second", sections: [] }],
+  };
+  const pendingSecond = deferred();
+  const reviewRequests = [];
+  global.resetReviewInputs = () => ReviewUI.resetForDocument();
+  global.showView = (view) => {
+    global.state.activeView = view;
+    if (view === "review") ReviewUI.render();
+  };
+  global.api = async (path, options) => {
+    if (path.endsWith("/first.json")) return songA;
+    if (path.endsWith("/second.json")) return pendingSecond.promise;
+    if (path === "/api/review-doc") {
+      const payload = JSON.parse(options.body);
+      reviewRequests.push(payload.doc);
+      return {
+        ok: true,
+        review: {
+          fields: {
+            chords: payload.doc?.songs?.[0]?.title === "First"
+              ? { status: "verified", reviewer: "AS", evidence: "Song A chords ok" }
+              : { status: "pending", reviewer: "", evidence: "" },
+          },
+        },
+      };
+    }
+    throw new Error(`Unexpected path: ${path}`);
+  };
+  try {
+    elements.songSel.value = "first.json";
+    await SongsUI.loadSong({ view: "review" });
+    await new Promise((done) => setImmediate(done));
+    assert.equal(elements.reviewEvidence.value, "Song A chords ok");
+    assert.equal(elements.reviewStatus.value, "verified");
+    assert.match(elements.reviewStatusBody.innerHTML, /Song A chords ok/);
+
+    // User types an unrecorded draft on Song A, then switches to Song B while fetch is pending.
+    elements.reviewEvidence.value = "unsaved draft on A";
+    elements.songSel.value = "second.json";
+    const loadingSecond = SongsUI.loadSong({ view: "review" });
+    assert.equal(global.state.doc, null);
+    assert.equal(elements.reviewEvidence.value, "");
+    assert.equal(elements.reviewStatus.value, "pending");
+    assert.equal(elements.reviewStatusBody.innerHTML, "");
+    assert.equal(elements.reviewRecord.disabled, true);
+    assert.equal(reviewRequests.some((doc) => doc === null), false);
+
+    pendingSecond.resolve(songB);
+    await loadingSecond;
+    await new Promise((done) => setImmediate(done));
+    assert.equal(global.state.doc, songB);
+    assert.equal(elements.reviewEvidence.value, "");
+    assert.equal(elements.reviewStatus.value, "pending");
+    assert.equal(elements.reviewRecord.disabled, false);
+    assert.doesNotMatch(elements.reviewStatusBody.innerHTML, /Song A chords ok/);
+  } finally {
+    delete global.resetReviewInputs;
+    removeLoadHarness();
+  }
+});
+
 test("save flushes active blur-committed inputs before serializing state.doc and skips .fb-text", async () => {
   const doc = {
     document: { title: "Album", status: "in_progress" },

@@ -52,6 +52,7 @@ async function init() {
     markDirty();
     window.ChordNaming.setKeyTonic(songKey());
     renderBars();
+    if (state.activeView === "review" && typeof renderReview === "function") renderReview();
     if (state.activeView === "dict") renderDict();
     if (state.activeView === "harmony" && typeof renderHarmony === "function") renderHarmony();
     if (state.activeView === "preview") renderPreview();
@@ -82,7 +83,12 @@ async function init() {
   $("jsonApply").addEventListener("click", jsonApply);
   $("jsonReload").addEventListener("click", jsonReload);
   $("jsonFormat").addEventListener("click", jsonFormat);
-  $("reviewRecord").addEventListener("click", ReviewUI.recordSelected);
+  if (typeof ReviewUI === "object" && ReviewUI) {
+    $("reviewRecord")?.addEventListener("click", ReviewUI.recordSelected);
+    $("reviewField")?.addEventListener("change", () => {
+      if (typeof ReviewUI.syncInputs === "function") ReviewUI.syncInputs();
+    });
+  }
   $("cmCopy").addEventListener("click", copyChordmark);
   ["pvStyle", "pvDict", "pvDiagrams", "pvBars"].forEach((id) =>
     $(id).addEventListener("change", () => {
