@@ -4,7 +4,6 @@ header.shapes-mode > :not(.qa-workspaces,.spacer,#saveStatus,#saveBtn,#kbdHint){
 .layout.shapes-mode > :not(#shapes){display:none}
 #shapes{padding:20px clamp(14px,4vw,42px);min-height:0}
 #edFindShapes{margin-top:8px}
-#shapeFretboard .fb-notes+.fb-notes{display:none}
 .shapes-workspace{max-width:1560px;margin:auto}
 .shapes-workspace .shapes-head{
   position:static;display:flex;justify-content:space-between;align-items:flex-end;
@@ -120,7 +119,7 @@ header.shapes-mode > :not(.qa-workspaces,.spacer,#saveStatus,#saveBtn,#kbdHint){
 .shape-selection b{color:var(--text)}
 .shape-select-actions,.shape-write-actions{display:flex;gap:6px;flex-wrap:wrap}
 .shape-write-actions{position:sticky;bottom:-12px;z-index:1;background:var(--panel);padding:8px 0 2px;margin-top:12px;border-top:1px solid var(--border)}
-.shapes-workspace button:not(.btn-primary,.shape-result-open){
+.shapes-workspace button:not(.btn-primary,.shape-result-open,.fb-cell,.fb-mark){
   border:1px solid var(--border-2);background:var(--field);color:var(--text);
   border-radius:5px;padding:4px 7px;cursor:pointer;font-size:12px
 }

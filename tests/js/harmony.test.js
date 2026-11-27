@@ -376,6 +376,7 @@ function createHarmonyHarness(options = {}) {
     Promise,
   });
 
+  vm.runInContext(readFileSync(join(__dirname, "../../scripts/qa_static/voicing_audio.js"), "utf8"), context, { filename: "voicing_audio.js" });
   vm.runInContext(HARMONY_SOURCE, context, { filename: "harmony.js" });
 
   return {
