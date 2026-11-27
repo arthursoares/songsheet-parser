@@ -598,3 +598,30 @@ test("loadSong records savedSnapshot and saveOnce updates savedSnapshot even wit
   assert.equal(global.state.dirty, true);
   removeLoadHarness();
 });
+
+test("save marks shapesUI unloaded and stale on success, and keeps it loaded on failure", async () => {
+  const doc = {
+    document: { title: "Album", status: "done" },
+    songs: [{ sections: [{ bars: [[{ chord: "C" }]] }] }],
+  };
+  const elements = {
+    saveBtn: { disabled: false },
+    saveStatus: { textContent: "", style: {} },
+  };
+  global.state = { doc, album: "album", file: "song.json", dirty: true, activeView: "bars" };
+  global.albums = [];
+  global.$ = (id) => elements[id];
+  global.shapesUI = { loaded: true, stale: false };
+
+  global.api = async () => ({ ok: false, error: "conflict" });
+  await SongsUI.save();
+  assert.equal(global.shapesUI.loaded, true);
+  assert.equal(global.shapesUI.stale, false);
+
+  global.api = async () => ({ ok: true, revision: "rev-2" });
+  await SongsUI.save();
+  assert.equal(global.shapesUI.loaded, false);
+  assert.equal(global.shapesUI.stale, true);
+
+  for (const name of ["state", "albums", "$", "api", "shapesUI"]) delete global[name];
+});
